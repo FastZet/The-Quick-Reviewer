@@ -34,9 +34,9 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '19.0.0', // The "I'm Feeling Lucky" Version
+    version: '20.0.0', // The Final In-App Version
     name: 'The Quick Reviewer (TQR)',
-    description: 'Provides a clickable link to an AI-generated review that opens in your browser.',
+    description: 'Provides AI-generated reviews directly inside Stremio. Find the review in the streams list.',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -45,7 +45,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (The "I'm Feeling Lucky" Fix) ---
+// --- STREAM HANDLER (The Definitive In-App Display Fix) ---
 builder.defineStreamHandler(async ({ type, id }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     
@@ -67,18 +67,15 @@ builder.defineStreamHandler(async ({ type, id }) => {
     }
 
     // --- THIS IS THE DEFINITIVE FIX ---
-    // 1. Define the real URL for our review page.
-    const realReviewUrl = `${ADDON_URL}/review/${id}`;
-    
-    // 2. Create an "I'm Feeling Lucky" Google search URL. This forces a redirect to the first result.
-    const feelingLuckyUrl = `https://www.google.com/search?q=${encodeURIComponent(realReviewUrl)}&btnI=I'm+Feeling+Lucky`;
-
-    // 3. Return the simple stream object that we know appears correctly.
+    // Create an informational stream object. It has no URL to click.
+    // The full review is placed in the description.
+    // Dummy infoHash and fileIdx ensure Stremio treats it as a valid, displayable item.
     const reviewStream = {
         name: "The Quick Reviewer",
-        title: "⭐️ Click to Read AI Review",
-        description: "This link uses the Google 'I'm Feeling Lucky' feature to open the review in your browser.",
-        url: feelingLuckyUrl
+        title: "⭐️ AI Review (Read Details)",
+        description: reviewText,
+        infoHash: id.replace(':', '').padStart(40, '0').substring(0, 40), // Create a dummy, unique hash
+        fileIdx: 0
     };
 
     return Promise.resolve({ streams: [reviewStream] });
@@ -101,7 +98,7 @@ async function generateAiReviewText(type, id, apiKeys) {
         itemDetails.plot = omdbResponse.data.Plot || 'N/A'; itemDetails.actors = omdbResponse.data.Actors || 'N/A'; itemDetails.criticRatings = omdbResponse.data.Ratings?.map(r => `${r.Source}: ${r.Value}`).join(', ') || 'N/A'; itemDetails.audienceRating = omdbResponse.data.imdbRating ? `IMDb: ${omdbResponse.data.imdbRating}/10` : 'N/A';
     } catch (e) { throw new Error("Could not fetch metadata from TMDB/OMDB APIs."); }
     const prompt = `
-        Generate a spoiler-free review for the following content. Follow all constraints precisely.
+        Generate a spoiler-free review for the following content. Follow all constraints precisely. The final output must be plain text with newlines separating points.
         **Content Details:**
         - Title: ${itemDetails.title}
         - Director: ${itemDetails.director}
@@ -116,7 +113,7 @@ async function generateAiReviewText(type, id, apiKeys) {
         - Each bullet point must be a single sentence, maximum 20 words.
         - You must write content for every single bullet point.
         - The response must start with "**Introduction:**" and end with "**Recommendation:**". Do not add any extra text before or after.
-        - Use markdown bold for titles (e.g., "**Introduction:**").
+        - Use markdown bold for titles (e.g., "**Introduction:**") followed by a newline.
         **Structure:**
         - **Introduction:** State the full title, director, year, and primary genre to set context.
         - **Hook:**
@@ -147,24 +144,12 @@ async function generateAiReviewText(type, id, apiKeys) {
     return reviewText;
 }
 
-// --- EXPRESS SERVER SETUP ---
+// --- EXPRESS SERVER SETUP (No webpage endpoints needed) ---
 const app = express();
 
-app.get('/review/:id', (req, res) => {
-    const reviewId = req.params.id;
-    const reviewText = getFromCache(reviewId);
-    if (!reviewText) {
-        return res.status(404).send("<h1>Review Not Found</h1><p>This review may have expired from the cache. Please go back to Stremio and click the movie again.</p>");
-    }
-    const formattedReview = reviewText.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\n/g, '<br>');
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI-Generated Review</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol';background-color:#121212;color:#e0e0e0;line-height:1.6;padding:20px;}.container{max-width:800px;margin:0 auto;background-color:#1e1e1e;padding:20px 40px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.5);}h1{color:#bb86fc;text-align:center;}h3{color:#03dac6;border-bottom:1px solid #333;padding-bottom:5px;margin-top:2em;}p,br{font-size:1.1em;}</style></head><body><div class="container"><h1>The Quick Reviewer</h1><p>${formattedReview}</p></div></body></html>`;
-    res.send(html);
-});
-
-// Stremio router must be last
 app.use(getRouter(builder.getInterface()));
 
 app.listen(PORT, () => {
-    console.log(`TQR Addon v19.0.0 ("I'm Feeling Lucky") listening on port ${PORT}`);
+    console.log(`TQR Addon v20.0.0 (The Final In-App Version) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
