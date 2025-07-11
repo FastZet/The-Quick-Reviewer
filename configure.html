@@ -106,10 +106,8 @@
 
     <script>
         document.getElementById('config-form').addEventListener('submit', function(event) {
-            // Prevent the form from actually submitting
             event.preventDefault();
 
-            // Get the values from the input fields
             const tmdbKey = document.getElementById('tmdbKey').value.trim();
             const omdbKey = document.getElementById('omdbKey').value.trim();
             const aiStudioKey = document.getElementById('aiStudioKey').value.trim();
@@ -119,21 +117,21 @@
                 return;
             }
 
-            // Construct the configuration string in the format: key=value|key=value
             const configString = `tmdb=${tmdbKey}|omdb=${omdbKey}|aistudio=${aiStudioKey}`;
-            
-            // Encode the configuration string to make it URL-safe
             const encodedConfig = encodeURIComponent(configString);
             
-            // Get the base URL (e.g., "https://username-tqr.hf.space" or "http://127.0.0.1:7000")
-            const baseUrl = window.location.origin;
+            // --- THIS IS THE FIX ---
+            // Use window.location.host to get only the hostname (e.g., "fatvet-tqr.hf.space")
+            const host = window.location.host; 
 
-            // Create the final installation URL
-            const installUrl = `${baseUrl}/${encodedConfig}/manifest.json`;
+            // Construct the path for the manifest, which Stremio will fetch via HTTPS
+            const manifestPath = `${host}/${encodedConfig}/manifest.json`;
 
-            // Display the link in the result paragraph
+            // Create the final Stremio protocol link
+            const installUrl = `stremio://${manifestPath}`;
+
             const resultElement = document.getElementById('result');
-            resultElement.innerHTML = `<a href="stremio://${installUrl}" target="_blank">Click Here to Install The Quick Reviewer</a>`;
+            resultElement.innerHTML = `<a href="${installUrl}" target="_blank">Click Here to Install The Quick Reviewer</a>`;
         });
     </script>
 </body>
