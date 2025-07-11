@@ -33,7 +33,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '6.0.1', // Final corrected version
+    version: '6.0.3', // Final Model-Fixed Version
     name: 'The Quick Reviewer (TQR)',
     description: 'A zero-configuration addon that provides AI-generated reviews for movies and series.',
     resources: ['stream'],
@@ -60,6 +60,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
         const aiReview = await generateAiReview(type, id, { tmdb: TMDB_KEY, omdb: OMDB_KEY, aistudio: AISTUDIO_KEY });
         if (aiReview) {
             setToCache(cacheKey, aiReview);
+            console.log(`Successfully generated review for ${id}.`);
             return Promise.resolve({ streams: [aiReview] });
         }
         throw new Error('AI review generation returned no result.');
@@ -69,7 +70,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
     }
 });
 
-// --- Generate AI Review Function (With Safety Settings Restored) ---
+// --- Generate AI Review Function ---
 async function generateAiReview(type, id, apiKeys) {
     const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
     const [imdbId, season, episode] = id.split(':');
@@ -89,9 +90,10 @@ async function generateAiReview(type, id, apiKeys) {
     let reviewText;
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+
+        // THIS IS THE FIX: Using the latest and best model as you requested.
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         
-        // THIS IS THE FIX: Restoring the safety settings
         const safetySettings = [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -102,7 +104,6 @@ async function generateAiReview(type, id, apiKeys) {
         const result = await model.generateContent(prompt, { safetySettings });
         reviewText = await result.response.text();
     } catch (e) {
-        // Log the actual error from Google for better debugging
         console.error("Google AI Error:", e.message);
         throw new Error("AI Studio API failed to generate review.");
     }
@@ -115,6 +116,6 @@ async function generateAiReview(type, id, apiKeys) {
 const app = express();
 app.use(getRouter(builder.getInterface()));
 app.listen(PORT, () => {
-    console.log(`TQR Addon v6.0.1 (Zero-Config) listening on port ${PORT}`);
+    console.log(`TQR Addon v6.0.3 (Zero-Config) listening on port ${PORT}`);
     console.log(`Installation URL: https://fatvet-tqr.hf.space/manifest.json`);
 });
