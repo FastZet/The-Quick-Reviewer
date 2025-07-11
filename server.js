@@ -27,10 +27,10 @@ function setToCache(key, review) {
 // ----------------- MANIFEST DEFINITION -----------------
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '1.0.3', // Incremented version
+    version: '1.0.4', // Incremented version
     name: 'The Quick Reviewer',
     description: 'Provides AI-generated, spoiler-free reviews for movies and series.',
-    resources: ['stream', 'catalog'], // We now officially support 'catalog'
+    resources: ['stream', 'catalog'],
     types: ['movie', 'series'],
     catalogs: [{
         type: 'movie',
@@ -47,9 +47,6 @@ const manifest = {
 // ----------------- ADDON BUILDER -----------------
 const builder = new addonBuilder(manifest);
 
-// --- THIS IS THE FIX ---
-// Define a handler for the dummy catalog declared in the manifest.
-// It satisfies the SDK's requirement and simply returns an empty list.
 builder.defineCatalogHandler(async ({ type, id, config }) => {
     console.log(`Request for dummy catalog: ${type} ${id}`);
     return Promise.resolve({ metas: [] });
@@ -181,8 +178,8 @@ const app = express();
 app.get('/configure', (req, res) => res.sendFile(__dirname + '/configure.html'));
 app.use('/:config?', getRouter({ ...builder.getInterface(), manifest }));
 
-// ----------------- START SERVER -----------------
-app.listen(PORT, ()_=> {
+// ----------------- START SERVER (SYNTAX CORRECTED) -----------------
+app.listen(PORT, () => {
     console.log(`TQR Addon server listening on port ${PORT}`);
     console.log(`Configure page available at http://[your-space-url]/configure`);
 });
