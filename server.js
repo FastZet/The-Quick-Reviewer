@@ -24,15 +24,14 @@ function setToCache(key, review) {
     reviewCache.set(key, entry);
 }
 
-// ----------------- MANIFEST DEFINITION (WITH DUMMY CATALOG) -----------------
+// ----------------- MANIFEST DEFINITION -----------------
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '1.0.2', // Incremented version
+    version: '1.0.3', // Incremented version
     name: 'The Quick Reviewer',
     description: 'Provides AI-generated, spoiler-free reviews for movies and series.',
-    resources: ['stream'],
+    resources: ['stream', 'catalog'], // We now officially support 'catalog'
     types: ['movie', 'series'],
-    // THIS IS THE FIX: We declare a dummy catalog to ensure the "Install" button appears.
     catalogs: [{
         type: 'movie',
         id: 'tqr-dummy-catalog',
@@ -48,11 +47,16 @@ const manifest = {
 // ----------------- ADDON BUILDER -----------------
 const builder = new addonBuilder(manifest);
 
-// NOTE: We do NOT need to add a builder.defineCatalogHandler. 
-// The catalog will simply be empty, which is the desired behavior.
+// --- THIS IS THE FIX ---
+// Define a handler for the dummy catalog declared in the manifest.
+// It satisfies the SDK's requirement and simply returns an empty list.
+builder.defineCatalogHandler(async ({ type, id, config }) => {
+    console.log(`Request for dummy catalog: ${type} ${id}`);
+    return Promise.resolve({ metas: [] });
+});
 
 builder.defineStreamHandler(async ({ type, id, config }) => {
-    console.log(`Request received for ${type}: ${id}`);
+    console.log(`Request received for stream: ${type}: ${id}`);
 
     const userConfig = config || {};
     if (!userConfig.tmdb || !userConfig.omdb || !userConfig.aistudio) {
@@ -64,7 +68,6 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
         }] });
     }
     
-    const imdbId = id.split(':')[0];
     const cacheKey = id;
 
     const cachedReview = getFromCache(cacheKey);
@@ -82,7 +85,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
             return Promise.resolve({ streams: [aiReview] });
         } else {
              console.error(`Failed to generate review for ${id}, generateAiReview returned null.`);
-             return Promise.resolve({ streams: [{ name: "Review Error", title: "Could Not Generate Review", description:"Failed to fetch data from movie APIs or the AI model returned an empty response." }] });
+             return Promise.resolve({ streams: [{ name: "Review Error", title: "Could Not Generate Review", description:"Failed to fetch data or the AI model returned an empty response." }] });
         }
     } catch (error) {
         console.error(`An unexpected error occurred for ${id}:`, error.message);
@@ -131,33 +134,16 @@ async function generateAiReview(type, id, apiKeys) {
     const prompt = `
         Generate a spoiler-free review for the following ${itemDetails.isEpisode ? "TV episode" : "movie"}. Follow the structure and constraints precisely.
         **Content Details:**
-        - **Title:** ${itemDetails.title}
-        - **Director:** ${itemDetails.director} - **Year:** ${itemDetails.year}
+        - **Title:** ${itemDetails.title} - **Director:** ${itemDetails.director} - **Year:** ${itemDetails.year}
         - **Genre:** ${itemDetails.genres} - **Plot Summary:** ${itemDetails.plot}
         - **Actors:** ${itemDetails.actors} - **Critics Ratings:** ${itemDetails.criticRatings} - **Audience Rating:** ${itemDetails.audienceRating}
         **Review Generation Rules:**
         - You MUST use the provided Google Search function to get the latest reviews across the web to understand recent reception.
-        - The entire review MUST be spoiler-free.
-        - Each bullet point MUST be a single sentence of maximum 20 words.
+        - The entire review MUST be spoiler-free. - Each bullet point MUST be a single sentence of maximum 20 words.
         - You MUST generate content for every single bullet point listed below. Do not skip any.
         - The response MUST be ONLY the bullet points, starting with "Introduction:" and ending with "Recommendation:". Do not add any extra text, formatting, or markdown before or after the list.
         **Review Structure:**
-        - **Introduction:** 
-        - **Hook:** 
-        - **Synopsis:** 
-        - **Direction:** 
-        - **Acting:** 
-        - **Writing:** 
-        - **Cinematography:** 
-        - **Editing & Pacing:** 
-        - **Sound & Music:** 
-        - **Production Design:** 
-        - **Themes:** 
-        - **Critics' Reception:** 
-        - **Audience' Reception:** 
-        - **Strengths:** 
-        - **Weakness:** 
-        - **Recommendation:** 
+        - **Introduction:** - **Hook:** - **Synopsis:** - **Direction:** - **Acting:** - **Writing:** - **Cinematography:** - **Editing & Pacing:** - **Sound & Music:** - **Production Design:** - **Themes:** - **Critics' Reception:** - **Audience' Reception:** - **Strengths:** - **Weakness:** - **Recommendation:** 
     `;
 
     let reviewText;
@@ -179,13 +165,13 @@ async function generateAiReview(type, id, apiKeys) {
     
     if (!reviewText || !reviewText.includes("Introduction:")) {
         console.error("AI response was empty or malformed.");
-        return null; // Return null to indicate a non-successful generation
+        return null;
     }
 
     return {
         name: "The Quick Reviewer",
         title: "AI-Generated Review",
-        description: reviewText.replace(/\*/g, '') // Remove any asterisks from the AI response for cleaner display
+        description: reviewText.replace(/\*/g, '')
     };
 }
 
@@ -196,7 +182,7 @@ app.get('/configure', (req, res) => res.sendFile(__dirname + '/configure.html'))
 app.use('/:config?', getRouter({ ...builder.getInterface(), manifest }));
 
 // ----------------- START SERVER -----------------
-app.listen(PORT, () => {
+app.listen(PORT, ()_=> {
     console.log(`TQR Addon server listening on port ${PORT}`);
     console.log(`Configure page available at http://[your-space-url]/configure`);
 });
