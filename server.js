@@ -5,7 +5,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // --- SERVER CONFIGURATION ---
 const PORT = process.env.PORT || 7860;
-const ADDON_URL = 'https://fatvet-tqr.hf.space'; // Your public addon URL
+const ADDON_URL = 'https://fatvet-tqr.hf.space';
 
 const TMDB_KEY = process.env.TMDB_KEY;
 const OMDB_KEY = process.env.OMDB_KEY;
@@ -34,9 +34,9 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '14.0.0', // The Final Working Version
+    version: '15.0.0', // The In-App Display Version
     name: 'The Quick Reviewer (TQR)',
-    description: 'Provides a link to a webpage containing an AI-generated review for any movie or series.',
+    description: 'Provides AI-generated reviews directly inside Stremio. Find the review in the streams list.',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -45,7 +45,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER ---
+// --- STREAM HANDLER (Definitive In-App Logic) ---
 builder.defineStreamHandler(async ({ type, id }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     
@@ -66,12 +66,13 @@ builder.defineStreamHandler(async ({ type, id }) => {
         console.log(`Review found in cache for ${id}.`);
     }
     
-    // THE DEFINITIVE FIX: Use the simple 'url' object that we know appears,
-    // but point it to our new redirect endpoint.
+    // THIS IS THE DEFINITIVE FIX: An informational stream object.
+    // The entire review is placed in the 'description' field.
+    // There is no 'url' or 'externalUrl', so Stremio will not try to play it.
     const reviewStream = {
         name: "The Quick Reviewer",
-        title: "⭐️ Click to Read AI Review",
-        url: `${ADDON_URL}/open/${id}`
+        title: "⭐️ AI-Generated Review (Read Below)",
+        description: reviewText
     };
 
     return Promise.resolve({ streams: [reviewStream] });
@@ -109,7 +110,7 @@ async function generateAiReviewText(type, id, apiKeys) {
         - Each bullet point must be a single sentence, maximum 20 words.
         - You must write content for every single bullet point.
         - The response must start with "**Introduction:**" and end with "**Recommendation:**". Do not add any extra text before or after.
-        - Use markdown bold for titles (e.g., "**Introduction:**").
+        - Use markdown bold for titles (e.g., "**Introduction:**") followed by a newline.
         **Structure:**
         - **Introduction:** State the full title, director, year, and primary genre to set context.
         - **Hook:**
@@ -140,31 +141,12 @@ async function generateAiReviewText(type, id, apiKeys) {
     return reviewText;
 }
 
-// --- EXPRESS SERVER SETUP ---
+// --- EXPRESS SERVER SETUP (All webpage endpoints are now gone) ---
 const app = express();
 
-// NEW ENDPOINT to handle the redirect
-app.get('/open/:id', (req, res) => {
-    const reviewId = req.params.id;
-    console.log(`Redirecting request for ${reviewId} to the review page.`);
-    res.redirect(302, `${ADDON_URL}/review/${reviewId}`);
-});
-
-app.get('/review/:id', (req, res) => {
-    const reviewId = req.params.id;
-    const reviewText = getFromCache(reviewId);
-    if (!reviewText) {
-        return res.status(404).send("<h1>Review Not Found</h1><p>This review may have expired from the cache. Please go back to Stremio and click the movie again.</p>");
-    }
-    const formattedReview = reviewText.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\n/g, '<br>');
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI-Generated Review</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol';background-color:#121212;color:#e0e0e0;line-height:1.6;padding:20px;}.container{max-width:800px;margin:0 auto;background-color:#1e1e1e;padding:20px 40px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.5);}h1{color:#bb86fc;text-align:center;}h3{color:#03dac6;border-bottom:1px solid #333;padding-bottom:5px;margin-top:2em;}p,br{font-size:1.1em;}</style></head><body><div class="container"><h1>The Quick Reviewer</h1><p>${formattedReview}</p></div></body></html>`;
-    res.send(html);
-});
-
-// Stremio router must be last
 app.use(getRouter(builder.getInterface()));
 
 app.listen(PORT, () => {
-    console.log(`TQR Addon v14.0.0 (Redirect Architecture) listening on port ${PORT}`);
+    console.log(`TQR Addon v15.0.0 (In-App Display) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
