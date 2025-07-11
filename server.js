@@ -34,7 +34,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '18.0.0', // The Google Redirect Version
+    version: '19.0.0', // The "I'm Feeling Lucky" Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides a clickable link to an AI-generated review that opens in your browser.',
     resources: ['stream'],
@@ -45,7 +45,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (The Google Redirect Fix) ---
+// --- STREAM HANDLER (The "I'm Feeling Lucky" Fix) ---
 builder.defineStreamHandler(async ({ type, id }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     
@@ -66,20 +66,19 @@ builder.defineStreamHandler(async ({ type, id }) => {
         console.log(`Review found in cache for ${id}.`);
     }
 
-    // --- THIS IS THE DEFINITIVE FIX, BASED ON YOUR SUGGESTION ---
+    // --- THIS IS THE DEFINITIVE FIX ---
     // 1. Define the real URL for our review page.
     const realReviewUrl = `${ADDON_URL}/review/${id}`;
     
-    // 2. Create a Google redirect URL that points to our review page.
-    const googleRedirectUrl = `https://www.google.com/url?q=${encodeURIComponent(realReviewUrl)}`;
+    // 2. Create an "I'm Feeling Lucky" Google search URL. This forces a redirect to the first result.
+    const feelingLuckyUrl = `https://www.google.com/search?q=${encodeURIComponent(realReviewUrl)}&btnI=I'm+Feeling+Lucky`;
 
     // 3. Return the simple stream object that we know appears correctly.
-    // Stremio will see 'google.com' and open it externally. Google will then redirect to our page.
     const reviewStream = {
         name: "The Quick Reviewer",
         title: "⭐️ Click to Read AI Review",
-        description: "This link uses Google to open the review in your browser.",
-        url: googleRedirectUrl
+        description: "This link uses the Google 'I'm Feeling Lucky' feature to open the review in your browser.",
+        url: feelingLuckyUrl
     };
 
     return Promise.resolve({ streams: [reviewStream] });
@@ -148,7 +147,7 @@ async function generateAiReviewText(type, id, apiKeys) {
     return reviewText;
 }
 
-// --- EXPRESS SERVER SETUP (The /review endpoint is still needed) ---
+// --- EXPRESS SERVER SETUP ---
 const app = express();
 
 app.get('/review/:id', (req, res) => {
@@ -166,6 +165,6 @@ app.get('/review/:id', (req, res) => {
 app.use(getRouter(builder.getInterface()));
 
 app.listen(PORT, () => {
-    console.log(`TQR Addon v18.0.0 (Google Redirect) listening on port ${PORT}`);
+    console.log(`TQR Addon v19.0.0 ("I'm Feeling Lucky") listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
