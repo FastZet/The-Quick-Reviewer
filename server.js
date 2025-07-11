@@ -25,9 +25,9 @@ function setToCache(key, review) {
 // --- MANIFEST (Clean and Simple) ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '2.0.0', // Major version change for new method
+    version: '2.0.1', // Incremented version
     name: 'The Quick Reviewer (TQR)',
-    description: 'Provides AI-generated, spoiler-free reviews. After installing, click on any movie and then click the "Configuration Required" link to set up your API keys.',
+    description: 'Provides AI-generated reviews. After installing, click any movie and then the "Configuration Required" link to set up your API keys.',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -44,25 +44,20 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     const userConfig = config || {};
 
-    // IF NO KEYS: Return a special link that takes the user to the configure page.
     if (!userConfig.tmdb || !userConfig.omdb || !userConfig.aistudio) {
         console.log('Configuration keys are missing. Returning configure link.');
-        const configureUrl = `https://fatvet-tqr.hf.space/configure`; // CHANGE THIS if your space name is different
+        const configureUrl = `https://fatvet-tqr.hf.space/configure`; // IMPORTANT: Ensure this is your correct Hugging Face space URL
         return Promise.resolve({
             streams: [{
                 name: 'The Quick Reviewer',
                 title: '⚠️ Configuration Required',
                 description: 'Click here to enter your API keys and activate the addon.',
                 url: configureUrl,
-                behaviorHints: {
-                    // This tells Stremio to open the URL externally in a browser
-                    "notWebReady": true
-                }
+                behaviorHints: { "notWebReady": true }
             }]
         });
     }
 
-    // IF KEYS EXIST: Proceed with generating the review.
     const cacheKey = id;
     const cachedReview = getFromCache(cacheKey);
     if (cachedReview) {
@@ -85,9 +80,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
 });
 
 
-// This function remains largely the same
 async function generateAiReview(type, id, apiKeys) {
-    // ... [The existing generateAiReview function code has no changes]
     const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
     const [imdbId, season, episode] = id.split(':');
     let itemDetails;
@@ -117,15 +110,16 @@ async function generateAiReview(type, id, apiKeys) {
 
 // --- EXPRESS SERVER SETUP ---
 const app = express();
-const addonInterface = builder.getInterface();
-app.use(getRouter(addonInterface));
 
-// This route serves the configuration page.
+app.use(getRouter(builder.getInterface()));
+
 app.get('/configure', (req, res) => {
     res.sendFile(__dirname + '/configure.html');
 });
 
+// --- THIS BLOCK IS NOW FIXED ---
 app.listen(PORT, () => {
     console.log(`TQR Addon server v2.0 listening on port ${PORT}`);
-    console.log(`Installation link: stremio://${req.headers.host || '127.0.0.1:' + PORT}/manifest.json`);
+    console.log('Installation link for this addon is your public URL + /manifest.json');
+    console.log('Example: stremio://fatvet-tqr.hf.space/manifest.json');
 });
