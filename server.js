@@ -22,10 +22,10 @@ function setToCache(key, review) {
     reviewCache.set(key, { review, timestamp: Date.now() });
 }
 
-// --- MANIFEST (Clean and Simple) ---
+// --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '2.0.1', // Incremented version
+    version: '2.1.0', // Final version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides AI-generated reviews. After installing, click any movie and then the "Configuration Required" link to set up your API keys.',
     resources: ['stream'],
@@ -39,7 +39,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (New Robust Logic) ---
+// --- STREAM HANDLER ---
 builder.defineStreamHandler(async ({ type, id, config }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     const userConfig = config || {};
@@ -52,8 +52,8 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
                 name: 'The Quick Reviewer',
                 title: '⚠️ Configuration Required',
                 description: 'Click here to enter your API keys and activate the addon.',
-                url: configureUrl,
-                behaviorHints: { "notWebReady": true }
+                // THIS IS THE FIX: Using externalUrl to guarantee the link appears and opens in a browser.
+                externalUrl: configureUrl 
             }]
         });
     }
@@ -108,18 +108,12 @@ async function generateAiReview(type, id, apiKeys) {
     return { name: "The Quick Reviewer", title: "AI-Generated Review", description: reviewText.replace(/\*/g, '') };
 }
 
+
 // --- EXPRESS SERVER SETUP ---
 const app = express();
-
 app.use(getRouter(builder.getInterface()));
-
-app.get('/configure', (req, res) => {
-    res.sendFile(__dirname + '/configure.html');
-});
-
-// --- THIS BLOCK IS NOW FIXED ---
+app.get('/configure', (req, res) => { res.sendFile(__dirname + '/configure.html'); });
 app.listen(PORT, () => {
-    console.log(`TQR Addon server v2.0 listening on port ${PORT}`);
-    console.log('Installation link for this addon is your public URL + /manifest.json');
-    console.log('Example: stremio://fatvet-tqr.hf.space/manifest.json');
+    console.log(`TQR Addon server v2.1 listening on port ${PORT}`);
+    console.log(`Installation URL: stremio://fatvet-tqr.hf.space/manifest.json`);
 });
