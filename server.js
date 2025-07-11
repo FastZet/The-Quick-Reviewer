@@ -27,7 +27,7 @@ function setToCache(key, review) {
 // ----------------- MANIFEST DEFINITION -----------------
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '1.0.4', // Incremented version
+    version: '1.0.5', // Incremented version
     name: 'The Quick Reviewer',
     description: 'Provides AI-generated, spoiler-free reviews for movies and series.',
     resources: ['stream', 'catalog'],
@@ -40,7 +40,8 @@ const manifest = {
     idPrefixes: ['tt'],
     behaviorHints: {
         configurable: true,
-        configurationRequired: true
+        // FIX #1: Change 'configurationRequired' to false to ensure Install button appears
+        configurationRequired: false 
     }
 };
 
@@ -59,14 +60,13 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     if (!userConfig.tmdb || !userConfig.omdb || !userConfig.aistudio) {
         console.log('Configuration keys are missing from the request.');
         return Promise.resolve({ streams: [{
-            name: "Configuration Error",
-            title: "API keys are missing.",
-            description: "Please reinstall the addon from its Configure page, ensuring all API keys are provided in the URL."
+            name: "Configuration Missing",
+            title: "API Keys Required",
+            description: "Please configure the addon with your API keys by clicking the 'Configure' button next to the addon in your Stremio settings."
         }] });
     }
     
     const cacheKey = id;
-
     const cachedReview = getFromCache(cacheKey);
     if (cachedReview) {
         console.log(`Serving review from cache for ${cacheKey}`);
@@ -147,12 +147,7 @@ async function generateAiReview(type, id, apiKeys) {
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const safetySettings = [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        ];
+        const safetySettings = [{ category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },{ category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },{ category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }];
         const result = await model.generateContent(prompt, { safetySettings });
         reviewText = await result.response.text();
     } catch (e) {
@@ -175,10 +170,21 @@ async function generateAiReview(type, id, apiKeys) {
 
 // ----------------- EXPRESS SERVER SETUP -----------------
 const app = express();
-app.get('/configure', (req, res) => res.sendFile(__dirname + '/configure.html'));
+
+// FIX #2: Add a route that redirects from /.../configure to the clean /configure page
+app.get('/:config/configure', (req, res) => {
+    res.redirect('/configure');
+});
+
+// This route serves the configuration page on a clean URL
+app.get('/configure', (req, res) => {
+    res.sendFile(__dirname + '/configure.html');
+});
+
+// This route handles all Stremio manifest/stream requests
 app.use('/:config?', getRouter({ ...builder.getInterface(), manifest }));
 
-// ----------------- START SERVER (SYNTAX CORRECTED) -----------------
+// ----------------- START SERVER -----------------
 app.listen(PORT, () => {
     console.log(`TQR Addon server listening on port ${PORT}`);
     console.log(`Configure page available at http://[your-space-url]/configure`);
