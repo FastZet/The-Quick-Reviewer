@@ -24,34 +24,28 @@ function setToCache(key, review) {
     reviewCache.set(key, entry);
 }
 
-// ----------------- MANIFEST DEFINITION -----------------
+// ----------------- MANIFEST DEFINITION (FINAL VERSION) -----------------
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '1.0.5', // Incremented version
+    version: '1.0.6', // Incremented version
     name: 'The Quick Reviewer',
     description: 'Provides AI-generated, spoiler-free reviews for movies and series.',
-    resources: ['stream', 'catalog'],
+    // We only provide a stream resource. No more catalog.
+    resources: ['stream'], 
     types: ['movie', 'series'],
-    catalogs: [{
-        type: 'movie',
-        id: 'tqr-dummy-catalog',
-        name: 'The Quick Reviewer'
-    }],
+    // The catalogs array is now empty, as it should be for a stream-only provider.
+    catalogs: [], 
     idPrefixes: ['tt'],
     behaviorHints: {
         configurable: true,
-        // FIX #1: Change 'configurationRequired' to false to ensure Install button appears
-        configurationRequired: false 
+        configurationRequired: false
     }
 };
 
 // ----------------- ADDON BUILDER -----------------
 const builder = new addonBuilder(manifest);
 
-builder.defineCatalogHandler(async ({ type, id, config }) => {
-    console.log(`Request for dummy catalog: ${type} ${id}`);
-    return Promise.resolve({ metas: [] });
-});
+// The dummy catalog handler has been REMOVED.
 
 builder.defineStreamHandler(async ({ type, id, config }) => {
     console.log(`Request received for stream: ${type}: ${id}`);
@@ -171,17 +165,14 @@ async function generateAiReview(type, id, apiKeys) {
 // ----------------- EXPRESS SERVER SETUP -----------------
 const app = express();
 
-// FIX #2: Add a route that redirects from /.../configure to the clean /configure page
 app.get('/:config/configure', (req, res) => {
     res.redirect('/configure');
 });
 
-// This route serves the configuration page on a clean URL
 app.get('/configure', (req, res) => {
     res.sendFile(__dirname + '/configure.html');
 });
 
-// This route handles all Stremio manifest/stream requests
 app.use('/:config?', getRouter({ ...builder.getInterface(), manifest }));
 
 // ----------------- START SERVER -----------------
