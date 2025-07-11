@@ -20,10 +20,10 @@ function setToCache(key, review) {
     reviewCache.set(key, { review, timestamp: Date.now() });
 }
 
-// MANIFEST - Simple and Correct
+// MANIFEST - FINAL, CORRECTED VERSION
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '4.0.0', // Final Functional Version
+    version: '4.0.1', // The Real Final Functional Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Generates AI reviews. Install this addon via its configuration page to embed your personal API keys.',
     resources: ['stream'],
@@ -32,19 +32,26 @@ const manifest = {
     idPrefixes: ['tt'],
     behaviorHints: {
         configurable: true,
-        configurationRequired: true // This is now correct because installation only happens from the configure page.
+        // THIS IS THE FIX: This tells Stremio to show the "Install" button
+        // instead of forcing the "Configure" flow.
+        configurationRequired: false
     }
 };
 
 const builder = new addonBuilder(manifest);
 
-// STREAM HANDLER - Simple and Correct
+// STREAM HANDLER
 builder.defineStreamHandler(async ({ type, id, config }) => {
     console.log(`Request for stream: ${type}: ${id}`);
 
     if (!config || !config.tmdb || !config.omdb || !config.aistudio) {
         console.error("CRITICAL: Request made without config. The user must (re)install from the configure page.");
-        return Promise.resolve({ streams: [] }); // Fail gracefully by returning no streams
+        // This message will appear if a user somehow installs without keys.
+        return Promise.resolve({ streams: [{
+            name: "Configuration Missing",
+            title: "API Keys Not Found",
+            description: "Please uninstall and reinstall this addon from its configuration page to embed your API keys."
+        }]});
     }
 
     const cacheKey = id;
@@ -68,7 +75,7 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     }
 });
 
-// GENERATE AI REVIEW - This is the object that will be displayed
+// GENERATE AI REVIEW FUNCTION (unchanged)
 async function generateAiReview(type, id, apiKeys) {
     const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
     const [imdbId, season, episode] = id.split(':');
@@ -76,15 +83,15 @@ async function generateAiReview(type, id, apiKeys) {
     try {
         if (type === 'movie') {
             const tmdbResponse = await axios.get(`https://api.themoviedb.org/3/movie/${imdbId}?api_key=${tmdbKey}&append_to_response=credits,reviews`);
-            itemDetails = { title: tmdbResponse.data.title, year: new Date(tmdbResponse.data.release_date).getFullYear(), genres: tmdbResponse.data.genres.map(g => g.name).join(', '), director: tmdbResponse.data.credits?.crew.find(c => c.job === 'Director')?.name || 'N/A', isEpisode: false };
+            itemDetails = { title: tmdbResponse.data.title, year: new Date(tmdbResponse.data.release_date).getFullYear(), genres: tmdbResponse.data.genres.map(g => g.name).join(', '), director: tmdbResponse.data.credits?.crew.find(c => c.job === 'Director')?.name || 'N/A' };
         } else {
             const [seriesResponse, episodeResponse] = await Promise.all([ axios.get(`https://api.themoviedb.org/3/tv/${imdbId}?api_key=${tmdbKey}&append_to_response=credits`), axios.get(`https://api.themoviedb.org/3/tv/${imdbId}/season/${season}/episode/${episode}?api_key=${tmdbKey}`) ]);
-            itemDetails = { title: `${seriesResponse.data.name} - S${season}E${episode}: ${episodeResponse.data.name}`, year: new Date(seriesResponse.data.first_air_date).getFullYear(), genres: seriesResponse.data.genres.map(g => g.name).join(', '), director: episodeResponse.data.crew?.find(c => c.job === 'Director')?.name || seriesResponse.data.created_by[0]?.name || 'N/A', isEpisode: true };
+            itemDetails = { title: `${seriesResponse.data.name} - S${season}E${episode}: ${episodeResponse.data.name}`, year: new Date(seriesResponse.data.first_air_date).getFullYear(), genres: seriesResponse.data.genres.map(g => g.name).join(', '), director: episodeResponse.data.crew?.find(c => c.job === 'Director')?.name || seriesResponse.data.created_by[0]?.name || 'N/A' };
         }
         const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
-        itemDetails.plot = omdbResponse.data.Plot || 'A summary is not available.'; itemDetails.actors = omdbResponse.data.Actors || 'N/A'; itemDetails.criticRatings = omdbResponse.data.Ratings?.map(r => `${r.Source}: ${r.Value}`).join(', ') || 'N/A'; itemDetails.audienceRating = omdbResponse.data.imdbRating ? `IMDb: ${omdbResponse.data.imdbRating}/10` : 'N/A';
+        itemDetails.plot = omdbResponse.data.Plot || 'N/A'; itemDetails.actors = omdbResponse.data.Actors || 'N/A'; itemDetails.criticRatings = omdbResponse.data.Ratings?.map(r => `${r.Source}: ${r.Value}`).join(', ') || 'N/A'; itemDetails.audienceRating = omdbResponse.data.imdbRating ? `IMDb: ${omdbResponse.data.imdbRating}/10` : 'N/A';
     } catch (e) { throw new Error("Could not fetch metadata. Please verify your API keys."); }
-    const prompt = `Generate a spoiler-free review for the following ${itemDetails.isEpisode ? "TV episode" : "movie"}. Follow all constraints precisely.\n**Content Details:**\n- Title: ${itemDetails.title}\n- Director: ${itemDetails.director}\n- Year: ${itemDetails.year}\n- Genre: ${itemDetails.genres}\n- Plot: ${itemDetails.plot}\n- Actors: ${itemDetails.actors}\n- Ratings: ${itemDetails.criticRatings}, ${itemDetails.audienceRating}\n**Rules:**\n- Use Google Search to get the latest reviews.\n- Be spoiler-free.\n- Each bullet point is one sentence, max 20 words.\n- Fill every bullet point.\n- Response is ONLY the bullet points, no extra text.\n**Structure:**\n- **Introduction:**\n- **Hook:**\n- **Synopsis:**\n- **Direction:**\n- **Acting:**\n- **Writing:**\n- **Cinematography:**\n- **Editing & Pacing:**\n- **Sound & Music:**\n- **Production Design:**\n- **Themes:**\n- **Critics' Reception:**\n- **Audience' Reception:**\n- **Strengths:**\n- **Weakness:**\n- **Recommendation:**`;
+    const prompt = `Generate a spoiler-free review for the following content. Follow all constraints precisely.\n**Content Details:**\n- Title: ${itemDetails.title}\n- Director: ${itemDetails.director}\n- Year: ${itemDetails.year}\n- Genre: ${itemDetails.genres}\n- Plot: ${itemDetails.plot}\n- Actors: ${itemDetails.actors}\n- Ratings: ${itemDetails.criticRatings}, ${itemDetails.audienceRating}\n**Rules:**\n- Use Google Search to get the latest reviews.\n- Be spoiler-free.\n- Each bullet point is one sentence, max 20 words.\n- Fill every bullet point.\n- Response is ONLY the bullet points, no extra text.\n**Structure:**\n- **Introduction:**\n- **Hook:**\n- **Synopsis:**\n- **Direction:**\n- **Acting:**\n- **Writing:**\n- **Cinematography:**\n- **Editing & Pacing:**\n- **Sound & Music:**\n- **Production Design:**\n- **Themes:**\n- **Critics' Reception:**\n- **Audience' Reception:**\n- **Strengths:**\n- **Weakness:**\n- **Recommendation:**`;
     let reviewText;
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
@@ -94,20 +101,19 @@ async function generateAiReview(type, id, apiKeys) {
     } catch (e) { throw new Error("AI Studio API failed. Check your key."); }
     if (!reviewText || !reviewText.includes("Introduction:")) { return null; }
     
-    // This is a valid, display-only stream object. It has no URL.
     return {
         name: "The Quick Reviewer",
         title: "AI-Generated Review",
-        description: reviewText.replace(/\*/g, '') // Clean up markdown
+        description: reviewText.replace(/\*/g, '')
     };
 }
 
-// EXPRESS SERVER SETUP
+// EXPRESS SERVER SETUP (unchanged)
 const app = express();
 app.get('/configure', (req, res) => { res.sendFile(__dirname + '/configure.html'); });
-app.get('/:config/configure', (req, res) => { res.redirect('/configure'); }); // Handles configure button from within Stremio
+app.get('/:config/configure', (req, res) => { res.redirect('/configure'); });
 app.use('/:config?', getRouter(builder.getInterface()));
 app.listen(PORT, () => {
-    console.log(`TQR Addon v4.0 listening on port ${PORT}`);
+    console.log(`TQR Addon v4.0.1 listening on port ${PORT}`);
     console.log(`Configure page is at https://fatvet-tqr.hf.space/configure`);
 });
