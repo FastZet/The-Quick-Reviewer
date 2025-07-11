@@ -34,7 +34,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '10.0.0', // The One True Version
+    version: '11.0.0', // The Final Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides a link to a webpage containing an AI-generated review for any movie or series.',
     resources: ['stream'],
@@ -66,7 +66,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
         console.log(`Review found in cache for ${id}.`);
     }
     
-    // THIS IS THE DEFINITIVE FIX: Using 'externalUrl' as the SOLE link property.
+    // THIS IS THE DEFINITIVE FIX: Using 'externalUrl' as the SOLE property for the link.
     const reviewStream = {
         name: "The Quick Reviewer",
         title: "⭐️ AI Review (Webpage)",
@@ -131,6 +131,7 @@ async function generateAiReviewText(type, id, apiKeys) {
     let reviewText;
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
+        // Using the correct model you requested. I apologize for changing it previously.
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         const safetySettings = [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" } ];
         const result = await model.generateContent(prompt, { safetySettings });
@@ -156,6 +157,6 @@ app.get('/review/:id', (req, res) => {
 
 app.use(getRouter(builder.getInterface()));
 app.listen(PORT, () => {
-    console.log(`TQR Addon v10.0.0 (The One True Version) listening on port ${PORT}`);
+    console.log(`TQR Addon v11.0.0 (The Final Version) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
