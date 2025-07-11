@@ -34,7 +34,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '7.0.0', // Final Architecture
+    version: '7.0.2', // Final Model Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides a link to a webpage containing an AI-generated review for any movie or series.',
     resources: ['stream'],
@@ -45,13 +45,11 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (New Logic) ---
+// --- STREAM HANDLER ---
 builder.defineStreamHandler(async ({ type, id }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     
-    // Check cache first. If review exists, we don't need to generate it again.
     let reviewText = getFromCache(id);
-
     if (!reviewText) {
         console.log(`No review in cache for ${id}. Generating new one.`);
         try {
@@ -59,30 +57,26 @@ builder.defineStreamHandler(async ({ type, id }) => {
             if (reviewText) {
                 setToCache(id, reviewText);
                 console.log(`Successfully generated and cached review for ${id}.`);
-            } else {
-                throw new Error('AI review generation returned no result.');
-            }
+            } else { throw new Error('AI review generation returned no result.'); }
         } catch (error) {
             console.error(`Error during review generation for ${id}:`, error.message);
-            return Promise.resolve({ streams: [{ name: "Review Error", title: "An Error Occurred", description: error.message }] });
+            return Promise.resolve({ streams: [] });
         }
     } else {
         console.log(`Review found in cache for ${id}.`);
     }
-
-    // THIS IS THE FIX: Return a single stream object with an externalUrl
-    // that points to our new /review/:id endpoint.
+    
     const reviewStream = {
         name: "The Quick Reviewer",
-        title: "Click to Read AI Review",
+        title: "⭐️ Click to Read AI Review",
         description: "Opens a new page with a detailed, spoiler-free review.",
-        externalUrl: `${ADDON_URL}/review/${id}`
+        url: `${ADDON_URL}/review/${id}`
     };
 
     return Promise.resolve({ streams: [reviewStream] });
 });
 
-// This function now just returns the raw text, not a stream object.
+// This function now has the correct model name.
 async function generateAiReviewText(type, id, apiKeys) {
     const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
     const [imdbId, season, episode] = id.split(':');
@@ -98,11 +92,46 @@ async function generateAiReviewText(type, id, apiKeys) {
         const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
         itemDetails.plot = omdbResponse.data.Plot || 'N/A'; itemDetails.actors = omdbResponse.data.Actors || 'N/A'; itemDetails.criticRatings = omdbResponse.data.Ratings?.map(r => `${r.Source}: ${r.Value}`).join(', ') || 'N/A'; itemDetails.audienceRating = omdbResponse.data.imdbRating ? `IMDb: ${omdbResponse.data.imdbRating}/10` : 'N/A';
     } catch (e) { throw new Error("Could not fetch metadata from TMDB/OMDB APIs."); }
-    const prompt = `Generate a spoiler-free review for the following content. Follow all constraints precisely.\n**Content Details:**\n- Title: ${itemDetails.title}\n- Director: ${itemDetails.director}\n- Year: ${itemDetails.year}\n- Genre: ${itemDetails.genres}\n- Plot: ${itemDetails.plot}\n- Actors: ${itemDetails.actors}\n- Ratings: ${itemDetails.criticRatings}, ${itemDetails.audienceRating}\n**Rules:**\n- Use Google Search to get the latest reviews.\n- Be spoiler-free.\n- Each bullet point is one sentence, max 20 words.\n- Fill every bullet point.\n- The response must start with "**Introduction:**" and end with "**Recommendation:**". Do not add any extra text before or after.\n- Use markdown bold for titles (e.g., "**Introduction:**").\n**Structure:**\n- **Introduction:**\n- **Hook:**\n- **Synopsis:**\n- **Direction:**\n- **Acting:**\n- **Writing:**\n- **Cinematography:**\n- **Editing & Pacing:**\n- **Sound & Music:**\n- **Production Design:**\n- **Themes:**\n- **Critics' Reception:**\n- **Audience' Reception:**\n- **Strengths:**\n- **Weakness:**\n- **Recommendation:**`;
+    const prompt = `
+        Generate a spoiler-free review for the following content. Follow all constraints precisely.
+        **Content Details:**
+        - Title: ${itemDetails.title}
+        - Director: ${itemDetails.director}
+        - Year: ${itemDetails.year}
+        - Genre: ${itemDetails.genres}
+        - Plot: ${itemDetails.plot}
+        - Actors: ${itemDetails.actors}
+        - Ratings: ${itemDetails.criticRatings}, ${itemDetails.audienceRating}
+        **Rules:**
+        - Use your Google Search capability to understand the general consensus for the reviews.
+        - Be strictly spoiler-free.
+        - Each bullet point must be a single sentence, maximum 20 words.
+        - You must write content for every single bullet point.
+        - The response must start with "**Introduction:**" and end with "**Recommendation:**". Do not add any extra text before or after.
+        - Use markdown bold for titles (e.g., "**Introduction:**").
+        **Structure:**
+        - **Introduction:** State the full title, director, year, and primary genre to set context.
+        - **Hook:**
+        - **Synopsis:**
+        - **Direction:**
+        - **Acting:**
+        - **Writing:**
+        - **Cinematography:**
+        - **Editing & Pacing:**
+        - **Sound & Music:**
+        - **Production Design:**
+        - **Themes:**
+        - **Critics' Reception:**
+        - **Audience' Reception:** Summarize general audience sentiment from sources like IMDb, Rotten Tomatoes audience score, and forum discussions.
+        - **Strengths:**
+        - **Weakness:**
+        - **Recommendation:**
+    `;
     let reviewText;
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+        // THIS IS THE FIX. THE MODEL YOU REQUESTED IS NOW BEING USED.
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         const safetySettings = [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" } ];
         const result = await model.generateContent(prompt, { safetySettings });
         reviewText = await result.response.text();
@@ -114,50 +143,19 @@ async function generateAiReviewText(type, id, apiKeys) {
 // --- EXPRESS SERVER SETUP ---
 const app = express();
 
-// NEW ENDPOINT to display the review on a webpage
 app.get('/review/:id', (req, res) => {
     const reviewId = req.params.id;
     const reviewText = getFromCache(reviewId);
-
     if (!reviewText) {
-        return res.status(404).send("<h1>Review Not Found</h1><p>This review has expired from the cache or was not found. Please go back to Stremio and try again.</p>");
+        return res.status(404).send("<h1>Review Not Found</h1><p>This review may have expired from the cache. Please go back to Stremio and click the movie again.</p>");
     }
-
-    // Convert markdown-style newlines and bolding to HTML
-    const formattedReview = reviewText
-        .replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>') // Convert **Bold** to <h3>
-        .replace(/\n/g, '<br>'); // Convert newlines to <br> tags
-
-    const html = `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>AI-Generated Review</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; background-color: #121212; color: #e0e0e0; line-height: 1.6; padding: 20px; }
-                .container { max-width: 800px; margin: 0 auto; background-color: #1e1e1e; padding: 20px 40px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
-                h1 { color: #bb86fc; text-align: center; }
-                h3 { color: #03dac6; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 2em; }
-                p, br { font-size: 1.1em; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>The Quick Reviewer</h1>
-                <p>${formattedReview}</p>
-            </div>
-        </body>
-        </html>
-    `;
+    const formattedReview = reviewText.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\n/g, '<br>');
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI-Generated Review</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol';background-color:#121212;color:#e0e0e0;line-height:1.6;padding:20px;}.container{max-width:800px;margin:0 auto;background-color:#1e1e1e;padding:20px 40px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.5);}h1{color:#bb86fc;text-align:center;}h3{color:#03dac6;border-bottom:1px solid #333;padding-bottom:5px;margin-top:2em;}p,br{font-size:1.1em;}</style></head><body><div class="container"><h1>The Quick Reviewer</h1><p>${formattedReview}</p></div></body></html>`;
     res.send(html);
 });
 
-// Stremio router must be last
 app.use(getRouter(builder.getInterface()));
-
 app.listen(PORT, () => {
-    console.log(`TQR Addon v7.0.0 (Webpage Architecture) listening on port ${PORT}`);
+    console.log(`TQR Addon v7.0.2 (Webpage Architecture) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
