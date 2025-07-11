@@ -34,7 +34,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '7.0.2', // Final Model Version
+    version: '8.0.0', // The Working Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides a link to a webpage containing an AI-generated review for any movie or series.',
     resources: ['stream'],
@@ -66,17 +66,19 @@ builder.defineStreamHandler(async ({ type, id }) => {
         console.log(`Review found in cache for ${id}.`);
     }
     
+    // THIS IS THE DEFINITIVE FIX: Adding 'type: "url"' to the stream object.
     const reviewStream = {
         name: "The Quick Reviewer",
         title: "⭐️ Click to Read AI Review",
         description: "Opens a new page with a detailed, spoiler-free review.",
-        url: `${ADDON_URL}/review/${id}`
+        url: `${ADDON_URL}/review/${id}`,
+        type: "url" // This property tells Stremio how to handle the URL.
     };
 
     return Promise.resolve({ streams: [reviewStream] });
 });
 
-// This function now has the correct model name.
+// --- Generate AI Review Function ---
 async function generateAiReviewText(type, id, apiKeys) {
     const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
     const [imdbId, season, episode] = id.split(':');
@@ -130,7 +132,6 @@ async function generateAiReviewText(type, id, apiKeys) {
     let reviewText;
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
-        // THIS IS THE FIX. THE MODEL YOU REQUESTED IS NOW BEING USED.
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         const safetySettings = [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" } ];
         const result = await model.generateContent(prompt, { safetySettings });
@@ -156,6 +157,6 @@ app.get('/review/:id', (req, res) => {
 
 app.use(getRouter(builder.getInterface()));
 app.listen(PORT, () => {
-    console.log(`TQR Addon v7.0.2 (Webpage Architecture) listening on port ${PORT}`);
+    console.log(`TQR Addon v8.0.0 (Working) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
