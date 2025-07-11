@@ -6,16 +6,13 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 // --- SERVER CONFIGURATION ---
 const PORT = process.env.PORT || 7860;
 
-// Read API keys from Hugging Face Environment Secrets
 const TMDB_KEY = process.env.TMDB_KEY;
 const OMDB_KEY = process.env.OMDB_KEY;
 const AISTUDIO_KEY = process.env.AISTUDIO_KEY;
 
-// Check if all keys are present on the server at startup
 if (!TMDB_KEY || !OMDB_KEY || !AISTUDIO_KEY) {
     console.error("CRITICAL ERROR: One or more API keys are missing from the environment secrets.");
-    console.error("Please add TMDB_KEY, OMDB_KEY, and AISTUDIO_KEY to your Hugging Face Space secrets.");
-    process.exit(1); // Exit the process if keys are not found
+    process.exit(1);
 }
 
 // --- Caching Mechanism ---
@@ -33,24 +30,22 @@ function setToCache(key, review) {
     reviewCache.set(key, { review, timestamp: Date.now() });
 }
 
-// --- MANIFEST (Zero-Config Version) ---
+// --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '6.0.0', // Final Zero-Config Version
+    version: '6.0.1', // Final corrected version
     name: 'The Quick Reviewer (TQR)',
     description: 'A zero-configuration addon that provides AI-generated reviews for movies and series.',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
     idPrefixes: ['tt']
-    // No behaviorHints are needed anymore.
 };
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (Simplified) ---
+// --- STREAM HANDLER ---
 builder.defineStreamHandler(async ({ type, id }) => {
-    // The 'config' object is no longer used.
     console.log(`Request for stream: ${type}: ${id}`);
 
     const cacheKey = id;
@@ -62,7 +57,6 @@ builder.defineStreamHandler(async ({ type, id }) => {
 
     console.log(`Generating new review for ${cacheKey}.`);
     try {
-        // We pass the server's keys to the generation function.
         const aiReview = await generateAiReview(type, id, { tmdb: TMDB_KEY, omdb: OMDB_KEY, aistudio: AISTUDIO_KEY });
         if (aiReview) {
             setToCache(cacheKey, aiReview);
@@ -75,7 +69,7 @@ builder.defineStreamHandler(async ({ type, id }) => {
     }
 });
 
-// --- Generate AI Review Function (Unchanged logic) ---
+// --- Generate AI Review Function (With Safety Settings Restored) ---
 async function generateAiReview(type, id, apiKeys) {
     const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
     const [imdbId, season, episode] = id.split(':');
@@ -96,19 +90,31 @@ async function generateAiReview(type, id, apiKeys) {
     try {
         const genAI = new GoogleGenerativeAI(aiStudioKey);
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const result = await model.generateContent(prompt);
+        
+        // THIS IS THE FIX: Restoring the safety settings
+        const safetySettings = [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        ];
+
+        const result = await model.generateContent(prompt, { safetySettings });
         reviewText = await result.response.text();
-    } catch (e) { throw new Error("AI Studio API failed to generate review."); }
+    } catch (e) {
+        // Log the actual error from Google for better debugging
+        console.error("Google AI Error:", e.message);
+        throw new Error("AI Studio API failed to generate review.");
+    }
     if (!reviewText || !reviewText.includes("Introduction:")) { return null; }
     
     return { name: "The Quick Reviewer", title: "AI-Generated Review", description: reviewText.replace(/\*/g, '') };
 }
 
-// --- EXPRESS SERVER SETUP (Simplified) ---
+// --- EXPRESS SERVER SETUP ---
 const app = express();
-// The router no longer needs the ':config?' part
 app.use(getRouter(builder.getInterface()));
 app.listen(PORT, () => {
-    console.log(`TQR Addon v6.0.0 (Zero-Config) listening on port ${PORT}`);
+    console.log(`TQR Addon v6.0.1 (Zero-Config) listening on port ${PORT}`);
     console.log(`Installation URL: https://fatvet-tqr.hf.space/manifest.json`);
 });
