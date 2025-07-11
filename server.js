@@ -4,7 +4,7 @@ const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ----------------- CONFIGURATION -----------------
-const PORT = process.env.PORT || 7860; // Using 7860 for Hugging Face
+const PORT = process.env.PORT || 7860;
 
 // ----------------- CACHING MECHANISM -----------------
 const reviewCache = new Map();
@@ -24,16 +24,21 @@ function setToCache(key, review) {
     reviewCache.set(key, entry);
 }
 
-// ----------------- MANIFEST DEFINITION (WITH BEHAVIOR HINTS) -----------------
+// ----------------- MANIFEST DEFINITION (WITH DUMMY CATALOG) -----------------
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '1.0.1', // Incremented version
+    version: '1.0.2', // Incremented version
     name: 'The Quick Reviewer',
     description: 'Provides AI-generated, spoiler-free reviews for movies and series.',
     resources: ['stream'],
     types: ['movie', 'series'],
+    // THIS IS THE FIX: We declare a dummy catalog to ensure the "Install" button appears.
+    catalogs: [{
+        type: 'movie',
+        id: 'tqr-dummy-catalog',
+        name: 'The Quick Reviewer'
+    }],
     idPrefixes: ['tt'],
-    catalogs: [],
     behaviorHints: {
         configurable: true,
         configurationRequired: true
@@ -43,11 +48,13 @@ const manifest = {
 // ----------------- ADDON BUILDER -----------------
 const builder = new addonBuilder(manifest);
 
+// NOTE: We do NOT need to add a builder.defineCatalogHandler. 
+// The catalog will simply be empty, which is the desired behavior.
+
 builder.defineStreamHandler(async ({ type, id, config }) => {
     console.log(`Request received for ${type}: ${id}`);
 
     const userConfig = config || {};
-    // THIS IS THE CORRECTED LINE:
     if (!userConfig.tmdb || !userConfig.omdb || !userConfig.aistudio) {
         console.log('Configuration keys are missing from the request.');
         return Promise.resolve({ streams: [{
