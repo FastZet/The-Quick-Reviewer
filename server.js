@@ -34,9 +34,9 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '16.0.0', // The Data URI Version
+    version: '18.0.0', // The Google Redirect Version
     name: 'The Quick Reviewer (TQR)',
-    description: 'Provides a clickable link to an AI-generated review that opens locally in your browser.',
+    description: 'Provides a clickable link to an AI-generated review that opens in your browser.',
     resources: ['stream'],
     types: ['movie', 'series'],
     catalogs: [],
@@ -45,7 +45,7 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (Definitive Data URI Logic) ---
+// --- STREAM HANDLER (The Google Redirect Fix) ---
 builder.defineStreamHandler(async ({ type, id }) => {
     console.log(`Request for stream: ${type}: ${id}`);
     
@@ -65,20 +65,21 @@ builder.defineStreamHandler(async ({ type, id }) => {
     } else {
         console.log(`Review found in cache for ${id}.`);
     }
+
+    // --- THIS IS THE DEFINITIVE FIX, BASED ON YOUR SUGGESTION ---
+    // 1. Define the real URL for our review page.
+    const realReviewUrl = `${ADDON_URL}/review/${id}`;
     
-    // --- THIS IS THE DEFINITIVE FIX ---
-    // 1. Generate the full HTML for the review page.
-    const formattedReview = reviewText.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\n/g, '<br>');
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI-Generated Review</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol';background-color:#121212;color:#e0e0e0;line-height:1.6;padding:20px;}.container{max-width:800px;margin:0 auto;background-color:#1e1e1e;padding:20px 40px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.5);}h1{color:#bb86fc;text-align:center;}h3{color:#03dac6;border-bottom:1px solid #333;padding-bottom:5px;margin-top:2em;}p,br{font-size:1.1em;}</style></head><body><div class="container"><h1>The Quick Reviewer</h1><p>${formattedReview}</p></div></body></html>`;
+    // 2. Create a Google redirect URL that points to our review page.
+    const googleRedirectUrl = `https://www.google.com/url?q=${encodeURIComponent(realReviewUrl)}`;
 
-    // 2. Create a self-contained Data URI from the HTML.
-    const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-
-    // 3. Return a simple stream object with the Data URI as the URL.
+    // 3. Return the simple stream object that we know appears correctly.
+    // Stremio will see 'google.com' and open it externally. Google will then redirect to our page.
     const reviewStream = {
         name: "The Quick Reviewer",
-        title: "⭐️ Click to Read AI Review (Local)",
-        url: dataUri
+        title: "⭐️ Click to Read AI Review",
+        description: "This link uses Google to open the review in your browser.",
+        url: googleRedirectUrl
     };
 
     return Promise.resolve({ streams: [reviewStream] });
@@ -147,12 +148,24 @@ async function generateAiReviewText(type, id, apiKeys) {
     return reviewText;
 }
 
-// --- EXPRESS SERVER SETUP (No /review or /open endpoints needed) ---
+// --- EXPRESS SERVER SETUP (The /review endpoint is still needed) ---
 const app = express();
 
+app.get('/review/:id', (req, res) => {
+    const reviewId = req.params.id;
+    const reviewText = getFromCache(reviewId);
+    if (!reviewText) {
+        return res.status(404).send("<h1>Review Not Found</h1><p>This review may have expired from the cache. Please go back to Stremio and click the movie again.</p>");
+    }
+    const formattedReview = reviewText.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\n/g, '<br>');
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI-Generated Review</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol';background-color:#121212;color:#e0e0e0;line-height:1.6;padding:20px;}.container{max-width:800px;margin:0 auto;background-color:#1e1e1e;padding:20px 40px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.5);}h1{color:#bb86fc;text-align:center;}h3{color:#03dac6;border-bottom:1px solid #333;padding-bottom:5px;margin-top:2em;}p,br{font-size:1.1em;}</style></head><body><div class="container"><h1>The Quick Reviewer</h1><p>${formattedReview}</p></div></body></html>`;
+    res.send(html);
+});
+
+// Stremio router must be last
 app.use(getRouter(builder.getInterface()));
 
 app.listen(PORT, () => {
-    console.log(`TQR Addon v16.0.0 (Data URI Architecture) listening on port ${PORT}`);
+    console.log(`TQR Addon v18.0.0 (Google Redirect) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
