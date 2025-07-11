@@ -34,7 +34,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '20.0.0', // The Final In-App Version
+    version: '21.0.0', // The Final Working Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides AI-generated reviews directly inside Stremio. Find the review in the streams list.',
     resources: ['stream'],
@@ -67,15 +67,13 @@ builder.defineStreamHandler(async ({ type, id }) => {
     }
 
     // --- THIS IS THE DEFINITIVE FIX ---
-    // Create an informational stream object. It has no URL to click.
-    // The full review is placed in the description.
-    // Dummy infoHash and fileIdx ensure Stremio treats it as a valid, displayable item.
+    // A purely informational stream. Stremio displays it because it has a 'title'.
+    // The lack of a 'url' or 'externalUrl' means there is nothing to click,
+    // which forces the user to read the description, as intended.
     const reviewStream = {
         name: "The Quick Reviewer",
-        title: "⭐️ AI Review (Read Details)",
-        description: reviewText,
-        infoHash: id.replace(':', '').padStart(40, '0').substring(0, 40), // Create a dummy, unique hash
-        fileIdx: 0
+        title: "⭐️ AI Review (Read Details Below)",
+        description: reviewText
     };
 
     return Promise.resolve({ streams: [reviewStream] });
@@ -150,6 +148,6 @@ const app = express();
 app.use(getRouter(builder.getInterface()));
 
 app.listen(PORT, () => {
-    console.log(`TQR Addon v20.0.0 (The Final In-App Version) listening on port ${PORT}`);
+    console.log(`TQR Addon v21.0.0 (The Final In-App Version) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
