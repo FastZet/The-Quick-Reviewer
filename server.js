@@ -1,11 +1,12 @@
 const express = require('express');
 const { addonBuilder, getRouter } = require('stremio-addon-sdk');
+const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ----------------- CONFIGURATION -----------------
 const PORT = process.env.PORT || 7000;
 
 // ----------------- CACHING MECHANISM -----------------
-// Simple in-memory cache to store reviews for 7 days.
 const reviewCache = new Map();
 const CACHE_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -14,22 +15,16 @@ function getFromCache(key) {
     if (entry && Date.now() - entry.timestamp < CACHE_EXPIRATION_MS) {
         return entry.review;
     }
-    // Entry is either non-existent or expired, so we clear it.
     reviewCache.delete(key);
     return null;
 }
 
 function setToCache(key, review) {
-    const entry = {
-        review: review,
-        timestamp: Date.now()
-    };
+    const entry = { review, timestamp: Date.now() };
     reviewCache.set(key, entry);
 }
 
-
 // ----------------- MANIFEST DEFINITION -----------------
-// This manifest describes the addon's capabilities to Stremio.
 const manifest = {
     id: 'org.community.quickreviewer',
     version: '1.0.0',
@@ -41,31 +36,25 @@ const manifest = {
     catalogs: []
 };
 
-
 // ----------------- ADDON BUILDER -----------------
 const builder = new addonBuilder(manifest);
 
-// 'stream' resource handler. This is where the magic happens.
-// Stremio will call this function when it needs a stream for a particular movie or episode.
 builder.defineStreamHandler(async ({ type, id, config }) => {
     console.log(`Request for ${type} stream: ${id}`);
 
-    // The 'config' object will contain the user's API keys from the installation URL.
-    // Example: { tmdb: "...", omdb: "...", aistudio: "..." }
     const userConfig = config || {};
-    if (!userConfig.tmdb || !userConfig.omdb || !user_config.aistudio) {
-        // If keys are missing, we can't proceed.
+    if (!userConfig.tmdb || !userConfig.omdb || !userConfig.aistudio) {
         return Promise.resolve({ streams: [{
             name: "Configuration Error",
-            title: "API keys are missing.",
-            description: "Please configure the addon with your TMDB, OMDB, and AI Studio API keys."
+            title: "API keys are missing",
+            description: "Please (re)install the addon from the configure page with all API keys."
         }] });
     }
+    
+    // id format is "tt123456" for movie, or "tt123456:1:1" for series episode
+    const imdbId = id.split(':')[0];
+    const cacheKey = id; // Use the full ID for caching to distinguish episodes
 
-    // Use the TMDB ID as the unique key for our cache.
-    const cacheKey = id.split(':')[0]; // e.g., 'tt123456'
-
-    // 1. Check the cache first.
     const cachedReview = getFromCache(cacheKey);
     if (cachedReview) {
         console.log(`Serving review from cache for ${cacheKey}`);
@@ -73,59 +62,130 @@ builder.defineStreamHandler(async ({ type, id, config }) => {
     }
 
     console.log(`No cache found for ${cacheKey}. Generating new review.`);
-
-    // 2. If not in cache, generate a new review.
-    // We will build the full 'generateAiReview' function in the next step.
-    // For now, it's a placeholder.
-    const aiReview = await generateAiReview(id, userConfig);
-
-    // 3. Store the newly generated review in the cache.
-    setToCache(cacheKey, aiReview);
-
-    // 4. Return the review as a stream object.
-    return Promise.resolve({ streams: [aiReview] });
+    try {
+        const aiReview = await generateAiReview(type, id, userConfig);
+        if (aiReview) {
+            setToCache(cacheKey, aiReview);
+            return Promise.resolve({ streams: [aiReview] });
+        } else {
+             return Promise.resolve({ streams: [{ name: "Review Error", title: "Could not generate review", description:"Failed to fetch data or generate AI review." }] });
+        }
+    } catch (error) {
+        console.error("Error generating review:", error.message);
+        return Promise.resolve({ streams: [{ name: "Review Error", title: "An unexpected error occurred", description: error.message }] });
+    }
 });
 
-// Placeholder function for AI review generation.
-// We will replace this with a real implementation later.
-async function generateAiReview(itemId, apiKeys) {
-    // In the next step, this function will:
-    // 1. Fetch data from TMDB and OMDB using the provided apiKeys.
-    // 2. Construct a prompt for the AI Studio API.
-    // 3. Call the AI Studio API to get the review.
-    // 4. Format the review into the Stremio stream object format.
+async function generateAiReview(type, id, apiKeys) {
+    const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
+    const [imdbId, season, episode] = id.split(':');
 
-    // This is a dummy response for now.
-    const dummyReview = {
+    // 1. Fetch data from TMDB and OMDB
+    let tmdbData, omdbData, itemDetails;
+    try {
+        if (type === 'movie') {
+            tmdbData = await axios.get(`https://api.themoviedb.org/3/movie/${imdbId}?api_key=${tmdbKey}&append_to_response=credits,reviews`);
+            itemDetails = {
+                title: tmdbData.data.title,
+                year: new Date(tmdbData.data.release_date).getFullYear(),
+                genres: tmdbData.data.genres.map(g => g.name).join(', '),
+                director: tmdbData.data.credits?.crew.find(c => c.job === 'Director')?.name || 'N/A'
+            };
+        } else { // type is 'series'
+            const seriesData = await axios.get(`https://api.themoviedb.org/3/tv/${imdbId}?api_key=${tmdbKey}&append_to_response=credits`);
+            const episodeData = await axios.get(`https://api.themoviedb.org/3/tv/${imdbId}/season/${season}/episode/${episode}?api_key=${tmdbKey}`);
+            itemDetails = {
+                title: `${seriesData.data.name} - S${season}E${episode}: ${episodeData.data.name}`,
+                year: new Date(seriesData.data.first_air_date).getFullYear(),
+                genres: seriesData.data.genres.map(g => g.name).join(', '),
+                director: episodeData.data.crew?.find(c => c.job === 'Director')?.name || seriesData.data.created_by[0]?.name || 'N/A'
+            };
+        }
+        omdbData = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
+    } catch (e) {
+        console.error("Failed to fetch data from movie APIs:", e.message);
+        return null;
+    }
+    
+    // 2. Construct the prompt for the AI
+    const prompt = `
+        Generate a spoiler-free review for the following ${type}. Follow the structure and constraints precisely.
+
+        **Content Details:**
+        - **Title:** ${itemDetails.title}
+        - **Director:** ${itemDetails.director}
+        - **Year:** ${itemDetails.year}
+        - **Genre:** ${itemDetails.genres}
+        - **Plot Summary:** ${omdbData.data.Plot || 'A summary is not available.'}
+        - **Actors:** ${omdbData.data.Actors || 'N/A'}
+        - **Critics Ratings (e.g., Rotten Tomatoes, Metacritic):** ${omdbData.data.Ratings?.map(r => `${r.Source}: ${r.Value}`).join(', ') || 'N/A'}
+        - **Audience Rating (e.g., IMDb):** ${omdbData.data.imdbRating ? `IMDb: ${omdbData.data.imdbRating}/10` : 'N/A'}
+
+        **Review Generation Rules:**
+        - You MUST use the provided Google Search function to get the latest reviews across the web to understand recent reception.
+        - The entire review MUST be spoiler-free.
+        - Each bullet point MUST be a single sentence of maximum 20 words.
+        - You MUST generate content for every single bullet point listed below. Do not skip any.
+        - The response MUST be ONLY the bullet points, starting with "Introduction:" and ending with "Recommendation:". Do not add any extra text before or after the list.
+
+        **Review Structure:**
+        - **Introduction:** 
+        - **Hook:** 
+        - **Synopsis:** 
+        - **Direction:** 
+        - **Acting:** 
+        - **Writing:** 
+        - **Cinematography:** 
+        - **Editing & Pacing:** 
+        - **Sound & Music:** 
+        - **Production Design:** 
+        - **Themes:** 
+        - **Critics' Reception:** 
+        - **Audience' Reception:** 
+        - **Strengths:** 
+        - **Weakness:** 
+        - **Recommendation:** 
+    `;
+
+    // 3. Call Google AI Studio API
+    let reviewText;
+    try {
+        const genAI = new GoogleGenerativeAI(aiStudioKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Or your preferred model
+        
+        // Adjust safety settings as requested
+        const safetySettings = [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+        ];
+        
+        const result = await model.generateContent(prompt, { safetySettings });
+        const response = await result.response;
+        reviewText = response.text();
+    } catch (e) {
+        console.error("Failed to generate AI review:", e.message);
+        return { name: "AI Error", title: "Could not contact AI", description: "The AI Studio API failed to respond. Check your key or try again later." };
+    }
+    
+    // 4. Format the review into a Stremio stream object
+    // The 'description' field in Stremio supports multiline text.
+    return {
         name: "The Quick Reviewer",
-        title: "AI Review (Generating...)",
-        description: "This is a placeholder review. The real AI-powered review will be implemented in the next step."
+        title: "AI-Generated Review",
+        description: reviewText
     };
-
-    console.log(`(Placeholder) Generating review for ${itemId}`);
-    return dummyReview;
 }
 
 
 // ----------------- EXPRESS SERVER SETUP -----------------
 const app = express();
-
-// Serve the configuration page.
-app.get('/configure', (req, res) => {
-    // We will create the configure.html file in the next step.
-    res.sendFile(__dirname + '/configure.html');
-});
-
-// Stremio addon router.
-// This handles requests to /manifest.json and /stream/...
-// It also decodes the configuration from the URL.
+app.get('/configure', (req, res) => res.sendFile(__dirname + '/configure.html'));
 app.use('/:config?', getRouter({ ...builder.getInterface(), manifest }));
-
 
 // ----------------- START SERVER -----------------
 app.listen(PORT, () => {
     console.log(`TQR Addon server listening on port ${PORT}`);
-    // This provides an example installation link in the console when the server starts.
-    // Users will get their actual link from the /configure page.
-    console.log('Example Install Link (replace with your keys): http://127.0.0.1:7000/tmdb=YOUR_KEY|omdb=YOUR_KEY|aistudio=YOUR_KEY/manifest.json');
+    console.log(`Configure page available at http://127.0.0.1:${PORT}/configure`);
 });
