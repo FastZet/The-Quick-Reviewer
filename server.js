@@ -34,7 +34,7 @@ function setToCache(key, review) {
 // --- MANIFEST ---
 const manifest = {
     id: 'org.community.quickreviewer',
-    version: '8.0.0', // The Working Version
+    version: '9.0.0', // The Working Version
     name: 'The Quick Reviewer (TQR)',
     description: 'Provides a link to a webpage containing an AI-generated review for any movie or series.',
     resources: ['stream'],
@@ -66,13 +66,17 @@ builder.defineStreamHandler(async ({ type, id }) => {
         console.log(`Review found in cache for ${id}.`);
     }
     
-    // THIS IS THE DEFINITIVE FIX: Adding 'type: "url"' to the stream object.
+    // THIS IS THE DEFINITIVE FIX: Adding 'behaviorHints' to the stream object.
     const reviewStream = {
         name: "The Quick Reviewer",
         title: "⭐️ Click to Read AI Review",
         description: "Opens a new page with a detailed, spoiler-free review.",
         url: `${ADDON_URL}/review/${id}`,
-        type: "url" // This property tells Stremio how to handle the URL.
+        behaviorHints: {
+            // This explicitly tells Stremio to open the link in an external browser.
+            // It prevents the client from trying and failing to handle the URL internally.
+            notWebReady: true
+        }
     };
 
     return Promise.resolve({ streams: [reviewStream] });
@@ -157,6 +161,6 @@ app.get('/review/:id', (req, res) => {
 
 app.use(getRouter(builder.getInterface()));
 app.listen(PORT, () => {
-    console.log(`TQR Addon v8.0.0 (Working) listening on port ${PORT}`);
+    console.log(`TQR Addon v9.0.0 (Working) listening on port ${PORT}`);
     console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
 });
