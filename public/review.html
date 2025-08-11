@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Quick Reviewer - Review Page</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #ffffff;
+      color: #222;
+      padding: 2rem;
+      max-width: 800px;
+      margin: auto;
+    }
+    h1 { color: #333; }
+    .review-box {
+      background: #f8f8f8;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-top: 1.5rem;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ Quick AI Review</h1>
+  <p id="loading">Loading review...</p>
+  <div id="review" class="review-box" style="display:none;"></div>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('type');
+    const id = params.get('id');
+    if (!type || !id) {
+      document.getElementById('loading').textContent = 'Missing parameters.';
+    } else {
+      // This would fetch from your API endpoint to generate/retrieve the review.
+      fetch(`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch review');
+          return res.json();
+        })
+        .then(data => {
+          document.getElementById('loading').style.display = 'none';
+          const reviewBox = document.getElementById('review');
+          reviewBox.textContent = data.review || 'No review available.';
+          reviewBox.style.display = 'block';
+        })
+        .catch(err => {
+          document.getElementById('loading').textContent = 'Error: ' + err.message;
+        });
+    }
+  </script>
+</body>
+</html>
