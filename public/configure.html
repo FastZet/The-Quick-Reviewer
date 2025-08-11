@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Quick Reviewer - Configure</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      padding: 2rem;
+      max-width: 700px;
+      margin: auto;
+    }
+    h1 { color: #444; }
+    .card {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-top: 2rem;
+    }
+    input[type=text] {
+      width: 100%;
+      padding: 10px;
+      margin: 0.5rem 0 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ The Quick Reviewer Addon</h1>
+  <div class="card">
+    <p>This Stremio addon provides a single stream link that opens a spoiler‑free, AI‑generated bullet‑point review.</p>
+    <form id="config-form">
+      <label for="tmdbKey">TMDB API Key:</label>
+      <input type="text" id="tmdbKey" name="tmdbKey" required />
+
+      <label for="omdbKey">OMDB API Key:</label>
+      <input type="text" id="omdbKey" name="omdbKey" required />
+
+      <label for="geminiKey">Gemini (AI Studio) API Key:</label>
+      <input type="text" id="geminiKey" name="geminiKey" required />
+
+      <button type="submit">Save Configuration</button>
+    </form>
+    <p style="margin-top: 1rem; color: #888; font-size: 0.9em">
+      Your API keys are stored securely in your browser using localStorage only. No data is sent to any server.
+    </p>
+  </div>
+  <script>
+    const form = document.getElementById('config-form');
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      localStorage.setItem('tmdbKey', document.getElementById('tmdbKey').value.trim());
+      localStorage.setItem('omdbKey', document.getElementById('omdbKey').value.trim());
+      localStorage.setItem('geminiKey', document.getElementById('geminiKey').value.trim());
+      alert('Configuration saved locally.');
+    });
+
+    // Pre-fill if saved
+    document.getElementById('tmdbKey').value = localStorage.getItem('tmdbKey') || '';
+    document.getElementById('omdbKey').value = localStorage.getItem('omdbKey') || '';
+    document.getElementById('geminiKey').value = localStorage.getItem('geminiKey') || '';
+  </script>
+</body>
+</html>
