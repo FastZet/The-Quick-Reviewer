@@ -14,7 +14,10 @@ const builder = new addonBuilder(manifest);
 
 builder.defineStreamHandler((args) => {
   const { id, type } = args;
-  const reviewUrl = `/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  // Use absolute URL if BASE_URL is provided, else relative path
+  const reviewPath = `/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  const reviewUrl = BASE_URL ? `${BASE_URL.replace(/\/+$/, '')}${reviewPath}` : reviewPath;
+
   return Promise.resolve([
     {
       id: `quick-reviewer-${type}-${id}`,
@@ -52,6 +55,14 @@ app.use('/', addonInterface);
 
 // Health check
 app.get('/health', (req, res) => res.send('OK'));
+
+// CORS headers to ensure Stremio client compatibility
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
 
 app.listen(PORT, () => {
   console.log(`Quick Reviewer Addon running on port ${PORT}`);
