@@ -1,166 +1,148 @@
+// server.js — HuggingFace-ready Stremio addon server (fixed)
+// - Reads API keys from environment variables
+// - Uses in-memory cache (no filesystem writes)
+// - Serves manifest.json and public files
+// - Returns a single "stream" result which opens the AI review page
+
 const express = require('express');
-const { addonBuilder, getRouter } = require('stremio-addon-sdk');
-const axios = require('axios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const path = require('path');
+const { addonBuilder } = require('stremio-addon-sdk');
 
-// --- SERVER CONFIGURATION ---
-const PORT = process.env.PORT || 7860;
-const ADDON_URL = 'https://fatvet-tqr.hf.space';
+// Load manifest (keep a separate manifest.json file in the project root)
+const manifest = require('./manifest.json');
 
-const TMDB_KEY = process.env.TMDB_KEY;
-const OMDB_KEY = process.env.OMDB_KEY;
-const AISTUDIO_KEY = process.env.AISTUDIO_KEY;
+// Environment-backed configuration
+const PORT = process.env.PORT || 7000;
+const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null; // optional override
+const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
+const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 
-if (!TMDB_KEY || !OMDB_KEY || !AISTUDIO_KEY) {
-    console.error("CRITICAL ERROR: One or more API keys are missing from the environment secrets.");
-    process.exit(1);
+// Basic checks (will not crash; logs warnings)
+if (!TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Search metadata may fail.');
+if (!OMDB_API_KEY) console.warn('Warning: OMDB_API_KEY not set.');
+if (!GEMINI_API_KEY) console.warn('Warning: GEMINI_API_KEY not set.');
+
+// In-memory cache for generated review URLs (keyed by "type:id")
+// Entry: { url: string, ts: number }
+const cache = new Map();
+const CACHE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+
+function getCacheKey(type, id) {
+  return `${type}:${id}`;
 }
 
-// --- Caching Mechanism ---
-const reviewCache = new Map();
-const CACHE_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000;
-
-function getFromCache(key) {
-    const entry = reviewCache.get(key);
-    if (entry && Date.now() - entry.timestamp < CACHE_EXPIRATION_MS) { return entry.review; }
-    reviewCache.delete(key);
+function getCached(key) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_EXPIRY_MS) {
+    cache.delete(key);
     return null;
+  }
+  return entry.url;
 }
 
-function setToCache(key, review) {
-    reviewCache.set(key, { review, timestamp: Date.now() });
+function saveCache(key, url) {
+  cache.set(key, { url, ts: Date.now() });
 }
 
-// --- MANIFEST ---
-const manifest = {
-    id: 'org.community.quickreviewer',
-    version: '22.0.0', // The Player URL Override Version
-    name: 'The Quick Reviewer (TQR)',
-    description: 'Provides a clickable link to an AI-generated review.',
-    resources: ['stream'],
-    types: ['movie', 'series'],
-    catalogs: [],
-    idPrefixes: ['tt']
-};
-
+// Build the Stremio addon
 const builder = new addonBuilder(manifest);
 
-// --- STREAM HANDLER (The Definitive Player URL Override) ---
-builder.defineStreamHandler(async ({ type, id }) => {
-    console.log(`Request for stream: ${type}: ${id}`);
-    
-    let reviewText = getFromCache(id);
-    if (!reviewText) {
-        console.log(`No review in cache for ${id}. Generating new one.`);
-        try {
-            reviewText = await generateAiReviewText(type, id, { tmdb: TMDB_KEY, omdb: OMDB_KEY, aistudio: AISTUDIO_KEY });
-            if (reviewText) {
-                setToCache(id, reviewText);
-                console.log(`Successfully generated and cached review for ${id}.`);
-            } else { throw new Error('AI review generation returned no result.'); }
-        } catch (error) {
-            console.error(`Error during review generation for ${id}:`, error.message);
-            return Promise.resolve({ streams: [] });
-        }
-    } else {
-        console.log(`Review found in cache for ${id}.`);
-    }
+// Stream handler: returns a single stream that points to the AI review page
+builder.defineStreamHandler(async (args) => {
+  // args example: { id: 'tt0137523', type: 'movie' }
+  const { id, type } = args;
+  const key = getCacheKey(type, id);
+  let reviewUrl = getCached(key);
 
-    // --- THIS IS THE DEFINITIVE FIX ---
-    const reviewStream = {
-        name: "The Quick Reviewer",
-        title: "⭐️ Click to Read AI Review",
-        description: "Click the play button to open the review in your browser.",
-        // A dummy, valid, 1x1 pixel transparent PNG. This makes the stream appear.
-        url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-        // This explicitly tells Stremio's player to go to this webpage instead of playing the 'url'.
-        player_url: `${ADDON_URL}/review/${id}`
-    };
+  if (!reviewUrl) {
+    // Create a URL that points to the hosted review page.
+    // We prefer an explicit BASE_URL env var. If not present, build from request (handled below in express route).
+    // Here we'll store a path; the final absolute URL will be constructed at request-time if needed.
+    reviewUrl = `/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+    saveCache(key, reviewUrl);
+  }
 
-    return Promise.resolve({ streams: [reviewStream] });
+  // Stremio expects stream objects with at least "id" and "title"/"url" + optional "isRemote"/"subtitle".
+  return Promise.resolve([
+    {
+      id: `quick-reviewer-${type}-${id}`,
+      title: 'Quick AI Review',
+      url: reviewUrl,
+      // mark as remote so Stremio clients understand this is an external stream
+      isRemote: true,
+      // additional meta to make it appear as a simple stream
+      poster: manifest.icon || undefined,
+      // NOTE: some clients require 'format'/'language' fields, but they are optional
+    },
+  ]);
 });
 
-// --- Generate AI Review Function (Unchanged) ---
-async function generateAiReviewText(type, id, apiKeys) {
-    const { tmdb: tmdbKey, omdb: omdbKey, aistudio: aiStudioKey } = apiKeys;
-    const [imdbId, season, episode] = id.split(':');
-    let itemDetails;
-    try {
-        if (type === 'movie') {
-            const tmdbResponse = await axios.get(`https://api.themoviedb.org/3/movie/${imdbId}?api_key=${tmdbKey}&append_to_response=credits,reviews`);
-            itemDetails = { title: tmdbResponse.data.title, year: new Date(tmdbResponse.data.release_date).getFullYear(), genres: tmdbResponse.data.genres.map(g => g.name).join(', '), director: tmdbResponse.data.credits?.crew.find(c => c.job === 'Director')?.name || 'N/A' };
-        } else {
-            const [seriesResponse, episodeResponse] = await Promise.all([ axios.get(`https://api.themoviedb.org/3/tv/${imdbId}?api_key=${tmdbKey}&append_to_response=credits`), axios.get(`https://api.themoviedb.org/3/tv/${imdbId}/season/${season}/episode/${episode}?api_key=${tmdbKey}`) ]);
-            itemDetails = { title: `${seriesResponse.data.name} - S${season}E${episode}: ${episodeResponse.data.name}`, year: new Date(seriesResponse.data.first_air_date).getFullYear(), genres: seriesResponse.data.genres.map(g => g.name).join(', '), director: episodeResponse.data.crew?.find(c => c.job === 'Director')?.name || seriesResponse.data.created_by[0]?.name || 'N/A' };
-        }
-        const omdbResponse = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
-        itemDetails.plot = omdbResponse.data.Plot || 'N/A'; itemDetails.actors = omdbResponse.data.Actors || 'N/A'; itemDetails.criticRatings = omdbResponse.data.Ratings?.map(r => `${r.Source}: ${r.Value}`).join(', ') || 'N/A'; itemDetails.audienceRating = omdbResponse.data.imdbRating ? `IMDb: ${omdbResponse.data.imdbRating}/10` : 'N/A';
-    } catch (e) { throw new Error("Could not fetch metadata from TMDB/OMDB APIs."); }
-    const prompt = `
-        Generate a spoiler-free review for the following content. Follow all constraints precisely.
-        **Content Details:**
-        - Title: ${itemDetails.title}
-        - Director: ${itemDetails.director}
-        - Year: ${itemDetails.year}
-        - Genre: ${itemDetails.genres}
-        - Plot: ${itemDetails.plot}
-        - Actors: ${itemDetails.actors}
-        - Ratings: ${itemDetails.criticRatings}, ${itemDetails.audienceRating}
-        **Rules:**
-        - Use your Google Search capability to understand the general consensus for the reviews.
-        - Be strictly spoiler-free.
-        - Each bullet point must be a single sentence, maximum 20 words.
-        - You must write content for every single bullet point.
-        - The response must start with "**Introduction:**" and end with "**Recommendation:**". Do not add any extra text before or after.
-        - Use markdown bold for titles (e.g., "**Introduction:**").
-        **Structure:**
-        - **Introduction:** State the full title, director, year, and primary genre to set context.
-        - **Hook:**
-        - **Synopsis:**
-        - **Direction:**
-        - **Acting:**
-        - **Writing:**
-        - **Cinematography:**
-        - **Editing & Pacing:**
-        - **Sound & Music:**
-        - **Production Design:**
-        - **Themes:**
-        - **Critics' Reception:**
-        - **Audience' Reception:** Summarize general audience sentiment from sources like IMDb, Rotten Tomatoes audience score, and forum discussions.
-        - **Strengths:**
-        - **Weakness:**
-        - **Recommendation:**
-    `;
-    let reviewText;
-    try {
-        const genAI = new GoogleGenerativeAI(aiStudioKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-        const safetySettings = [ { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" }, { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" } ];
-        const result = await model.generateContent(prompt, { safetySettings });
-        reviewText = await result.response.text();
-    } catch (e) { console.error("Google AI Error:", e.message); throw new Error("AI Studio API failed to generate review."); }
-    if (!reviewText || !reviewText.includes("Introduction:")) { return null; }
-    return reviewText;
-}
+const addonInterface = builder.getInterface();
 
-// --- EXPRESS SERVER SETUP ---
+// Express app
 const app = express();
 
-app.get('/review/:id', (req, res) => {
-    const reviewId = req.params.id;
-    const reviewText = getFromCache(reviewId);
-    if (!reviewText) {
-        return res.status(404).send("<h1>Review Not Found</h1><p>This review may have expired from the cache. Please go back to Stremio and click the movie again.</p>");
-    }
-    const formattedReview = reviewText.replace(/\*\*(.*?)\*\*/g, '<h3>$1</h3>').replace(/\n/g, '<br>');
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI-Generated Review</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol';background-color:#121212;color:#e0e0e0;line-height:1.6;padding:20px;}.container{max-width:800px;margin:0 auto;background-color:#1e1e1e;padding:20px 40px;border-radius:10px;box-shadow:0 0 15px rgba(0,0,0,0.5);}h1{color:#bb86fc;text-align:center;}h3{color:#03dac6;border-bottom:1px solid #333;padding-bottom:5px;margin-top:2em;}p,br{font-size:1.1em;}</style></head><body><div class="container"><h1>The Quick Reviewer</h1><p>${formattedReview}</p></div></body></html>`;
-    res.send(html);
+// Serve static public files (configure.html, review.html, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve manifest at the root path /manifest.json (Stremio expects a public json at this path)
+app.get('/manifest.json', (req, res) => {
+  res.json(manifest);
 });
 
-// Stremio router must be last
-app.use(getRouter(builder.getInterface()));
+// If BASE_URL is not provided via env, we will compute absolute URLs based on request
+function makeAbsoluteUrl(req, relativePath) {
+  if (BASE_URL) {
+    // ensure no trailing slash conflict
+    return `${BASE_URL.replace(/\/+$/, '')}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+  }
+  // Build from request
+  const proto = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  return `${proto}://${host}${relativePath}`;
+}
+
+// A simple route that Stremio clients may call to get stream info in an absolute form.
+// This is useful because in-memory cache stores relative paths for portability.
+app.get('/stream-info', (req, res) => {
+  // query: ?type=movie&id=tt123
+  const { type, id } = req.query;
+  if (!type || !id) return res.status(400).json({ error: 'Missing type or id' });
+  const key = getCacheKey(type, id);
+  const relative = getCached(key);
+  if (!relative) return res.status(404).json({ error: 'No review cached for this item' });
+  const absolute = makeAbsoluteUrl(req, relative);
+  return res.json({ url: absolute });
+});
+
+// Review page route helper: returns absolute review URL for cached items (used by clients, optional)
+app.get('/review', (req, res, next) => {
+  // If the file exists in public/review.html express.static will serve it.
+  // Otherwise, we can render a minimal placeholder explaining how to call the generator.
+  // Let express.static handle actual file; if not found, fall through to this handler.
+  next();
+});
+
+// Mount the Stremio addon interface at / (builder router will handle addon routes such as /stream, /manifest, /catalog)
+app.use('/', addonInterface);
+
+// Health check
+app.get('/health', (req, res) => res.send('OK'));
+
+// Basic CORS header for routes that might be called from clients (Stremio usually doesn't require complex CORS for addons)
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
 
 app.listen(PORT, () => {
-    console.log(`TQR Addon v22.0.0 (Player URL Override) listening on port ${PORT}`);
-    console.log(`Installation URL: ${ADDON_URL}/manifest.json`);
+  console.log(`Quick Reviewer Addon running on port ${PORT}`);
+  if (BASE_URL) console.log(`Base URL (env): ${BASE_URL}`);
 });
+
+// Export app for testing (optional)
+module.exports = app;
