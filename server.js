@@ -1,9 +1,8 @@
 // server.js — HuggingFace-ready Stremio addon server (Express-only version)
-// - No stremio-addon-sdk to avoid middleware type errors
-// - Provides /manifest.json and /stream/:type/:id.json (Stremio spec)
-// - Serves static files and /review (HTML)
-// - Mounts /api/review from routes.js
-// - Builds absolute review URLs using BASE_URL or request host
+// - Provides / (landing), /manifest.json, /stream/:type/:id.json
+// - Serves /review (HTML) and mounts /api/review
+// - CORS applied early
+// - Absolute review URL built using BASE_URL or request host
 
 const express = require('express');
 const path = require('path');
@@ -35,20 +34,43 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static public files (configure.html, review.html, etc.)
+// Serve static public files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Manifest endpoint (Stremio expects this)
+// Simple landing page at "/"
+app.get('/', (req, res) => {
+  const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const host = req.get('x-forwarded-host') || req.get('host');
+  const base = BASE_URL || (host ? `${proto}://${host}` : '');
+  const sampleMovieId = '550'; // Example TMDB movie id
+
+  res.type('html').send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>The Quick Reviewer</title>
+<style>body{font-family:system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#222}
+a{color:#0b5ed7;text-decoration:none}a:hover{text-decoration:underline}
+code{background:#f5f5f5;padding:2px 6px;border-radius:4px}</style>
+</head><body>
+<h1>⚡ The Quick Reviewer — Addon</h1>
+<p>This Space is running. Useful endpoints:</p>
+<ul>
+  <li>Manifest: <a href="${base}/manifest.json">${base}/manifest.json</a></li>
+  <li>Sample Review UI (movie 550): <a href="${base}/review?type=movie&id=${sampleMovieId}">${base}/review?type=movie&id=${sampleMovieId}</a></li>
+  <li>Sample API: <a href="${base}/api/review?type=movie&id=${sampleMovieId}">${base}/api/review?type=movie&id=${sampleMovieId}</a></li>
+  <li>Health: <a href="${base}/health">${base}/health</a></li>
+</ul>
+<p>Install in Stremio by using the manifest URL above.</p>
+</body></html>`);
+});
+
+// Manifest endpoint
 app.get('/manifest.json', (req, res) => {
   res.json(manifest);
 });
 
-// Stream endpoint (Stremio spec): returns a single "Quick AI Review" stream
-// Example: /stream/movie/550.json or /stream/series/1399.json
+// Stream endpoint per Stremio spec
 app.get('/stream/:type/:id.json', (req, res) => {
   const { type, id } = req.params;
 
-  // Build absolute base URL
   const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
   const host = req.get('x-forwarded-host') || req.get('host');
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
@@ -60,7 +82,6 @@ app.get('/stream/:type/:id.json', (req, res) => {
       id: `quick-reviewer-${type}-${id}`,
       title: 'Quick AI Review',
       url: reviewUrl,
-      // Hint Stremio this is not a playable media stream
       isRemote: true,
       isExternal: true,
       poster: manifest.icon || undefined
