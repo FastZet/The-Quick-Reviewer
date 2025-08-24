@@ -13,44 +13,74 @@
       max-width: 800px;
       margin: auto;
     }
-    h1 { color: #333; }
+    h1 { color: #333; margin-bottom: .25rem; }
+    .sub {
+      color: #666;
+      font-size: 0.95rem;
+      margin: 0 0 1rem 0;
+    }
     .review-box {
       background: #f8f8f8;
       padding: 1.5rem;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-top: 1.5rem;
+      margin-top: 1rem;
       white-space: pre-line;
+      line-height: 1.5;
+    }
+    .loading {
+      color: #555;
+    }
+    .err {
+      color: #b00020;
     }
   </style>
 </head>
 <body>
   <h1>⚡ Quick AI Review</h1>
-  <p id="loading">Loading review...</p>
+  <p id="meta" class="sub"></p>
+  <p id="loading" class="loading">Loading review...</p>
   <div id="review" class="review-box" style="display:none;"></div>
+
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const type = params.get('type');
-    const id = params.get('id');
-    if (!type || !id) {
-      document.getElementById('loading').textContent = 'Missing parameters.';
-    } else {
-      // This would fetch from your API endpoint to generate/retrieve the review.
-      fetch(`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`)
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const type = (params.get('type') || '').trim();
+      const id = (params.get('id') || '').trim();
+      const metaEl = document.getElementById('meta');
+      const loadingEl = document.getElementById('loading');
+      const reviewBox = document.getElementById('review');
+
+      if (!type || !id) {
+        loadingEl.className = 'err';
+        loadingEl.textContent = 'Missing parameters.';
+        return;
+      }
+
+      metaEl.textContent = `Type: ${type} • ID: ${id}`;
+
+      // Use today's date for day-scoped caching on the server
+      const today = new Date().toISOString().split('T')[0];
+
+      // IMPORTANT: use "&" in query strings (not &amp;) inside JS
+      const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}`;
+
+      fetch(url)
         .then(res => {
-          if (!res.ok) throw new Error('Failed to fetch review');
+          if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
           return res.json();
         })
         .then(data => {
-          document.getElementById('loading').style.display = 'none';
-          const reviewBox = document.getElementById('review');
-          reviewBox.textContent = data.review || 'No review available.';
+          loadingEl.style.display = 'none';
+          const text = (data && typeof data.review === 'string') ? data.review.trim() : '';
+          reviewBox.textContent = text || 'No review available.';
           reviewBox.style.display = 'block';
         })
         .catch(err => {
-          document.getElementById('loading').textContent = 'Error: ' + err.message;
+          loadingEl.className = 'err';
+          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
         });
-    }
+    })();
   </script>
 </body>
 </html>
