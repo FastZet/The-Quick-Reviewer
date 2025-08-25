@@ -1,4 +1,4 @@
-// api.js — handles review generation using the official Google AI SDK.
+// api.js — handles review generation using the official Google AI SDK with Google Search enabled.
 
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -8,11 +8,15 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
 
-// Initialize the Google AI Client if the API key is present
 let model;
 if (GEMINI_API_KEY) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  model = genAI.getGenerativeModel({ 
+    model: GEMINI_MODEL,
+    tools: [{
+      googleSearch: {},
+    }],
+  });
 }
 
 function mapTmdbType(type) {
@@ -33,7 +37,6 @@ async function fetchMetadata(type, id) {
   }
 }
 
-// THIS IS THE UPDATED FUNCTION WITH YOUR NEW PROMPT
 function buildPromptFromMetadata(metadata, originalType) {
   const isSeries = originalType === 'series' || Boolean(metadata?.first_air_date);
   const title = metadata?.title || metadata?.name || 'Unknown Title';
@@ -47,7 +50,13 @@ Neutral and Unbiased – you avoid favoritism toward actors, directors, genres, 
 Structured and Professional – you always begin with a spoiler-free summary of the plot, followed by analysis of direction, screenplay, acting, cinematography, music, pacing, editing, and originality.
 Balanced Tone – praise and criticism are both clearly stated with justification. You never exaggerate or show personal bias.
 Concise but Insightful – reviews should be clear, easy to follow, and focused on quality assessment.
-Data Recency – You MUST use real-time, up-to-date information by using and searching the web at the moment of this request. If specific box office numbers or streaming data are not publicly available, describe the general public and critical consensus based on articles, reviews, and social media trends. State what is known. This is a strict requirement. Your response must be grounded in real-world data.
+
+***Data Grounding and Recency (Crucial):***
+
+– You MUST use your Google Search tool to find real-time, up-to-date information for the "Audience Reception" and "Box Office Performance" sections.
+- DO NOT use placeholder text like "(data is unavailable)". Your function is to find and report this data using search tool if it is not available in your training data.
+- If specific box office numbers are not public, report the general critical consensus, audience scores (like from Rotten Tomatoes or IMDb), and social media trends from popular sites like Reddit, X(formerly Twitter), Facebook etc. Don't limit yourself to these three websites only.
+- This is a strict requirement. Your response MUST be grounded in real-world data from your search tool.
 
 When writing a spoiler free review, follow this order:
 
@@ -93,7 +102,7 @@ async function generateReview(metadata, originalType) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
   try {
     const prompt = buildPromptFromMetadata(metadata, originalType);
-    console.log(`[Gemini SDK] Generating content with model: ${GEMINI_MODEL}`);
+    console.log(`[Gemini SDK] Generating content with model: ${GEMINI_MODEL} (Google Search Enabled)`);
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
