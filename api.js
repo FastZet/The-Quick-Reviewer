@@ -120,6 +120,13 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
 - If specific box office numbers are not public, report the general critical consensus, audience scores (like from Rotten Tomatoes or IMDb), and social media trends from popular sites like Reddit, X(formerly Twitter), Facebook etc. Don't limit yourself to these three websites only.
 - This is a strict requirement. Your response MUST be grounded in real-world data from your search tool. Don't make up stuff by yourself.
 
+***Formatting Rules (Strict):***
+- Each section of the review MUST begin with a round dot (•) followed by a space and a bolded heading.
+- There are no sub-bullets. The content for each section follows directly after its heading.
+- Example of the required format:
+  • **Plot Summary:** Provide a brief overview of the story...
+  • **Storytelling, Writing, and Pacing:** Assess narrative coherence, structure, dialogue, and rhythm...
+
 When writing a spoiler free review, follow this order:
 
 Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies.
