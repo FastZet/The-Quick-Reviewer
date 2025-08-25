@@ -8,11 +8,20 @@
     .sub{color:#adb5bd;font-size:.95rem;margin:0 0 1rem 0}
     .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem;white-space:pre-line;text-align:justify}
     .loading{color:#ced4da}.err{color:#ff8c8c}strong{color:#fff;font-weight:600}
-    /* Button styles */
     .controls{margin-top:2rem;text-align:center}
     #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
     #refresh-btn:hover{background-color:#6c757d}
     #refresh-btn:disabled{background-color:#343a40;color:#6c757d;cursor:not-allowed}
+
+    /* THE FIX: Add styles for smaller screens */
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem; /* Reduce padding on mobile */
+      }
+      .review-box {
+        padding: 1.5rem; /* Reduce padding inside the card on mobile */
+      }
+    }
   </style>
 </head>
 <body>
@@ -20,7 +29,6 @@
   <p id="meta" class="sub"></p>
   <p id="loading" class="loading">Loading review...</p>
   <div id="review" class="review-box" style="display:none;"></div>
-  <!-- THE FIX: Add the button container and the button itself -->
   <div class="controls">
     <button id="refresh-btn" style="display:none;">Force New Review</button>
   </div>
@@ -29,7 +37,7 @@
       const params=new URLSearchParams(window.location.search);
       const type=(params.get('type')||'').trim();
       const id=(params.get('id')||'').trim();
-      const isForced = params.has('force'); // Check if this is a forced refresh
+      const isForced = params.has('force');
       const metaEl=document.getElementById('meta');
       const loadingEl=document.getElementById('loading');
       const reviewBox=document.getElementById('review');
@@ -37,32 +45,29 @@
 
       if(!type||!id){loadingEl.className='err';loadingEl.textContent='Missing parameters.';return}
       metaEl.textContent=`Type: ${type} • ID: ${id}`;
-      // Give user feedback if they are forcing a refresh
-      if (isForced) {
-        loadingEl.textContent = 'Forcing a new review from the AI, please wait...';
-      }
+      if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
 
       const today=new Date().toISOString().split('T')[0];
-      // Add the force parameter to the API call if it's in the URL
       const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}${isForced ? '&force=true' : ''}`;
 
       fetch(url).then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()}).then(data=>{
         loadingEl.style.display='none';
         const rawText=(data&&typeof data.review==='string')?data.review.trim():'';
-        let formattedHtml=rawText.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-        formattedHtml=formattedHtml.replace(/^\*\s/gm,'&bull; ');
-        reviewBox.innerHTML=formattedHtml||'No review available.';
+        
+        // Handle bolding with asterisks
+        let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Handle list items starting with a hyphen or asterisk
+        formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
+        
+        reviewBox.innerHTML = formattedHtml || 'No review available.';
         reviewBox.style.display='block';
-        // Show the refresh button after a review is loaded
         refreshBtn.style.display='inline-block';
       }).catch(err=>{
         loadingEl.className='err';
         loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
-        // Still show the button on error so the user can retry
         refreshBtn.style.display='inline-block';
       });
 
-      // Add click event listener for the button
       refreshBtn.addEventListener('click', () => {
         refreshBtn.disabled = true;
         refreshBtn.textContent = 'Refreshing...';
