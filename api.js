@@ -3,8 +3,10 @@
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { readReview, saveReview } = require('./cache');
+const scraper = require('./scraper.js'); // Import the entire scraper module
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
+const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 
@@ -15,6 +17,7 @@ if (GEMINI_API_KEY) {
 }
 
 // --- API Fetching Logic ---
+
 async function fetchMovieSeriesMetadata(type, id) {
   // TMDB (Primary)
   try {
@@ -39,7 +42,6 @@ async function fetchMovieSeriesMetadata(type, id) {
   return null;
 }
 
-
 async function fetchEpisodeMetadata(seriesId, season, episode) {
   // TMDB (Primary)
   try {
@@ -60,9 +62,11 @@ async function fetchEpisodeMetadata(seriesId, season, episode) {
       console.warn(`[OMDB] Failed for episode S${season}E${episode}: ${error.message}`);
     }
   }
+  return null;
 }
 
 // --- Prompt and Review Generation ---
+
 function buildPromptFromMetadata(metadata, type, seriesInfo = {}, scrapedEpisodeTitle = null) {
   const isEpisode = type === 'series' && metadata.data.episode_number;
   const isSeries = type === 'series' && !isEpisode;
@@ -91,7 +95,7 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
 
 When writing a spoiler free review, follow this order:
 
-Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies. Make movie name and movie year bold. Use the below mentioned points and bullet headings and don't use sub bullet headings.
+Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies. Make movie name and movie year bold in this first line only. Use the below mentioned points and bullet headings and don't use sub bullet headings.
 - Plot Summary: Provide a brief overview of the story premise without revealing key twists.
 - Storytelling, Writing, and Pacing: Assess narrative coherence, structure, dialogue, and rhythm of the movie/series.
 - Performances and Character Development: Evaluate overall acting quality, specifically mentioning how individual lead actors performed, and whether characters felt authentic or underdeveloped.
@@ -128,9 +132,10 @@ A “Verdict in One Line” – a headline-style takeaway summarizing the critic
     finalInstruction = `Now, make a spoiler free episode review in bullet points style for the episode "${episodeTitle}" (Season ${metadata.data.season_number}, Episode ${metadata.data.episode_number}) of the series "${seriesName}".`;
   } else if (isSeries) {
     finalInstruction = `Now, make a spoiler free series review in bullet points style for the series "${title}" (${year}).`;
-  } else { // Movie
+  } else {
     finalInstruction = `Now, make a spoiler free movie review in bullet points style for the movie "${title}" (${year}).`;
   }
+  
   const overviewSection = overview ? `\n\nHere is the official overview for context: ${overview}` : '';
   return `${seedPrompt}\n\n${finalInstruction}${overviewSection}`;
 }
@@ -138,14 +143,11 @@ A “Verdict in One Line” – a headline-style takeaway summarizing the critic
 async function generateReview(prompt) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
   try {
-    const prompt = buildPromptFromMetadata(metadata, originalType);
     console.log(`[Gemini SDK] Starting chat session with model: ${GEMINI_MODEL} (Google Search Enabled)`);
-
     const chat = model.startChat({ tools: [{ googleSearch: {} }] });
     const result = await chat.sendMessage(prompt);
     const response = result.response;
     const reviewText = response.text();
-    
     return reviewText.trim() || 'No review generated.';
   } catch (err) {
     console.error('Gemini SDK review generation failed:', err);
@@ -154,6 +156,7 @@ async function generateReview(prompt) {
 }
 
 // --- Main Orchestrator ---
+
 async function getReview(date, id, type) {
   const cached = readReview(date, id);
   if (cached) return cached;
@@ -163,23 +166,20 @@ async function getReview(date, id, type) {
 
   let metadata;
   let prompt;
-
+  
   if (isEpisode) {
     const [seriesId, season, episode] = idParts;
     console.log(`[Review Manager] Handling episode request: ${seriesId} S${season}E${episode}`);
     
-    // Fetch all data in parallel for maximum efficiency
     const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
-      scrapeImdbForEpisodeTitle(seriesId, season, episode),
+      scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode), // Correctly call the imported module
       fetchEpisodeMetadata(seriesId, season, episode),
-      fetchMovieSeriesMetadata('series', seriesId) // Fetch series data to get its name
+      fetchMovieSeriesMetadata('series', seriesId)
     ]);
     
     metadata = episodeMetadata;
     if (metadata && seriesMetadata) {
-      const seriesInfo = {
-          title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title
-      };
+      const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
       prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
     }
 
