@@ -5,42 +5,120 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Quick Reviewer - Review Page</title>
   <style>
+    /* --- NEW: Dark Theme and Typography --- */
+    :root {
+      --background-color: #1a1a1a;
+      --text-color: #e0e0e0;
+      --header-color: #ffffff;
+      --subtle-text-color: #a0a0a0;
+      --accent-color: #4a90e2;
+      --card-background: #2c2c2c;
+      --border-color: #444444;
+    }
+
     body {
-      font-family: system-ui, sans-serif;
-      background: #ffffff;
-      color: #222;
-      padding: 2rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--background-color);
+      color: var(--text-color);
+      padding: 1rem;
       max-width: 800px;
       margin: auto;
+      line-height: 1.6;
     }
-    h1 { color: #333; margin-bottom: .25rem; }
+
+    h1 { 
+      color: var(--header-color); 
+      margin-bottom: .25rem; 
+      font-weight: 600;
+    }
+
     .sub {
-      color: #666;
+      color: var(--subtle-text-color);
       font-size: 0.95rem;
-      margin: 0 0 1rem 0;
+      margin: 0 0 2rem 0;
     }
-    .review-box {
-      background: #f8f8f8;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-top: 1rem;
-      white-space: pre-line;
-      line-height: 1.5;
+    
+    .loading, .err {
+      text-align: center;
+      padding: 2rem;
+      font-size: 1.1rem;
     }
-    .loading {
-      color: #555;
-    }
+
     .err {
-      color: #b00020;
+      color: #ff6b6b;
+    }
+
+    /* --- NEW: Accordion Styles --- */
+    .review-container {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .accordion-item {
+      border-bottom: 1px solid var(--border-color);
+    }
+    .accordion-item:last-child {
+      border-bottom: none;
+    }
+
+    .accordion-header {
+      background: var(--card-background);
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1.1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      transition: background-color 0.2s ease;
+    }
+    
+    .accordion-header:hover {
+      background-color: #3a3a3a;
+    }
+
+    .accordion-header::after {
+      content: '+';
+      font-size: 1.5rem;
+      color: var(--subtle-text-color);
+      transition: transform 0.3s ease;
+    }
+
+    .accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      padding: 0 1.25rem;
+      background: #222222;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+    }
+
+    .accordion-content .content-inner {
+        padding: 1.5rem 0;
+        white-space: pre-line;
+    }
+
+    /* State when the accordion item is active/open */
+    .accordion-item.active .accordion-header {
+      color: var(--accent-color);
+    }
+
+    .accordion-item.active .accordion-header::after {
+      transform: rotate(45deg);
+    }
+
+    .accordion-item.active .accordion-content {
+      max-height: 1500px; /* Adjust if content is longer */
     }
   </style>
 </head>
 <body>
-  <h1>⚡ Quick AI Review</h1>
+  <h1>⚡ AI Critic Review</h1>
   <p id="meta" class="sub"></p>
-  <p id="loading" class="loading">Loading review...</p>
-  <div id="review" class="review-box" style="display:none;"></div>
+  <p id="loading" class="loading">Generating review...</p>
+  <!-- The review will be injected here -->
+  <div id="review-container" class="review-container" style="display:none;"></div>
 
   <script>
     (function () {
@@ -49,7 +127,7 @@
       const id = (params.get('id') || '').trim();
       const metaEl = document.getElementById('meta');
       const loadingEl = document.getElementById('loading');
-      const reviewBox = document.getElementById('review');
+      const reviewContainer = document.getElementById('review-container');
 
       if (!type || !id) {
         loadingEl.className = 'err';
@@ -59,10 +137,7 @@
 
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
 
-      // Use today's date for day-scoped caching on the server
       const today = new Date().toISOString().split('T')[0];
-
-      // IMPORTANT: use "&" in query strings (not &amp;) inside JS
       const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}`;
 
       fetch(url)
@@ -72,14 +147,72 @@
         })
         .then(data => {
           loadingEl.style.display = 'none';
-          const text = (data && typeof data.review === 'string') ? data.review.trim() : '';
-          reviewBox.textContent = text || 'No review available.';
-          reviewBox.style.display = 'block';
+          const text = (data && typeof data.review === 'string') ? data.review.trim() : 'No review available.';
+          renderReviewAsAccordion(text);
+          reviewContainer.style.display = 'block';
         })
         .catch(err => {
           loadingEl.className = 'err';
           loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
         });
+      
+      /**
+       * NEW: This function parses the Markdown-like text from the AI 
+       * and builds an HTML accordion structure.
+       */
+      function renderReviewAsAccordion(text) {
+        // Split the review text by the main headers (e.g., "* **Plot Summary:**")
+        const sections = text.split(/\*\s\*\*(.*?)\*\*/g).filter(Boolean);
+        let html = '';
+
+        for (let i = 0; i < sections.length; i += 2) {
+          const title = sections[i].replace(/:/g, '').trim();
+          const content = sections[i + 1] ? sections[i + 1].trim() : '';
+
+          html += `
+            <div class="accordion-item">
+              <div class="accordion-header">${title}</div>
+              <div class="accordion-content">
+                <div class="content-inner">${content}</div>
+              </div>
+            </div>
+          `;
+        }
+        reviewContainer.innerHTML = html;
+        initAccordion();
+      }
+
+      /**
+       * NEW: This function adds the click listeners and behavior
+       * for the newly created accordion.
+       */
+      function initAccordion() {
+        const items = reviewContainer.querySelectorAll('.accordion-item');
+
+        if (items.length > 0) {
+          // Open the first item ("Plot Summary") by default
+          items[0].classList.add('active');
+
+          items.forEach(item => {
+            const header = item.querySelector('.accordion-header');
+            header.addEventListener('click', () => {
+              // Check if the clicked item is already active
+              const isActive = item.classList.contains('active');
+              
+              // First, close all other items
+              items.forEach(otherItem => {
+                otherItem.classList.remove('active');
+              });
+
+              // If the clicked item was not already active, open it.
+              // This creates the "only one open at a time" behavior.
+              if (!isActive) {
+                item.classList.add('active');
+              }
+            });
+          });
+        }
+      }
     })();
   </script>
 </body>
