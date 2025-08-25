@@ -1,4 +1,4 @@
-// api.js — handles review generation using the official Google AI SDK with Google Search enabled via a chat session.
+// api.js — handles review generation using the official Google AI SDK with Automatic Tool Execution.
 
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -97,19 +97,24 @@ async function generateReview(metadata, originalType) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
   try {
     const prompt = buildPromptFromMetadata(metadata, originalType);
-    console.log(`[Gemini SDK] Starting chat session with model: ${GEMINI_MODEL} (Google Search Enabled)`);
-    // Use a chat session to correctly handle tool-enabled requests.
-    const chat = model.startChat({
-      tools: [{
-        googleSearch: {},
-      }],
-    });
-    
-    const result = await chat.sendMessage(prompt);
+    console.log(`[Gemini SDK] Generating content with model: ${GEMINI_MODEL} (AUTO Search Enabled)`);
+    // Create a request object that includes the tools and sets the execution mode to "AUTO".
+    // This tells the SDK to handle the search and response generation in one step.
+    const request = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ googleSearch: {} }],
+      tool_config: {
+        function_calling_config: {
+          mode: "AUTO",
+        },
+      },
+    };
+
+    const result = await model.generateContent(request);
     const response = await result.response;
     const reviewText = response.text();
     
-    return reviewText.trim() || 'No review generated.';
+    return reviewText.trim() || 'Review generation resulted in an empty response.';
   } catch (err) {
     console.error('Gemini SDK review generation failed:', err);
     return 'Error generating review.';
