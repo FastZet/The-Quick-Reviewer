@@ -32,25 +32,40 @@ app.use((req, res, next) => {
 // Serve static public files (configure.html, review.html, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Manifest endpoint with optional password
+// --- MANIFEST AND STREAM ENDPOINTS WITH PASSWORD LOGIC ---
+
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 
 if (ADDON_PASSWORD) {
-  // If a password is set, the manifest is ONLY available at this specific, secret URL.
-  app.get(`/${ADDON_PASSWORD}/manifest.json`, (req, res) => {
+  const secretPath = `/${ADDON_PASSWORD}`;
+  console.log(`Addon is SECURED. All endpoints are prefixed with: ${secretPath}`);
+
+  // Secured manifest endpoint
+  app.get(`${secretPath}/manifest.json`, (req, res) => {
     res.json(manifest);
   });
-  console.log(`Manifest is SECURED. Install from: /${ADDON_PASSWORD}/manifest.json`);
+
+  // Secured stream endpoint
+  app.get(`${secretPath}/stream/:type/:id.json`, (req, res) => {
+    handleStreamRequest(req, res);
+  });
+
 } else {
-// If no password is set, fall back to the standard, unsecured URL for default behavior.
-app.get('/manifest.json', (req, res) => {
-  res.json(manifest);
-});
-console.log('Manifest is UNSECURED. Install from: /manifest.json');
+  console.log('Addon is UNSECURED.');
+
+  // Unsecured manifest endpoint
+  app.get('/manifest.json', (req, res) => {
+    res.json(manifest);
+  });
+
+  // Unsecured stream endpoint
+  app.get('/stream/:type/:id.json', (req, res) => {
+    handleStreamRequest(req, res);
+  });
 }
 
-// Stream endpoint (Stremio spec)
-app.get('/stream/:type/:id.json', (req, res) => {
+// We move the stream logic into a reusable function to avoid code duplication.
+function handleStreamRequest(req, res) {
   const { type, id } = req.params;
 
   // Build absolute base URL
@@ -63,17 +78,15 @@ app.get('/stream/:type/:id.json', (req, res) => {
   const streams = [{
     id: `quick-reviewer-${type}-${id}`,
     title: '⚡ Quick AI Review',
-    // Use 'externalUrl' to force opening in a browser.
     externalUrl: reviewUrl, 
     poster: manifest.icon || undefined,
-    // This hint reinforces that the URL is external and not for direct playback.
     behaviorHints: {
       "notWebReady": true
     }
   }];
 
   res.json({ streams });
-});
+}
 
 // Serve the review page explicitly
 app.get('/review', (req, res) => {
