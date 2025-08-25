@@ -65,8 +65,8 @@ Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for mov
 - Editing: Judge pacing, scene transitions, continuity, and how smoothly the narrative flows.
 - Direction and Vision: Examine how the director’s choices shaped the tone, style, and impact of the production.
 - Originality and Creativity: Judge whether the work feels fresh or derivative.
-- Strengths: Clearly list what works well and major strong points about the movie/episode.
-- Weaknesses: Clearly list what falls short and the major painpoints about the movie/episode.
+- Strengths: Clearly mention what works well and major strong points about the movie/episode.
+- Weaknesses: Clearly mention what falls short and the major painpoints about the movie/episode.
 - Critical Reception: Summarize how professional critics and reviewers are rating and interpreting the work.
 - Audience Reception & Reaction: Capture how the wider audience is responding, including word-of-mouth, trends, social media buzz, ratings etc.
 - Box Office and/or Streaming Performance: Mention domestic and worldwide earnings or viewership statistics in case of streaming platform if available and relevant.
