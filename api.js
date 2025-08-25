@@ -9,6 +9,7 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const MAX_RETRIES = 2;
 
 let model;
 if (GEMINI_API_KEY) {
@@ -168,57 +169,77 @@ A “Verdict in One Line” – a headline-style takeaway summarizing the critic
 
 async function generateReview(prompt) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
-  try {
-    console.log(`[Gemini SDK] Starting chat session with model: ${GEMINI_MODEL} (Google Search Enabled)`);
-    const chat = model.startChat({ tools: [{ googleSearch: {} }] });
-    const result = await chat.sendMessage(prompt);
-    const response = result.response;
-    const reviewText = response.text();
-    return reviewText.trim() || 'No review generated.';
-  } catch (err) {
-    console.error('Gemini SDK review generation failed:', err);
-    return 'Error generating review.';
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`[Gemini SDK] Starting chat session, attempt ${attempt}/${MAX_RETRIES}...`);
+      const chat = model.startChat({ tools: [{ googleSearch: {} }] });
+      const result = await chat.sendMessage(prompt);
+      const response = result.response;
+      const reviewText = response.text();
+      return reviewText.trim() || 'No review generated.';
+    } catch (err) {
+      // Check if it's a 500 error and if we have retries left.
+      if (err.status === 500 && attempt < MAX_RETRIES) {
+        console.warn(`[Gemini SDK] Attempt ${attempt} failed with 500 error. Retrying in 1 second...`);
+        await new Promise(res => setTimeout(res, 1000)); // Wait 1 second before retrying
+      } else {
+        console.error(`[Gemini SDK] Review generation failed on attempt ${attempt}:`, err);
+        return 'Error generating review.'; // Fail permanently
+      }
+    }
   }
 }
 
-// --- Main Orchestrator ---
-
-async function getReview(date, id, type) {
-  const cached = readReview(date, id);
-  if (cached) return cached;
+// --- Main Orchestrator with Force Refresh Logic ---
+async function getReview(date, id, type, forceRefresh = false) {
+  // THE FIX: Only check the cache if forceRefresh is false.
+  if (!forceRefresh) {
+    const cached = readReview(date, id);
+    if (cached) {
+      console.log(`[Cache] Cache hit for ${id}.`);
+      return cached;
+    }
+    console.log(`[Cache] Cache miss for ${id}.`);
+  } else {
+    console.log(`[Cache] Force refresh requested for ${id}. Bypassing cache.`);
+  }
 
   const idParts = String(id).split(':');
   const isEpisode = type === 'series' && idParts.length === 3;
-  let metadata;
-  let prompt;
+
+  let metadata, prompt;
+  
   if (isEpisode) {
     const [seriesId, season, episode] = idParts;
     console.log(`[Review Manager] Handling episode request: ${seriesId} S${season}E${episode}`);
     const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
-      scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode), // Correctly call the imported module
+      scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode),
       fetchEpisodeMetadata(seriesId, season, episode),
       fetchMovieSeriesMetadata('series', seriesId)
     ]);
     metadata = episodeMetadata;
-        if (metadata && seriesMetadata) {
-            const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
-            prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
-        }
-    } else {
-        console.log(`[Review Manager] Handling ${type} request: ${id}`);
-        metadata = await fetchMovieSeriesMetadata(type, id);
-        if (metadata) {
-            prompt = buildPromptFromMetadata(metadata, type);
-        }
+    if (metadata && seriesMetadata) {
+      const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
+      prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
     }
-    if (!metadata || !prompt) {
-        const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.'.replace(/\n/g, '\\n');
-        saveReview(date, id, fallbackText);
-        return fallbackText;
+  } else {
+    console.log(`[Review Manager] Handling ${type} request: ${id}`);
+    metadata = await fetchMovieSeriesMetadata(type, id);
+    if (metadata) {
+      prompt = buildPromptFromMetadata(metadata, type);
     }
-    const review = await generateReview(prompt);
-    saveReview(date, id, review);
-    return review;
+  }
+
+  if (!metadata || !prompt) {
+    const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.';
+    saveReview(date, id, fallbackText);
+    return fallbackText;
+  }
+
+  const review = await generateReview(prompt);
+  saveReview(date, id, review);
+  return review;
 }
 
 module.exports = { getReview };
