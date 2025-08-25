@@ -129,9 +129,17 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
 
 When writing a spoiler free review, follow this order:
 
-Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies.
-Make movie name and movie year bold in this first line only.
-For series' episodes, start with <Here is a spoiler-free review of the episode "Episode Name" of the series "Series_Name" (SxxEyy, first aired on DD/MM/YYYY):>.
+For movies, start with the following in separate lines:
+- Name of the movie: Name of the Movie.
+- Released on: The date and the year when it was first released.
+- Directed by: Name of the director.
+
+For series' episodes, start with the following in separate lines:
+- Name of the series: Only mention the name of the series, don't mention episode name here.
+- Season and Episode: Menrion the Season and Episode in the format "Season X, Episode Y".
+- Released on: The date when the episode was first aired or released as per records available.
+- Directed by: Name of the director of the episode, not the series.
+
 If in a review for a movie or series' episode, apart from the starting "Here is a spoiler-free review..." you have to mention the name of anything significant and you feel you need to use bold characters, use double quotes <""> instead.
 Use the below mentioned points and bullet headings and don't use sub bullet headings. Add a spacing among the points for easier legibility.
 
