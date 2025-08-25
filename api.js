@@ -1,4 +1,4 @@
-// api.js — handles review generation using the official Google AI SDK with Google Search enabled.
+// api.js — handles review generation using the official Google AI SDK with Google Search enabled via a chat session.
 
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -6,17 +6,12 @@ const { readReview, saveReview } = require('./cache');
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 
 let model;
 if (GEMINI_API_KEY) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  model = genAI.getGenerativeModel({ 
-    model: GEMINI_MODEL,
-    tools: [{
-      googleSearch: {},
-    }],
-  });
+  model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 }
 
 function mapTmdbType(type) {
@@ -102,9 +97,15 @@ async function generateReview(metadata, originalType) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
   try {
     const prompt = buildPromptFromMetadata(metadata, originalType);
-    console.log(`[Gemini SDK] Generating content with model: ${GEMINI_MODEL} (Google Search Enabled)`);
+    console.log(`[Gemini SDK] Starting chat session with model: ${GEMINI_MODEL} (Google Search Enabled)`);
+    // Use a chat session to correctly handle tool-enabled requests.
+    const chat = model.startChat({
+      tools: [{
+        googleSearch: {},
+      }],
+    });
     
-    const result = await model.generateContent(prompt);
+    const result = await chat.sendMessage(prompt);
     const response = await result.response;
     const reviewText = response.text();
     
