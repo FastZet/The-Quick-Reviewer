@@ -6,39 +6,39 @@
   <title>The Quick Reviewer - Review Page</title>
   <style>
     body {
-      /* Better font, dark background, and light text */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #212529; /* Dark charcoal background */
-      color: #e9ecef; /* Light grey text for readability */
+      background-color: #212529;
+      color: #e9ecef;
       padding: 2rem;
       max-width: 800px;
       margin: auto;
       line-height: 1.6;
     }
     h1 { 
-      color: #ffffff; /* White heading */
+      color: #ffffff;
       margin-bottom: .25rem; 
     }
     .sub {
-      color: #adb5bd; /* Softer grey for sub-heading */
+      color: #adb5bd;
       font-size: 0.95rem;
       margin: 0 0 1rem 0;
     }
     .review-box {
-      background: #343a40; /* Slightly lighter dark card for contrast */
+      background: #343a40;
       padding: 1.5rem 2rem;
       border-radius: 12px;
-      border: 1px solid #495057; /* Subtle border */
+      border: 1px solid #495057;
       margin-top: 1.5rem;
       white-space: pre-line;
+      /* FIX: Justify text for a cleaner, block-like appearance */
+      text-align: justify;
     }
     .loading {
       color: #ced4da;
     }
     .err {
-      color: #ff8c8c; /* Softer red for errors on dark background */
+      color: #ff8c8c;
     }
-    /* Style for the bolded text */
     strong {
         color: #ffffff;
         font-weight: 600;
@@ -80,10 +80,13 @@
           loadingEl.style.display = 'none';
           const rawText = (data && typeof data.review === 'string') ? data.review.trim() : '';
 
-          // FIX: Convert markdown bold (**text**) to HTML bold (<strong>text</strong>)
-          const formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          // Step 1: Convert markdown bold (**text**) to HTML bold (<strong>text</strong>)
+          let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-          // Use innerHTML to render the formatted text
+          // FIX Step 2: Convert leading asterisks (*) into HTML bullet points (•)
+          // The 'gm' flags are crucial: 'g' for global (all lines), 'm' for multiline mode.
+          formattedHtml = formattedHtml.replace(/^\*\s/gm, '&bull; ');
+
           reviewBox.innerHTML = formattedHtml || 'No review available.';
           reviewBox.style.display = 'block';
         })
