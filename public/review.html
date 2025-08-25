@@ -1,48 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>The Quick Reviewer - Review Page</title>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>The Quick Reviewer</title>
   <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #212529;
-      color: #e9ecef;
-      padding: 2rem;
-      max-width: 800px;
-      margin: auto;
-      line-height: 1.6;
-    }
-    h1 { 
-      color: #ffffff;
-      margin-bottom: .25rem; 
-    }
-    .sub {
-      color: #adb5bd;
-      font-size: 0.95rem;
-      margin: 0 0 1rem 0;
-    }
-    .review-box {
-      background: #343a40;
-      padding: 1.5rem 2rem;
-      border-radius: 12px;
-      border: 1px solid #495057;
-      margin-top: 1.5rem;
-      white-space: pre-line;
-      /* FIX: Justify text for a cleaner, block-like appearance */
-      text-align: justify;
-    }
-    .loading {
-      color: #ced4da;
-    }
-    .err {
-      color: #ff8c8c;
-    }
-    strong {
-        color: #ffffff;
-        font-weight: 600;
-    }
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:#212529;color:#e9ecef;padding:2rem;max-width:800px;margin:auto;line-height:1.6}
+    h1{color:#fff;margin-bottom:.25rem}
+    .sub{color:#adb5bd;font-size:.95rem;margin:0 0 1rem 0}
+    .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem;white-space:pre-line;text-align:justify}
+    .loading{color:#ced4da}.err{color:#ff8c8c}strong{color:#fff;font-weight:600}
+    /* Button styles */
+    .controls{margin-top:2rem;text-align:center}
+    #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
+    #refresh-btn:hover{background-color:#6c757d}
+    #refresh-btn:disabled{background-color:#343a40;color:#6c757d;cursor:not-allowed}
   </style>
 </head>
 <body>
@@ -50,50 +20,56 @@
   <p id="meta" class="sub"></p>
   <p id="loading" class="loading">Loading review...</p>
   <div id="review" class="review-box" style="display:none;"></div>
-
+  <!-- THE FIX: Add the button container and the button itself -->
+  <div class="controls">
+    <button id="refresh-btn" style="display:none;">Force New Review</button>
+  </div>
   <script>
-    (function () {
-      const params = new URLSearchParams(window.location.search);
-      const type = (params.get('type') || '').trim();
-      const id = (params.get('id') || '').trim();
-      const metaEl = document.getElementById('meta');
-      const loadingEl = document.getElementById('loading');
-      const reviewBox = document.getElementById('review');
+    (function(){
+      const params=new URLSearchParams(window.location.search);
+      const type=(params.get('type')||'').trim();
+      const id=(params.get('id')||'').trim();
+      const isForced = params.has('force'); // Check if this is a forced refresh
+      const metaEl=document.getElementById('meta');
+      const loadingEl=document.getElementById('loading');
+      const reviewBox=document.getElementById('review');
+      const refreshBtn=document.getElementById('refresh-btn');
 
-      if (!type || !id) {
-        loadingEl.className = 'err';
-        loadingEl.textContent = 'Missing parameters.';
-        return;
+      if(!type||!id){loadingEl.className='err';loadingEl.textContent='Missing parameters.';return}
+      metaEl.textContent=`Type: ${type} • ID: ${id}`;
+      // Give user feedback if they are forcing a refresh
+      if (isForced) {
+        loadingEl.textContent = 'Forcing a new review from the AI, please wait...';
       }
 
-      metaEl.textContent = `Type: ${type} • ID: ${id}`;
+      const today=new Date().toISOString().split('T')[0];
+      // Add the force parameter to the API call if it's in the URL
+      const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}${isForced ? '&force=true' : ''}`;
 
-      const today = new Date().toISOString().split('T')[0];
-      const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}`;
+      fetch(url).then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()}).then(data=>{
+        loadingEl.style.display='none';
+        const rawText=(data&&typeof data.review==='string')?data.review.trim():'';
+        let formattedHtml=rawText.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+        formattedHtml=formattedHtml.replace(/^\*\s/gm,'&bull; ');
+        reviewBox.innerHTML=formattedHtml||'No review available.';
+        reviewBox.style.display='block';
+        // Show the refresh button after a review is loaded
+        refreshBtn.style.display='inline-block';
+      }).catch(err=>{
+        loadingEl.className='err';
+        loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
+        // Still show the button on error so the user can retry
+        refreshBtn.style.display='inline-block';
+      });
 
-      fetch(url)
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
-          return res.json();
-        })
-        .then(data => {
-          loadingEl.style.display = 'none';
-          const rawText = (data && typeof data.review === 'string') ? data.review.trim() : '';
-
-          // Step 1: Convert markdown bold (**text**) to HTML bold (<strong>text</strong>)
-          let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-          // FIX Step 2: Convert leading asterisks (*) into HTML bullet points (•)
-          // The 'gm' flags are crucial: 'g' for global (all lines), 'm' for multiline mode.
-          formattedHtml = formattedHtml.replace(/^\*\s/gm, '&bull; ');
-
-          reviewBox.innerHTML = formattedHtml || 'No review available.';
-          reviewBox.style.display = 'block';
-        })
-        .catch(err => {
-          loadingEl.className = 'err';
-          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
-        });
+      // Add click event listener for the button
+      refreshBtn.addEventListener('click', () => {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('force', 'true');
+        window.location.href = newUrl.href;
+      });
     })();
   </script>
 </body>
