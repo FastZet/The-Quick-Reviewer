@@ -1,4 +1,4 @@
-// api.js — handles review generation using the official Google AI SDK with Automatic Tool Execution.
+// api.js — Correctly handles review generation using the official Google AI SDK with Google Search.
 
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -10,7 +10,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 
 let model;
 if (GEMINI_API_KEY) {
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, { apiVersion: 'v1' });
   model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 }
 
@@ -97,24 +97,23 @@ async function generateReview(metadata, originalType) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
   try {
     const prompt = buildPromptFromMetadata(metadata, originalType);
-    console.log(`[Gemini SDK] Generating content with model: ${GEMINI_MODEL} (AUTO Search Enabled)`);
-    // Create a request object that includes the tools and sets the execution mode to "AUTO".
-    // This tells the SDK to handle the search and response generation in one step.
-    const request = {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      tools: [{ googleSearch: {} }],
-      tool_config: {
-        function_calling_config: {
-          mode: "AUTO",
-        },
-      },
-    };
+    console.log(`[Gemini SDK] Starting chat session with model: ${GEMINI_MODEL} (Google Search Enabled)`);
+
+    // Use a chat session, which is the correct way to handle tool-enabled requests.
+    const chat = model.startChat({
+      tools: [{
+        googleSearch: {},
+      }],
+    });
+
+    const result = await chat.sendMessage(prompt);
+    const response = result.response;
 
     const result = await model.generateContent(request);
     const response = await result.response;
     const reviewText = response.text();
     
-    return reviewText.trim() || 'Review generation resulted in an empty response.';
+    return reviewText.trim() || 'No review generated.';
   } catch (err) {
     console.error('Gemini SDK review generation failed:', err);
     return 'Error generating review.';
