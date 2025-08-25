@@ -3,7 +3,7 @@
 const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { readReview, saveReview } = require('./cache');
-const scraper = require('./scraper.js'); // Import the entire scraper module
+const scraper = require('./scraper.js');
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
@@ -18,44 +18,70 @@ if (GEMINI_API_KEY) {
 
 // --- API Fetching Logic ---
 
-async function fetchMovieSeriesMetadata(type, id) {
-  // TMDB (Primary)
+// NEW FUNCTION: Translates an IMDb ID (e.g., tt0455275) to a TMDB ID (e.g., 2174)
+async function resolveImdbToTmdbId(imdbId, type) {
+  if (!TMDB_API_KEY) return null;
+  const url = `https://api.themoviedb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
   try {
-    const tmdbType = (type === 'series') ? 'tv' : 'movie';
-    const url = `https://api.themoviedb.org/3/${tmdbType}/${id}?api_key=${TMDB_API_KEY}&language=en-US`;
     const res = await axios.get(url, { timeout: 8000 });
-    if (res.data) return { source: 'tmdb', data: res.data };
+    const results = (type === 'series') ? res.data.tv_results : res.data.movie_results;
+    if (results && results.length > 0) {
+      const tmdbId = results[0].id;
+      console.log(`[TMDB Resolver] Resolved IMDb ID ${imdbId} to TMDB ID ${tmdbId}`);
+      return tmdbId;
+    }
+    console.warn(`[TMDB Resolver] Could not find a TMDB ID for IMDb ID ${imdbId}`);
+    return null;
   } catch (error) {
-    console.warn(`[TMDB] Failed for ${type} ${id}: ${error.message}`);
+    console.error(`[TMDB Resolver] Error resolving IMDb ID ${imdbId}: ${error.message}`);
+    return null;
+  }
+}
+
+async function fetchMovieSeriesMetadata(type, imdbId) {
+  const tmdbId = await resolveImdbToTmdbId(imdbId, type);
+  // TMDB (Primary) - now uses the correct tmdbId
+  if (tmdbId) {
+    try {
+      const tmdbType = (type === 'series') ? 'tv' : 'movie';
+      const url = `https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=en-US`;
+      const res = await axios.get(url, { timeout: 8000 });
+      if (res.data) return { source: 'tmdb', data: res.data };
+    } catch (error) {
+      console.warn(`[TMDB] Failed for ${type} ${imdbId} (TMDB ID: ${tmdbId}): ${error.message}`);
+    }
   }
 
   // OMDB (Fallback)
   if (OMDB_API_KEY) {
     try {
-      const url = `http://www.omdbapi.com/?i=${id}&apikey=${OMDB_API_KEY}`;
+      const url = `http://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`;
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data && res.data.Response === 'True') return { source: 'omdb', data: res.data };
     } catch (error) {
-      console.warn(`[OMDB] Failed for ${type} ${id}: ${error.message}`);
+      console.warn(`[OMDB] Failed for ${type} ${imdbId}: ${error.message}`);
     }
   }
   return null;
 }
 
-async function fetchEpisodeMetadata(seriesId, season, episode) {
-  // TMDB (Primary)
-  try {
-    const url = `https://api.themoviedb.org/3/tv/${seriesId}/season/${season}/episode/${episode}?api_key=${TMDB_API_KEY}&language=en-US`;
-    const res = await axios.get(url, { timeout: 8000 });
-    if (res.data) return { source: 'tmdb', data: res.data };
-  } catch (error) {
-    console.warn(`[TMDB] Failed for episode S${season}E${episode}: ${error.message}`);
+async function fetchEpisodeMetadata(seriesImdbId, season, episode) {
+  const seriesTmdbId = await resolveImdbToTmdbId(seriesImdbId, 'series');
+  // TMDB (Primary) - now uses the correct seriesTmdbId
+  if (seriesTmdbId) {
+    try {
+      const url = `https://api.themoviedb.org/3/tv/${seriesTmdbId}/season/${season}/episode/${episode}?api_key=${TMDB_API_KEY}&language=en-US`;
+      const res = await axios.get(url, { timeout: 8000 });
+      if (res.data) return { source: 'tmdb', data: res.data };
+    } catch (error) {
+      console.warn(`[TMDB] Failed for episode S${season}E${episode} (TMDB ID: ${seriesTmdbId}): ${error.message}`);
+    }
   }
 
   // OMDB (Fallback)
   if (OMDB_API_KEY) {
     try {
-      const url = `http://www.omdbapi.com/?i=${seriesId}&Season=${season}&Episode=${episode}&apikey=${OMDB_API_KEY}`;
+      const url = `http://www.omdbapi.com/?i=${seriesImdbId}&Season=${season}&Episode=${episode}&apikey=${OMDB_API_KEY}`;
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data && res.data.Response === 'True') return { source: 'omdb', data: res.data };
     } catch (error) {
@@ -163,43 +189,36 @@ async function getReview(date, id, type) {
 
   const idParts = String(id).split(':');
   const isEpisode = type === 'series' && idParts.length === 3;
-
   let metadata;
   let prompt;
-  
   if (isEpisode) {
     const [seriesId, season, episode] = idParts;
     console.log(`[Review Manager] Handling episode request: ${seriesId} S${season}E${episode}`);
-    
     const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
       scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode), // Correctly call the imported module
       fetchEpisodeMetadata(seriesId, season, episode),
       fetchMovieSeriesMetadata('series', seriesId)
     ]);
-    
     metadata = episodeMetadata;
-    if (metadata && seriesMetadata) {
-      const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
-      prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+        if (metadata && seriesMetadata) {
+            const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
+            prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+        }
+    } else {
+        console.log(`[Review Manager] Handling ${type} request: ${id}`);
+        metadata = await fetchMovieSeriesMetadata(type, id);
+        if (metadata) {
+            prompt = buildPromptFromMetadata(metadata, type);
+        }
     }
-
-  } else {
-    console.log(`[Review Manager] Handling ${type} request: ${id}`);
-    metadata = await fetchMovieSeriesMetadata(type, id);
-    if (metadata) {
-      prompt = buildPromptFromMetadata(metadata, type);
+    if (!metadata || !prompt) {
+        const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.'.replace(/\n/g, '\\n');
+        saveReview(date, id, fallbackText);
+        return fallbackText;
     }
-  }
-
-  if (!metadata || !prompt) {
-    const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.'.replace(/\n/g, '\\n');
-    saveReview(date, id, fallbackText);
-    return fallbackText;
-  }
-
-  const review = await generateReview(prompt);
-  saveReview(date, id, review);
-  return review;
+    const review = await generateReview(prompt);
+    saveReview(date, id, review);
+    return review;
 }
 
 module.exports = { getReview };
