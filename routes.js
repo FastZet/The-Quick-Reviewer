@@ -6,10 +6,14 @@ const { getReview } = require('./api');
 const router = express.Router();
 
 function normalizeDate(input) {
-  if (!input) return new Date().toISOString().split('T');
+  if (!input) {
+    return new Date().toISOString().split('T')[0];
+  }
   const m = String(input).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return new Date().toISOString().split('T');
-  return `${m[1]}-${m[7]}-${m[8]}`;
+  if (!m) {
+    return new Date().toISOString().split('T')[0];
+  }
+  return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
 function isValidType(t) {
