@@ -50,11 +50,14 @@ app.get('/stream/:type/:id.json', (req, res) => {
 
   const streams = [{
     id: `quick-reviewer-${type}-${id}`,
-    title: 'Quick AI Review',
-    url: reviewUrl, // Use `url` instead of `externalUrl`
-    isRemote: true, // Mark as a remote URL
-    isExternal: true, // Mark to open in browser
-    poster: manifest.icon || undefined
+    title: '⚡ Quick AI Review',
+    // Use 'externalUrl' to force opening in a browser.
+    externalUrl: reviewUrl, 
+    poster: manifest.icon || undefined,
+    // This hint reinforces that the URL is external and not for direct playback.
+    behaviorHints: {
+      "notWebReady": true
+    }
   }];
 
   res.json({ streams });
