@@ -91,7 +91,7 @@ async function generateReview(metadata, originalType) {
   if (!GEMINI_API_KEY) return 'Gemini API key missing — cannot generate review.';
   try {
     const prompt = buildPromptFromMetadata(metadata, originalType);
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    const endpoint = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(
       GEMINI_MODEL
     )}:generateContent`;
     console.log(`[Gemini] Calling ${endpoint}`);
