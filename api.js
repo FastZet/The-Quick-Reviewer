@@ -122,7 +122,12 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
 
 When writing a spoiler free review, follow this order:
 
-Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies. Make movie name and movie year bold in this first line only. Use the below mentioned points and bullet headings and don't use sub bullet headings.
+Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies.
+Make movie name and movie year bold in this first line only.
+For series' episodes, start with <Here is a spoiler-free review of the episode "Episode Name" of the series "Series_Name" (SxxEyy, first aired on DD/MM/YYYY):>.
+If in a review for a movie or series' episode, apart from the starting "Here is a spoiler-free review..." you have to mention the name of anything significant and you feel you need to use bold characters, use double quotes <""> instead.
+Use the below mentioned points and bullet headings and don't use sub bullet headings. Add a spacing among the points for easier legibility.
+
 - Plot Summary: Provide a brief overview of the story premise without revealing key twists.
 - Storytelling, Writing, and Pacing: Assess narrative coherence, structure, dialogue, and rhythm of the movie/series.
 - Performances and Character Development: Evaluate overall acting quality, specifically mentioning how individual lead actors performed, and whether characters felt authentic or underdeveloped.
@@ -137,6 +142,8 @@ Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for mov
 - Critical Reception: Summarize how professional critics and reviewers are rating and interpreting the work.
 - Audience Reception & Reaction: Capture how the wider audience is responding, including word-of-mouth, trends, social media buzz, ratings etc.
 - Box Office and/or Streaming Performance: Mention domestic and worldwide earnings or viewership statistics in case of streaming platform if available and relevant.
+- Who would like it: In a single sentence of no longer than twenty words tell what kind of viewer would like it.
+- Who would not like it: In a single sentence of no longer than twenty words tell what kind of viewer would not like it.
 
 Final Requirement:
 Provide a summary review in less than 500 words, highlighting the overall verdict in a concise, professional manner.
