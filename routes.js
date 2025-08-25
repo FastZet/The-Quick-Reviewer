@@ -1,44 +1,37 @@
-// routes.js — review API with additional logging
+// routes.js — now passes the force refresh parameter to the review manager.
 
 const express = require('express');
 const { getReview } = require('./api');
-
 const router = express.Router();
 
 function normalizeDate(input) {
-  if (!input) {
-    return new Date().toISOString().split('T')[0];
-  }
+  if (!input) return new Date().toISOString().split('T')[0];
   const m = String(input).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) {
-    return new Date().toISOString().split('T')[0];
-  }
+  if (!m) return new Date().toISOString().split('T')[0];
   return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
-function isValidType(t) {
-  return t === 'movie' || t === 'series';
-}
+function isValidType(t) { return t === 'movie' || t === 'series'; }
 
 router.get('/api/review', async (req, res) => {
-  const { type, id } = req.query;
-  const date = normalizeDate(req.query.date);
-  console.log(`[API] /api/review type=${type} id=${id} date=${date}`);
-
   try {
+    const { type, id } = req.query;
+    const date = normalizeDate(req.query.date);
+    // THE FIX: Check if the 'force' query parameter is set to 'true'.
+    const forceRefresh = req.query.force === 'true';
+
     if (!type || !id) {
-      console.warn('[API] Missing type or id');
       return res.status(400).json({ error: 'Missing type or id parameter.' });
     }
     if (!isValidType(type)) {
-      console.warn('[API] Invalid type:', type);
       return res.status(400).json({ error: 'Invalid type. Use "movie" or "series".' });
     }
 
-    const review = await getReview(date, String(id).trim(), type);
+    // Pass the forceRefresh flag to the getReview function.
+    const review = await getReview(date, String(id).trim(), type, forceRefresh);
     res.json({ review });
   } catch (err) {
-    console.error('[API] Error in /api/review route:', err);
+    console.error('Error in /api/review route:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
