@@ -1,7 +1,7 @@
 // api.js — Correctly handles review generation using the official Google AI SDK with Google Search.
 
 const axios = require('axios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require('@google-generative-ai');
 const { readReview, saveReview } = require('./cache');
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
@@ -108,9 +108,6 @@ async function generateReview(metadata, originalType) {
 
     const result = await chat.sendMessage(prompt);
     const response = result.response;
-
-    const result = await model.generateContent(request);
-    const response = await result.response;
     const reviewText = response.text();
     
     return reviewText.trim() || 'No review generated.';
