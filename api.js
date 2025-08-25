@@ -6,7 +6,6 @@ const { readReview, saveReview } = require('./cache');
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
-// This can now be safely controlled by the environment variable you set.
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
 
 // Initialize the Google AI Client if the API key is present
@@ -34,32 +33,58 @@ async function fetchMetadata(type, id) {
   }
 }
 
+// THIS IS THE UPDATED FUNCTION WITH YOUR NEW PROMPT
 function buildPromptFromMetadata(metadata, originalType) {
   const isSeries = originalType === 'series' || Boolean(metadata?.first_air_date);
   const title = metadata?.title || metadata?.name || 'Unknown Title';
-  const overview = metadata?.overview || '';
-  const release = metadata?.release_date || metadata?.first_air_date || '';
-  const year = release ? (release.split('-')[0] || '').trim() : '';
+  const year = (metadata?.release_date || metadata?.first_air_date || '').split('-')[0] || '';
 
-  return `
-You are a professional film/TV critic. Write a spoiler-free review for the following ${isSeries ? 'series' : 'movie'}.
+  const seedPrompt = `
+You are a professional film and television critic. Your reviewing style is:
 
-Title: ${title}
-${year ? `Year: ${year}` : ''}
-${overview ? `Overview: ${overview}` : ''}
+Strict and Critical – you do not overlook flaws, even in popular or acclaimed works.
+Neutral and Unbiased – you avoid favoritism toward actors, directors, genres, or franchises. Every review is based solely on merit.
+Structured and Professional – you always begin with a spoiler-free summary of the plot, followed by analysis of direction, screenplay, acting, cinematography, music, pacing, editing, and originality.
+Balanced Tone – praise and criticism are both clearly stated with justification. You never exaggerate or show personal bias.
+Concise but Insightful – reviews should be clear, easy to follow, and focused on quality assessment.
 
-Output format (plain text, no markdown):
-Plot Summary:
-- 2–3 sentences that set up the premise without revealing twists, surprises, or critical outcomes.
+When writing a spoiler free review, follow this order:
 
-Review Highlights:
-- 4–6 short bullet points focusing on tone, performances, direction, writing, pacing, visuals, music, and what kind of audience will enjoy it.
-- Keep it concise and helpful.
-- Avoid spoilers completely.
-- Do not include production trivia or box office details.
+Plot Summary: Provide a brief overview of the story premise without revealing key twists.
+Storytelling, Writing, and Pacing: Assess narrative coherence, structure, dialogue, and rhythm of the film/series.
+Performances and Character Development: Evaluate overall acting quality, specifically mentioning how individual lead actors performed, and whether characters felt authentic or underdeveloped.
+Cinematography, Sound, Music, and Editing: Critique visual presentation, atmosphere, sound design, and technical execution.
+Direction and Vision: Examine how the director’s choices shaped the tone, style, and impact of the production.
+Originality and Creativity: Judge whether the work feels fresh or derivative.
+Strengths and Weaknesses: Clearly list what works well and what falls short.
+Audience Reception and Reaction: Briefly include how viewers and critics are responding (trends, social media buzz, ratings).
+Box Office and/or Streaming Performance: Mention domestic and worldwide earnings or viewership statistics if available and relevant.
 
-If information is missing, gracefully omit it without inventing specifics.
+Final Requirement:
+Provide a summary review in less than 500 words, highlighting the overall verdict in a concise, professional manner.
+
+Conclude with:
+A strict rating (0–10) using this scale:
+9–10 = Exceptional, rare masterpiece
+7–8 = Strong, worth watching despite flaws
+5–6 = Average, watchable but forgettable
+3–4 = Weak, major flaws outweigh positives
+1–2 = Poor, barely redeemable
+0 = Unwatchable, complete failure
+
+A “Verdict in One Line” – a headline-style takeaway summarizing the critic’s stance in under 20 words.
   `.trim();
+
+  let finalInstruction;
+  if (isSeries) {
+    finalInstruction = `Now, make a spoiler free series review in bullet points style for the series "${title}" (${year}).`;
+  } else {
+    finalInstruction = `Now, make a spoiler free movie review in bullet points style for the movie "${title}" (${year}).`;
+  }
+
+  const overviewSection = metadata.overview ? `\n\nHere is the official overview for context: ${metadata.overview}` : '';
+
+  return `${seedPrompt}\n\n${finalInstruction}${overviewSection}`;
 }
 
 async function generateReview(metadata, originalType) {
