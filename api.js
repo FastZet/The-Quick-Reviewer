@@ -50,6 +50,7 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
 
 When writing a spoiler free review, follow this order:
 
+Start with <Here is a spoiler-free review of "Movie_Name" (Movie_Year):> for movies. Make movie name and year bold.
 Plot Summary: Provide a brief overview of the story premise without revealing key twists.
 Storytelling, Writing, and Pacing: Assess narrative coherence, structure, dialogue, and rhythm of the film/series.
 Performances and Character Development: Evaluate overall acting quality, specifically mentioning how individual lead actors performed, and whether characters felt authentic or underdeveloped.
