@@ -14,28 +14,64 @@ if (GEMINI_API_KEY) {
   model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 }
 
-function mapTmdbType(type) {
-  if (type === 'series') return 'tv';
-  return 'movie';
+// --- API Fetching Logic ---
+async function fetchMovieSeriesMetadata(type, id) {
+  // TMDB (Primary)
+  try {
+    const tmdbType = (type === 'series') ? 'tv' : 'movie';
+    const url = `https://api.themoviedb.org/3/${tmdbType}/${id}?api_key=${TMDB_API_KEY}&language=en-US`;
+    const res = await axios.get(url, { timeout: 8000 });
+    if (res.data) return { source: 'tmdb', data: res.data };
+  } catch (error) {
+    console.warn(`[TMDB] Failed for ${type} ${id}: ${error.message}`);
+  }
+
+  // OMDB (Fallback)
+  if (OMDB_API_KEY) {
+    try {
+      const url = `http://www.omdbapi.com/?i=${id}&apikey=${OMDB_API_KEY}`;
+      const res = await axios.get(url, { timeout: 8000 });
+      if (res.data && res.data.Response === 'True') return { source: 'omdb', data: res.data };
+    } catch (error) {
+      console.warn(`[OMDB] Failed for ${type} ${id}: ${error.message}`);
+    }
+  }
+  return null;
 }
 
-async function fetchMetadata(type, id) {
-  if (!TMDB_API_KEY) return null;
+
+async function fetchEpisodeMetadata(seriesId, season, episode) {
+  // TMDB (Primary)
   try {
-    const tmdbType = mapTmdbType(type);
-    const url = `https://api.themoviedb.org/3/${tmdbType}/${encodeURIComponent(id)}?api_key=${encodeURIComponent(TMDB_API_KEY)}&language=en-US`;
-    const res = await axios.get(url, { timeout: 10000 });
-    return res.data || null;
-  } catch (err) {
-    console.error('TMDB metadata fetch failed:', err?.response?.data || err.message);
-    return null;
+    const url = `https://api.themoviedb.org/3/tv/${seriesId}/season/${season}/episode/${episode}?api_key=${TMDB_API_KEY}&language=en-US`;
+    const res = await axios.get(url, { timeout: 8000 });
+    if (res.data) return { source: 'tmdb', data: res.data };
+  } catch (error) {
+    console.warn(`[TMDB] Failed for episode S${season}E${episode}: ${error.message}`);
+  }
+
+  // OMDB (Fallback)
+  if (OMDB_API_KEY) {
+    try {
+      const url = `http://www.omdbapi.com/?i=${seriesId}&Season=${season}&Episode=${episode}&apikey=${OMDB_API_KEY}`;
+      const res = await axios.get(url, { timeout: 8000 });
+      if (res.data && res.data.Response === 'True') return { source: 'omdb', data: res.data };
+    } catch (error) {
+      console.warn(`[OMDB] Failed for episode S${season}E${episode}: ${error.message}`);
+    }
   }
 }
 
-function buildPromptFromMetadata(metadata, originalType) {
-  const isSeries = originalType === 'series' || Boolean(metadata?.first_air_date);
-  const title = metadata?.title || metadata?.name || 'Unknown Title';
-  const year = (metadata?.release_date || metadata?.first_air_date || '').split('-')[0] || '';
+// --- Prompt and Review Generation ---
+function buildPromptFromMetadata(metadata, type, seriesInfo = {}, scrapedEpisodeTitle = null) {
+  const isEpisode = type === 'series' && metadata.data.episode_number;
+  const isSeries = type === 'series' && !isEpisode;
+  // Normalize data from either TMDB or OMDB
+  const title = metadata.data.title || metadata.data.name || metadata.data.Title;
+  const year = (metadata.data.release_date || metadata.data.first_air_date || metadata.data.Released || '').split(' ').pop() || (metadata.data.release_date || metadata.data.first_air_date || '').split('-')[0];
+  const overview = metadata.data.overview || metadata.data.Plot;
+  
+  const seriesName = seriesInfo.title || (isEpisode ? "the series" : "");
 
   const seedPrompt = `
 You are a professional film and television critic. Your reviewing style is:
@@ -87,30 +123,25 @@ A “Verdict in One Line” – a headline-style takeaway summarizing the critic
   `.trim();
 
   let finalInstruction;
-  if (isSeries) {
+  if (isEpisode) {
+    const episodeTitle = scrapedEpisodeTitle || `Episode ${metadata.data.episode_number}`;
+    finalInstruction = `Now, make a spoiler free episode review in bullet points style for the episode "${episodeTitle}" (Season ${metadata.data.season_number}, Episode ${metadata.data.episode_number}) of the series "${seriesName}".`;
+  } else if (isSeries) {
     finalInstruction = `Now, make a spoiler free series review in bullet points style for the series "${title}" (${year}).`;
-  } else {
+  } else { // Movie
     finalInstruction = `Now, make a spoiler free movie review in bullet points style for the movie "${title}" (${year}).`;
   }
-
-  const overviewSection = metadata.overview ? `\n\nHere is the official overview for context: ${metadata.overview}` : '';
-
+  const overviewSection = overview ? `\n\nHere is the official overview for context: ${overview}` : '';
   return `${seedPrompt}\n\n${finalInstruction}${overviewSection}`;
 }
 
-async function generateReview(metadata, originalType) {
+async function generateReview(prompt) {
   if (!model) return 'Gemini API key missing — cannot generate review.';
   try {
     const prompt = buildPromptFromMetadata(metadata, originalType);
     console.log(`[Gemini SDK] Starting chat session with model: ${GEMINI_MODEL} (Google Search Enabled)`);
 
-    // Use a chat session, which is the correct way to handle tool-enabled requests.
-    const chat = model.startChat({
-      tools: [{
-        googleSearch: {},
-      }],
-    });
-
+    const chat = model.startChat({ tools: [{ googleSearch: {} }] });
     const result = await chat.sendMessage(prompt);
     const response = result.response;
     const reviewText = response.text();
@@ -122,25 +153,51 @@ async function generateReview(metadata, originalType) {
   }
 }
 
+// --- Main Orchestrator ---
 async function getReview(date, id, type) {
   const cached = readReview(date, id);
   if (cached) return cached;
 
-  const metadata = await fetchMetadata(type, id);
-  if (!metadata) {
-    const fallback = [
-      'Plot Summary:',
-      '- Unable to fetch official metadata right now. This is a generic, spoiler-free placeholder.',
-      '',
-      'Review Highlights:',
-      '- Review unavailable due to a metadata fetch error.',
-      '- Please try again later.'
-    ].join('\\n');
-    saveReview(date, id, fallback);
-    return fallback;
+  const idParts = String(id).split(':');
+  const isEpisode = type === 'series' && idParts.length === 3;
+
+  let metadata;
+  let prompt;
+
+  if (isEpisode) {
+    const [seriesId, season, episode] = idParts;
+    console.log(`[Review Manager] Handling episode request: ${seriesId} S${season}E${episode}`);
+    
+    // Fetch all data in parallel for maximum efficiency
+    const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
+      scrapeImdbForEpisodeTitle(seriesId, season, episode),
+      fetchEpisodeMetadata(seriesId, season, episode),
+      fetchMovieSeriesMetadata('series', seriesId) // Fetch series data to get its name
+    ]);
+    
+    metadata = episodeMetadata;
+    if (metadata && seriesMetadata) {
+      const seriesInfo = {
+          title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title
+      };
+      prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+    }
+
+  } else {
+    console.log(`[Review Manager] Handling ${type} request: ${id}`);
+    metadata = await fetchMovieSeriesMetadata(type, id);
+    if (metadata) {
+      prompt = buildPromptFromMetadata(metadata, type);
+    }
   }
 
-  const review = await generateReview(metadata, type);
+  if (!metadata || !prompt) {
+    const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.'.replace(/\n/g, '\\n');
+    saveReview(date, id, fallbackText);
+    return fallbackText;
+  }
+
+  const review = await generateReview(prompt);
   saveReview(date, id, review);
   return review;
 }
