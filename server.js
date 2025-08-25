@@ -32,10 +32,22 @@ app.use((req, res, next) => {
 // Serve static public files (configure.html, review.html, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Manifest endpoint (Stremio expects this)
+// Manifest endpoint with optional password
+const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
+
+if (ADDON_PASSWORD) {
+  // If a password is set, the manifest is ONLY available at this specific, secret URL.
+  app.get(`/${ADDON_PASSWORD}/manifest.json`, (req, res) => {
+    res.json(manifest);
+  });
+  console.log(`Manifest is SECURED. Install from: /${ADDON_PASSWORD}/manifest.json`);
+} else {
+// If no password is set, fall back to the standard, unsecured URL for default behavior.
 app.get('/manifest.json', (req, res) => {
   res.json(manifest);
 });
+console.log('Manifest is UNSECURED. Install from: /manifest.json');
+}
 
 // Stream endpoint (Stremio spec)
 app.get('/stream/:type/:id.json', (req, res) => {
