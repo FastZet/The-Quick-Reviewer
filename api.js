@@ -288,7 +288,7 @@ async function getReview(date, id, type, forceRefresh = false) {
   if (!metadata || !prompt) {
     console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
     const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.';
-    saveReview(date, id, fallbackText);
+    saveReview(date, id, fallbackText, type);
     console.log(`===== [API] Request End (Failure) =====\n`);
     return fallbackText;
   }
@@ -296,7 +296,7 @@ async function getReview(date, id, type, forceRefresh = false) {
   console.log(`[API] Generating review for ${id}...`);
   const review = await generateReview(prompt);
   console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
-  saveReview(date, id, review);
+  saveReview(date, id, review, type);
   console.log(`===== [API] Request End (Success) =====\n`);
   return review;
 }
