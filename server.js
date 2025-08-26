@@ -74,9 +74,10 @@ if (ADDON_PASSWORD) {
   app.get(`${secretPath}/stream/:type/:id.json`, (req, res) => { handleStreamRequest(req, res); });
 } else {
   console.log('Addon is UNSECURED.');
-
-app.get('/manifest.json', (req, res) => { res.json(manifest); });
-app.get('/stream/:type/:id.json', (req, res) => { handleStreamRequest(req, res); });
+  
+  app.get('/manifest.json', (req, res) => { res.json(manifest); });
+  app.get('/stream/:type/:id.json', (req, res) => { handleStreamRequest(req, res); });
+}
 
 function handleStreamRequest(req, res) {
   const { type, id } = req.params;
