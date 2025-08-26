@@ -95,8 +95,9 @@
     </div>
   </div>
   
-  <script>
+    <script>
     (function(){
+      // --- All your existing variable setup is fine ---
       const params=new URLSearchParams(window.location.search);
       const type=(params.get('type')||'').trim();
       const id=(params.get('id')||'').trim();
@@ -113,72 +114,62 @@
       const today=new Date().toISOString().split('T')[0];
       const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}${isForced ? '&force=true' : ''}`;
 
-      fetch(url).then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()}).then(data=>{
-        loadingEl.style.display='none';
-        const rawText=(data&&typeof data.review==='string')?data.review.trim():'';
-        
-        // Handle bolding with asterisks
-        let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // Handle list items starting with a hyphen or asterisk
-        formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
-        
-        reviewBox.innerHTML = formattedHtml || 'No review available.';
-        reviewBox.style.display='block';
-        refreshBtn.style.display='inline-block';
-      }).catch(err=>{
-        loadingEl.className='err';
-        loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
-        refreshBtn.style.display='inline-block';
-      });
-
-      fetch(`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&force=${params.has('force')}`)
-        .then(res => { if(!res.ok) throw new Error(`Failed to fetch (HTTP ${res.status})`); return res.json() })
-        .then(data => {
-          loadingEl.style.display = 'none';
-          const rawText = (data && typeof data.review === 'string') ? data.review.trim() : '';
-         
+      fetch(url)
+        .then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()})
+        .then(data=>{
+          loadingEl.style.display='none';
+          const rawText=(data&&data.review&&typeof data.review==='string')?data.review.trim():'';
+          
+          // Step 1: Perform simple markdown replacements that are safe.
           let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
           formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
-
-          // THE USER'S FIX: Implement a two-placeholder system for maximum reliability.
-          // This gives us full control over spacing and content.
-          const finalHtml = formattedHtml
-            .replace(/SPACE_HERE/gi, '&nbsp;') // Step 1: Replace space placeholder with a non-breaking space.
-            .replace(/RATING_CONTEXT/gi, '<span class="tooltip-trigger" onclick="openModal()">?</span>'); // Step 2: Replace context placeholder with the button.
           
-          reviewBox.innerHTML = finalHtml || 'No review available.';
-          reviewBox.style.display = 'block';
-          refreshBtn.style.display = 'inline-block';
-        }).catch(err => {
-          loadingEl.className = 'err';
-          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
-          refreshBtn.style.display = 'inline-block';
+          // Step 2: Put the content (including the placeholder span) into the page.
+          reviewBox.innerHTML = formattedHtml || 'No review available.';
+
+          // THE FIX: Step 3: Find the placeholder and replace it with a functional button.
+          // This runs *after* the HTML is on the page.
+          const placeholder = document.getElementById('rating-context-placeholder');
+          if (placeholder) {
+            // Create the new button element programmatically
+            const button = document.createElement('span');
+            button.className = 'tooltip-trigger';
+            button.textContent = '?';
+            
+            // Add the event listener - this is the robust way.
+            button.addEventListener('click', openModal);
+
+            // Create a non-breaking space element
+            const space = document.createTextNode('\u00A0'); // This is the JS equivalent of &nbsp;
+
+            // Replace the placeholder with the space and the new button
+            placeholder.parentNode.replaceChild(button, placeholder);
+            button.parentNode.insertBefore(space, button);
+          }
+
+          reviewBox.style.display='block';
+          refreshBtn.style.display='inline-block';
+        })
+        .catch(err=>{
+          loadingEl.className='err';
+          loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
+          refreshBtn.style.display='inline-block';
         });
 
       refreshBtn.addEventListener('click', () => {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
         const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set('force', 'true');
-          window.location.href = newUrl.href;
+        newUrl.searchParams.set('force', 'true');
+        window.location.href = newUrl.href;
       });
     })();
 
-    /* --- THE FIX: JavaScript functions to control the modal --- */
+    // --- Modal control functions remain the same ---
     const modal = document.getElementById('ratingModal');
-
-    function openModal() {
-      modal.style.display = 'flex';
-    }
-
-    function closeModal() {
-      modal.style.display = 'none';
-    }
-
-    // Close the modal if the user clicks on the dark overlay area
-    window.onclick = function(event) {
-      if (event.target == modal) {
-        closeModal();
-      }
-    }
+    function openModal() { modal.style.display = 'flex'; }
+    function closeModal() { modal.style.display = 'none'; }
+    window.onclick = function(event) { if (event.target == modal) { closeModal(); } }
   </script>
 </body>
 </html>
