@@ -140,14 +140,14 @@
           let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
           formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
 
-          // THE FIX: Now, find the placeholder and replace it with the button HTML
+          // THE FIX: Use a robust regular expression to find and replace the placeholder.
+          // g = global (replace all instances), i = case-insensitive
           const finalHtml = formattedHtml.replace(
-            'RATING_CONTEXT', 
+            /RATING_CONTEXT/gi, 
             '<span class="tooltip-trigger" onclick="openModal()">?</span>'
           );
-         
-          // The AI will now generate HTML for the rating, so we just need to display it.
-          reviewBox.innerHTML = formattedHtml || 'No review available.';
+          
+          reviewBox.innerHTML = finalHtml || 'No review available.';
           reviewBox.style.display = 'block';
           refreshBtn.style.display = 'inline-block';
         }).catch(err => {
