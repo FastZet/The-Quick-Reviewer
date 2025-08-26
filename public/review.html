@@ -143,7 +143,7 @@
           // THE FIX: Use a robust regular expression to find and replace the placeholder.
           // g = global (replace all instances), i = case-insensitive
           const finalHtml = formattedHtml.replace(
-            /RATING_CONTEXT/gi, 
+            /\s*RATING_CONTEXT/gi, 
             '<span class="tooltip-trigger" onclick="openModal()">?</span>'
           );
           
