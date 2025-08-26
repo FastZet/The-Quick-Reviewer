@@ -42,7 +42,7 @@ app.get('/', (req, res) => {
     const host = req.get('x-forwarded-host') || req.get('host');
     const base = BASE_URL || (host ? `${proto}://${host}` : '');
     const manifestUrl = `${base}/${ADDON_PASSWORD ? ADDON_PASSWORD + '/' : ''}manifest.json`;
-    let renderedHtml = html.replace('{{MANIFEST_URL}}', manifestUrl);
+    let renderedHtml = html.replace('{{MANIFEST_URL}}', manifestUrl.replace(/^https?:\/\//, 'stremio://'));
     let cacheButtonHtml = '';
     if (ADDON_PASSWORD) {
       const cacheUrl = `${base}/${ADDON_PASSWORD}/cached-reviews`;
