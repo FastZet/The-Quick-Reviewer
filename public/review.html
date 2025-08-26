@@ -140,12 +140,11 @@
           let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
           formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
 
-          // THE DEFINITIVE FIX: Use the whitespace-matching regex AND a non-breaking space (&nbsp;)
-          // This guarantees a visible space on all browsers.
-          const finalHtml = formattedHtml.replace(
-            /\s*RATING_CONTEXT/gi, 
-            '&nbsp;<span class="tooltip-trigger" onclick="openModal()">?</span>'
-          );
+          // THE USER'S FIX: Implement a two-placeholder system for maximum reliability.
+          // This gives us full control over spacing and content.
+          const finalHtml = formattedHtml
+            .replace(/SPACE_HERE/gi, '&nbsp;') // Step 1: Replace space placeholder with a non-breaking space.
+            .replace(/RATING_CONTEXT/gi, '<span class="tooltip-trigger" onclick="openModal()">?</span>'); // Step 2: Replace context placeholder with the button.
           
           reviewBox.innerHTML = finalHtml || 'No review available.';
           reviewBox.style.display = 'block';
