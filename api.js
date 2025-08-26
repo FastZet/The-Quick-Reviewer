@@ -190,8 +190,8 @@ Final Requirement:
 Provide a "Overall Verdict" in more than 50 words but less than 300 words, highlighting the overall verdict in a concise, professional manner and tone.
 
 Conclude with:
-A strict rating. After the rating (e.g., "Rating: 7/10"), you MUST append the exact placeholder texts "SPACE_HERE" and "RATING_CONTEXT" with no spaces in between.
-Example: Rating: 8/10SPACE_HERERATING_CONTEXT
+A strict rating. After the rating (e.g., "Rating: 7/10"), you MUST append this exact, empty HTML element without the double quotes: "<span id="rating-context-placeholder"></span>".
+Example: Rating: 8/10<span id="rating-context-placeholder"></span>
 
 The scale is:
 9–10 = Exceptional, rare masterpiece
