@@ -7,8 +7,8 @@ const cheerio = require('cheerio');
 async function scrapeImdbForEpisodeTitle(imdbId, season, episode) {
   const url = `https://www.imdb.com/title/${imdbId}/episodes/?season=${season}`;
   // A standard User-Agent to mimic a real browser.
-  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
-  
+  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36';
+  console.log(`[Scraper] Starting IMDb scrape for ${imdbId}, S${season}E${episode}...`);
   try {
     const response = await axios.get(url, {
       headers: { 'User-Agent': userAgent, 'Accept-Language': 'en-US,en;q=0.5' },
@@ -40,13 +40,13 @@ async function scrapeImdbForEpisodeTitle(imdbId, season, episode) {
     });
     
     if (foundTitle) {
-      console.log(`[IMDb Scraper] Found title for S${season}E${episode}: "${foundTitle}"`);
+      console.log(`[Scraper] Success! Found episode title: "${foundTitle}"`);
     } else {
-      console.warn(`[IMDb Scraper] No title match found for S${season}E${episode} on IMDb page.`);
+      console.warn(`[Scraper] Scrape completed, but no title match found for S${season}E${episode}.`);
     }
     return foundTitle;
   } catch (error) {
-    console.error(`[IMDb Scraper] Failed to scrape IMDb for title: ${error.message}`);
+    console.error(`[Scraper] Failed to fetch or parse IMDb page for ${imdbId}: ${error.message}`);
     return null; // Return null on failure so the process can continue gracefully.
   }
 };
