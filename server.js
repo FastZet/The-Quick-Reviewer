@@ -2,6 +2,7 @@
 const express = require('express');
 const path = require('path');
 const manifest = require('./manifest.json');
+const fs = require('fs');
 
 const app = express();
 
@@ -29,8 +30,36 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static public files (configure.html, review.html, etc.)
+// Serve static public files (review.html, cached-reviews.html, etc.)
+// Note: We are no longer serving index.html directly from here.
 app.use(express.static(path.join(__dirname, 'public')));
+
+
+// THE FIX: New dynamic route for the root URL to serve a landing page template.
+app.get('/', (req, res) => {
+  fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
+    if (err) {
+      console.error("Could not read index.html file:", err);
+      return res.status(500).send("Could not load landing page.");
+    }
+
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const base = BASE_URL || (host ? `${proto}://${host}` : '');
+
+    const manifestUrl = `${base}/${ADDON_PASSWORD ? ADDON_PASSWORD + '/' : ''}manifest.json`;
+    let renderedHtml = html.replace('{{MANIFEST_URL}}', manifestUrl);
+
+    let cacheButtonHtml = '';
+    if (ADDON_PASSWORD) {
+      const cacheUrl = `${base}/${ADDON_PASSWORD}/cached-reviews`;
+      cacheButtonHtml = `<a href="${cacheUrl}" class="btn cache">View Cached Reviews</a>`;
+    }
+    renderedHtml = renderedHtml.replace('{{CACHE_BUTTON_HTML}}', cacheButtonHtml);
+
+    res.send(renderedHtml);
+  });
+});
 
 // --- MANIFEST AND STREAM ENDPOINTS WITH PASSWORD LOGIC ---
 
@@ -40,73 +69,41 @@ if (ADDON_PASSWORD) {
   const secretPath = `/${ADDON_PASSWORD}`;
   console.log('Addon is SECURED. All endpoints are password-protected.');
 
-  // Secured manifest endpoint
-  app.get(`${secretPath}/manifest.json`, (req, res) => {
-    res.json(manifest);
-  });
-
-  // New route to serve the HTML page for viewing the cache.
-  // This is the URL you will visit in your browser.
-  app.get(`${secretPath}/cached-reviews`, (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'cached-reviews.html'));
-  });
-
-  // Secured stream endpoint
-  app.get(`${secretPath}/stream/:type/:id.json`, (req, res) => {
-    handleStreamRequest(req, res);
-  });
-
+  app.get(`${secretPath}/manifest.json`, (req, res) => { res.json(manifest); });
+  app.get(`${secretPath}/cached-reviews`, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'cached-reviews.html')); });
+  app.get(`${secretPath}/stream/:type/:id.json`, (req, res) => { handleStreamRequest(req, res); });
 } else {
   console.log('Addon is UNSECURED.');
 
-  // Unsecured manifest endpoint
-  app.get('/manifest.json', (req, res) => {
-    res.json(manifest);
-  });
+app.get('/manifest.json', (req, res) => { res.json(manifest); });
+app.get('/stream/:type/:id.json', (req, res) => { handleStreamRequest(req, res); });
 
-  // Unsecured stream endpoint
-  app.get('/stream/:type/:id.json', (req, res) => {
-    handleStreamRequest(req, res);
-  });
-}
-
-// We move the stream logic into a reusable function to avoid code duplication.
 function handleStreamRequest(req, res) {
   const { type, id } = req.params;
 
-  // Build absolute base URL
   const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
   const host = req.get('x-forwarded-host') || req.get('host');
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
-
   const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
-
   const streams = [{
     id: `quick-reviewer-${type}-${id}`,
     title: '⚡ Quick AI Review',
     externalUrl: reviewUrl, 
     poster: manifest.icon || undefined,
-    behaviorHints: {
-      "notWebReady": true
-    }
+    behaviorHints: { "notWebReady": true }
   }];
-
   res.json({ streams });
 }
 
-// Serve the review page explicitly
 app.get('/review', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'review.html'));
 });
 
-// Mount API routes (for /api/review)
 const apiRouter = require('./routes');
 app.use(apiRouter);
 
-// Health check endpoint
 app.get('/health', (req, res) => res.send('OK'));
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Quick Reviewer Addon running on port ${PORT}`);
   if (BASE_URL) console.log(`Base URL (env): ${BASE_URL}`);
