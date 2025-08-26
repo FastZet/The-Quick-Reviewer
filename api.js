@@ -190,7 +190,9 @@ Final Requirement:
 Provide a "Overall Verdict" in more than 50 words but less than 300 words, highlighting the overall verdict in a concise, professional manner and tone.
 
 Conclude with:
-A strict rating. You MUST strictly format the rating using this exact HTML structure, without any markdown: `Rating: <span class="rating-value">X/10</span> <span class="tooltip-trigger" onclick="openModal()">?</span>`
+A strict rating. After the rating (e.g., "Rating: 7/10"), you MUST append the exact placeholder text "RATING_CONTEXT".
+Example: Rating: 8/10 RATING_CONTEXT
+
 The scale is:
 9–10 = Exceptional, rare masterpiece
 7–8 = Strong, worth watching despite flaws
