@@ -190,7 +190,8 @@ Final Requirement:
 Provide a "Overall Verdict" in more than 50 words but less than 300 words, highlighting the overall verdict in a concise, professional manner and tone.
 
 Conclude with:
-A strict rating (0–10) using this scale:
+A strict rating. You MUST strictly format the rating using this exact HTML structure, without any markdown: `Rating: <span class="rating-value">X/10</span> <span class="tooltip-trigger" onclick="openModal()">?</span>`
+The scale is:
 9–10 = Exceptional, rare masterpiece
 7–8 = Strong, worth watching despite flaws
 5–6 = Average, watchable but forgettable
