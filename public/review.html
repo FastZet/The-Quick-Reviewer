@@ -140,11 +140,11 @@
           let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
           formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
 
-          // THE FIX: Use a robust regular expression to find and replace the placeholder.
-          // g = global (replace all instances), i = case-insensitive
+          // THE DEFINITIVE FIX: Use the whitespace-matching regex AND a non-breaking space (&nbsp;)
+          // This guarantees a visible space on all browsers.
           const finalHtml = formattedHtml.replace(
             /\s*RATING_CONTEXT/gi, 
-            '<span class="tooltip-trigger" onclick="openModal()">?</span>'
+            '&nbsp;<span class="tooltip-trigger" onclick="openModal()">?</span>'
           );
           
           reviewBox.innerHTML = finalHtml || 'No review available.';
