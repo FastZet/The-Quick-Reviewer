@@ -19,76 +19,94 @@ if (GEMINI_API_KEY) {
 
 // --- API Fetching Logic ---
 
-// NEW FUNCTION: Translates an IMDb ID (e.g., tt0455275) to a TMDB ID (e.g., 2174)
 async function resolveImdbToTmdbId(imdbId, type) {
   if (!TMDB_API_KEY) return null;
   const url = `https://api.themoviedb.org/3/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+  console.log(`[API/TMDB] Resolving IMDb ID ${imdbId} to a TMDB ID...`);
   try {
     const res = await axios.get(url, { timeout: 8000 });
     const results = (type === 'series') ? res.data.tv_results : res.data.movie_results;
     if (results && results.length > 0) {
       const tmdbId = results[0].id;
-      console.log(`[TMDB Resolver] Resolved IMDb ID ${imdbId} to TMDB ID ${tmdbId}`);
+      console.log(`[API/TMDB] Success! Resolved IMDb ID ${imdbId} to TMDB ID ${tmdbId}`);
       return tmdbId;
     }
-    console.warn(`[TMDB Resolver] Could not find a TMDB ID for IMDb ID ${imdbId}`);
+    console.warn(`[API/TMDB] Could not find a TMDB ID for IMDb ID ${imdbId}`);
     return null;
   } catch (error) {
-    console.error(`[TMDB Resolver] Error resolving IMDb ID ${imdbId}: ${error.message}`);
+    console.error(`[API/TMDB] Error resolving IMDb ID ${imdbId}: ${error.message}`);
     return null;
   }
 }
 
 async function fetchMovieSeriesMetadata(type, imdbId) {
   const tmdbId = await resolveImdbToTmdbId(imdbId, type);
-  // TMDB (Primary) - now uses the correct tmdbId
+  // TMDB (Primary)
   if (tmdbId) {
     try {
       const tmdbType = (type === 'series') ? 'tv' : 'movie';
       const url = `https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${TMDB_API_KEY}&language=en-US`;
+      console.log(`[API/TMDB] Fetching metadata for ${type} (TMDB ID: ${tmdbId})...`);
       const res = await axios.get(url, { timeout: 8000 });
-      if (res.data) return { source: 'tmdb', data: res.data };
+      if (res.data) {
+        console.log(`[API/TMDB] Successfully fetched metadata for ${type} (TMDB ID: ${tmdbId}).`);
+        return {source: 'tmdb', data: res.data };
+      }
     } catch (error) {
-      console.warn(`[TMDB] Failed for ${type} ${imdbId} (TMDB ID: ${tmdbId}): ${error.message}`);
+      console.warn(`[API/TMDB] Failed to fetch from TMDB for ${imdbId} (TMDB ID: ${tmdbId}): ${error.message}`);
     }
   }
 
   // OMDB (Fallback)
   if (OMDB_API_KEY) {
+    console.log(`[API/OMDB] TMDB failed or unavailable. Falling back to OMDB for ${imdbId}.`);
     try {
       const url = `http://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`;
       const res = await axios.get(url, { timeout: 8000 });
-      if (res.data && res.data.Response === 'True') return { source: 'omdb', data: res.data };
+      if (res.data && res.data.Response === 'True') {
+        console.log(`[API/OMDB] Successfully fetched metadata for ${imdbId} from OMDB.`);
+        return { source: 'omdb', data: res.data };
+      }
     } catch (error) {
-      console.warn(`[OMDB] Failed for ${type} ${imdbId}: ${error.message}`);
+      console.warn(`[API/OMDB] Failed to fetch from OMDB for ${imdbId}: ${error.message}`);
     }
   }
+  console.error(`[API] All metadata providers failed for ${type} with ID ${imdbId}.`);
   return null;
 }
 
 async function fetchEpisodeMetadata(seriesImdbId, season, episode) {
   const seriesTmdbId = await resolveImdbToTmdbId(seriesImdbId, 'series');
-  // TMDB (Primary) - now uses the correct seriesTmdbId
+  // TMDB (Primary)
   if (seriesTmdbId) {
     try {
       const url = `https://api.themoviedb.org/3/tv/${seriesTmdbId}/season/${season}/episode/${episode}?api_key=${TMDB_API_KEY}&language=en-US`;
+      console.log(`[API/TMDB] Fetching episode metadata for S${season}E${episode} (Series TMDB ID: ${seriesTmdbId})...`);
       const res = await axios.get(url, { timeout: 8000 });
-      if (res.data) return { source: 'tmdb', data: res.data };
+      if (res.data) {
+        console.log(`[API/TMDB] Successfully fetched metadata for episode S${season}E${episode}.`);
+        return { source: 'tmdb', data: res.data };
+      }
     } catch (error) {
-      console.warn(`[TMDB] Failed for episode S${season}E${episode} (TMDB ID: ${seriesTmdbId}): ${error.message}`);
+      console.warn(`[API/TMDB] Failed for episode S${season}E${episode} (Series TMDB ID: ${seriesTmdbId}): ${error.message}`);
     }
   }
 
   // OMDB (Fallback)
   if (OMDB_API_KEY) {
+    console.log(`[API/OMDB] TMDB failed for episode. Falling back to OMDB for ${seriesImdbId}.`);
     try {
       const url = `http://www.omdbapi.com/?i=${seriesImdbId}&Season=${season}&Episode=${episode}&apikey=${OMDB_API_KEY}`;
       const res = await axios.get(url, { timeout: 8000 });
-      if (res.data && res.data.Response === 'True') return { source: 'omdb', data: res.data };
+      if (res.data && res.data.Response === 'True') {
+        console.log(`[API/OMDB] Successfully fetched episode metadata for S${season}E${episode} from OMDB.`);
+        return { source: 'omdb', data: res.data };
+      }
     } catch (error) {
-      console.warn(`[OMDB] Failed for episode S${season}E${episode}: ${error.message}`);
+      console.warn(`[API/OMDB] Failed for episode S${season}E${episode}: ${error.message}`);
     }
   }
+  console.error(`[API] All metadata providers failed for episode S${season}E${episode} of series ${seriesImdbId}.`);
   return null;
 }
 
@@ -197,47 +215,51 @@ async function generateReview(prompt) {
   
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      console.log(`[Gemini SDK] Starting chat session, attempt ${attempt}/${MAX_RETRIES}...`);
+      console.log(`[API/Gemini] Starting review generation, attempt ${attempt}/${MAX_RETRIES}...`);
       const chat = model.startChat({ tools: [{ googleSearch: {} }] });
       const result = await chat.sendMessage(prompt);
       const response = result.response;
       const reviewText = response.text();
-      return reviewText.trim() || 'No review generated.';
+      if (reviewText) {
+        console.log(`[API/Gemini] Successfully generated review on attempt ${attempt}.`);
+        return reviewText.trim();
+      }
     } catch (err) {
-      // Check if it's a 500 error and if we have retries left.
       if (err.status === 500 && attempt < MAX_RETRIES) {
-        console.warn(`[Gemini SDK] Attempt ${attempt} failed with 500 error. Retrying in 1 second...`);
-        await new Promise(res => setTimeout(res, 1000)); // Wait 1 second before retrying
+        console.warn(`[API/Gemini] Attempt ${attempt} failed with 500 error. Retrying in 1 second...`);
+        await new Promise(res => setTimeout(res, 1000));
       } else {
-        console.error(`[Gemini SDK] Review generation failed on attempt ${attempt}:`, err);
-        return 'Error generating review.'; // Fail permanently
+        console.error(`[API/Gemini] Review generation failed permanently on attempt ${attempt}:`, err);
+        return 'Error generating review.';
       }
     }
   }
+  return 'Error generating review after all retries.';
 }
 
-// --- Main Orchestrator with Force Refresh Logic ---
+// --- Main Orchestrator ---
 async function getReview(date, id, type, forceRefresh = false) {
-  // THE FIX: Only check the cache if forceRefresh is false.
+  console.log(`\n===== [API] New Request Start =====`);
+  console.log(`[API] Received request for type: ${type}, id: ${id}, forceRefresh: ${forceRefresh}`);
   if (!forceRefresh) {
     const cached = readReview(date, id);
     if (cached) {
-      console.log(`[Cache] Cache hit for ${id}.`);
+      console.log(`[Cache] Cache hit for ${id}. Returning cached review.`);
+      console.log(`===== [API] Request End (Cached) =====\n`);
       return cached;
     }
-    console.log(`[Cache] Cache miss for ${id}.`);
+    console.log(`[Cache] Cache miss for ${id}. Proceeding to generate new review.`);
   } else {
     console.log(`[Cache] Force refresh requested for ${id}. Bypassing cache.`);
   }
 
   const idParts = String(id).split(':');
   const isEpisode = type === 'series' && idParts.length === 3;
-
   let metadata, prompt;
   
   if (isEpisode) {
     const [seriesId, season, episode] = idParts;
-    console.log(`[Review Manager] Handling episode request: ${seriesId} S${season}E${episode}`);
+    console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
     const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
       scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode),
       fetchEpisodeMetadata(seriesId, season, episode),
@@ -245,26 +267,33 @@ async function getReview(date, id, type, forceRefresh = false) {
     ]);
     metadata = episodeMetadata;
     if (metadata && seriesMetadata) {
+      console.log("[API] Successfully gathered all required metadata for episode.");
       const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
       prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
     }
   } else {
-    console.log(`[Review Manager] Handling ${type} request: ${id}`);
+    console.log(`[API] Handling ${type}: ${id}`);
     metadata = await fetchMovieSeriesMetadata(type, id);
     if (metadata) {
+      console.log(`[API] Successfully gathered metadata for ${type}.`);
       prompt = buildPromptFromMetadata(metadata, type);
     }
   }
 
   if (!metadata || !prompt) {
+    console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
     const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.';
     saveReview(date, id, fallbackText);
+    console.log(`===== [API] Request End (Failure) =====\n`);
     return fallbackText;
   }
-
+  
+  console.log(`[API] Generating review for ${id}...`);
   const review = await generateReview(prompt);
+  console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
   saveReview(date, id, review);
+  console.log(`===== [API] Request End (Success) =====\n`);
   return review;
 }
 
-module.exports = { getReview };
+module.exports = { getReview, buildPromptFromMetadata };
