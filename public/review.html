@@ -13,14 +13,60 @@
     #refresh-btn:hover{background-color:#6c757d}
     #refresh-btn:disabled{background-color:#343a40;color:#6c757d;cursor:not-allowed}
 
+    /* --- THE FIX: Styles for the new Rating Tooltip and Modal --- */
+    .tooltip-trigger {
+      display: inline-block;
+      background-color: #495057;
+      color: #e9ecef;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      line-height: 18px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s;
+    }
+    .tooltip-trigger:hover { background-color: #6c757d; }
+    
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: #343a40;
+      padding: 2rem;
+      border: 1px solid #495057;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 10px; right: 20px;
+      color: #adb5bd;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .modal-close:hover { color: #fff; }
+    .modal-content h2 { margin-top: 0; }
+    .modal-content ul { padding-left: 20px; }
+    .modal-content li { margin-bottom: 0.5rem; }
+
     /* THE FIX: Add styles for smaller screens */
     @media (max-width: 600px) {
-      body {
-        padding: 1rem; /* Reduce padding on mobile */
-      }
-      .review-box {
-        padding: 1.5rem; /* Reduce padding inside the card on mobile */
-      }
+      body { padding: 1rem; }
+      .review-box { padding: 1.5rem; }
     }
   </style>
 </head>
@@ -32,6 +78,23 @@
   <div class="controls">
     <button id="refresh-btn" style="display:none;">Force New Review</button>
   </div>
+
+  <!-- THE FIX: Add the hidden modal structure to the page -->
+  <div id="ratingModal" class="modal-overlay">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeModal()">&times;</span>
+      <h2>Rating Scale</h2>
+      <ul>
+        <li><strong>9–10:</strong> Exceptional, rare masterpiece</li>
+        <li><strong>7–8:</strong> Strong, worth watching despite flaws</li>
+        <li><strong>5–6:</strong> Average, watchable but forgettable</li>
+        <li><strong>3–4:</strong> Weak, major flaws outweigh positives</li>
+        <li><strong>1–2:</strong> Poor, barely redeemable</li>
+        <li><strong>0:</strong> Unwatchable, complete failure</li>
+      </ul>
+    </div>
+  </div>
+  
   <script>
     (function(){
       const params=new URLSearchParams(window.location.search);
@@ -68,14 +131,49 @@
         refreshBtn.style.display='inline-block';
       });
 
+      fetch(`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&force=${params.has('force')}`)
+        .then(res => { if(!res.ok) throw new Error(`Failed to fetch (HTTP ${res.status})`); return res.json() })
+        .then(data => {
+          loadingEl.style.display = 'none';
+          const rawText = (data && typeof data.review === 'string') ? data.review.trim() : '';
+         
+          let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
+         
+          // The AI will now generate HTML for the rating, so we just need to display it.
+          reviewBox.innerHTML = formattedHtml || 'No review available.';
+          reviewBox.style.display = 'block';
+          refreshBtn.style.display = 'inline-block';
+        }).catch(err => {
+          loadingEl.className = 'err';
+          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
+          refreshBtn.style.display = 'inline-block';
+        });
+
       refreshBtn.addEventListener('click', () => {
-        refreshBtn.disabled = true;
-        refreshBtn.textContent = 'Refreshing...';
         const newUrl = new URL(window.location.href);
-        newUrl.searchParams.set('force', 'true');
-        window.location.href = newUrl.href;
+          newUrl.searchParams.set('force', 'true');
+          window.location.href = newUrl.href;
       });
     })();
+
+    /* --- THE FIX: JavaScript functions to control the modal --- */
+    const modal = document.getElementById('ratingModal');
+
+    function openModal() {
+      modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      modal.style.display = 'none';
+    }
+
+    // Close the modal if the user clicks on the dark overlay area
+    window.onclick = function(event) {
+      if (event.target == modal) {
+        closeModal();
+      }
+    }
   </script>
 </body>
 </html>
