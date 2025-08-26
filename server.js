@@ -38,7 +38,7 @@ const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 
 if (ADDON_PASSWORD) {
   const secretPath = `/${ADDON_PASSWORD}`;
-  console.log(`Addon is SECURED. All endpoints are prefixed with: ${secretPath}`);
+  console.log('Addon is SECURED. All endpoints are password-protected.');
 
   // Secured manifest endpoint
   app.get(`${secretPath}/manifest.json`, (req, res) => {
