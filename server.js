@@ -45,6 +45,12 @@ if (ADDON_PASSWORD) {
     res.json(manifest);
   });
 
+  // New route to serve the HTML page for viewing the cache.
+  // This is the URL you will visit in your browser.
+  app.get(`${secretPath}/cached-reviews`, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'cached-reviews.html'));
+  });
+
   // Secured stream endpoint
   app.get(`${secretPath}/stream/:type/:id.json`, (req, res) => {
     handleStreamRequest(req, res);
