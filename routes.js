@@ -1,7 +1,9 @@
-// routes.js — now passes the force refresh parameter to the review manager.
+// routes.js — now includes an endpoint to view all cached reviews.
 
 const express = require('express');
 const { getReview } = require('./api');
+const { getAllCachedReviews } = require('./cache');
+
 const router = express.Router();
 
 function normalizeDate(input) {
@@ -13,11 +15,31 @@ function normalizeDate(input) {
 
 function isValidType(t) { return t === 'movie' || t === 'series'; }
 
+// New route to get all cached reviews as JSON data.
+router.get('/api/cached-reviews', (req, res) => {
+  try {
+    const cachedItems = getAllCachedReviews();
+    // Format the data to be more useful for the frontend page.
+    const formattedItems = cachedItems.map(item => {
+      // The cache key is "YYYY-MM-DD:imdbId", so we split it to get the actual ID.
+      const id = item.key.split(':').slice(1).join(':');
+      return {
+        id: id,
+        type: item.type,
+        ts: item.ts
+      };
+    });
+    res.json(formattedItems);
+  } catch (err) {
+    console.error('Error in /api/cached-reviews route:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 router.get('/api/review', async (req, res) => {
   try {
     const { type, id } = req.query;
     const date = normalizeDate(req.query.date);
-    // THE FIX: Check if the 'force' query parameter is set to 'true'.
     const forceRefresh = req.query.force === 'true';
 
     if (!type || !id) {
@@ -27,7 +49,6 @@ router.get('/api/review', async (req, res) => {
       return res.status(400).json({ error: 'Invalid type. Use "movie" or "series".' });
     }
 
-    // Pass the forceRefresh flag to the getReview function.
     const review = await getReview(date, String(id).trim(), type, forceRefresh);
     res.json({ review });
   } catch (err) {
