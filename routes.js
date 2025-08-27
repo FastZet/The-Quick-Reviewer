@@ -6,7 +6,7 @@ const { getAllCachedReviews } = require('./cache');
 
 const router = express.Router();
 
-// --- Rate limiting logic is now centralized in the API router file ---
+// --- Rate limiting logic for password validation ---
 const loginAttempts = new Map();
 const MAX_ATTEMPTS = 5;
 const ATTEMPT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
@@ -21,7 +21,7 @@ function normalizeDate(input) {
 
 function isValidType(t) { return t === 'movie' || t === 'series'; }
 
-// --- THE FIX: New server-side endpoint for password validation ---
+// --- Server-side endpoint for password validation ---
 router.post('/api/validate-password', (req, res) => {
   const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
   if (!ADDON_PASSWORD) {
@@ -44,8 +44,12 @@ router.post('/api/validate-password', (req, res) => {
     const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
     const host = req.get('x-forwarded-host') || req.get('host');
     const base = BASE_URL || (host ? `${proto}://${host}` : '');
-    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${encodeURIComponent(ADDON_PASSWORD)}/manifest.json`;
+    
+    const stremioSafePassword = encodeURIComponent(ADDON_PASSWORD).replace(/%3D/g, '=');
+    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${stremioSafePassword}/manifest.json`;
+    
     const cacheUrl = `/${encodeURIComponent(ADDON_PASSWORD)}/cached-reviews`;
+    
     return res.json({ manifestStremioUrl, cacheUrl });
   }
 
@@ -67,13 +71,12 @@ router.post('/api/validate-password', (req, res) => {
   }
 });
 
+
 // Route to get all cached reviews as JSON data.
 router.get('/api/cached-reviews', (req, res) => {
   try {
     const cachedItems = getAllCachedReviews();
-    // Format the data to be more useful for the frontend page.
     const formattedItems = cachedItems.map(item => {
-      // The cache key is "YYYY-MM-DD:imdbId", so we split it to get the actual ID.
       const id = item.key.split(':').slice(1).join(':');
       return {
         id: id,
