@@ -12,6 +12,7 @@ const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
+const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 
 // Warn if API keys missing
 if (!TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fail.');
@@ -30,8 +31,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// The dynamic route for the landing page now comes BEFORE the static middleware.
-// This ensures it runs first for the root URL.
+// --- Homepage route is now fully dynamic and password-aware ---
 app.get('/', (req, res) => {
   fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
     if (err) {
@@ -41,24 +41,60 @@ app.get('/', (req, res) => {
     const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
     const host = req.get('x-forwarded-host') || req.get('host');
     const base = BASE_URL || (host ? `${proto}://${host}` : '');
-    const manifestUrl = `${base}/${ADDON_PASSWORD ? ADDON_PASSWORD + '/' : ''}manifest.json`;
-    let renderedHtml = html.replace('{{MANIFEST_URL}}', manifestUrl.replace(/^https?:\/\//, 'stremio://'));
-    let cacheButtonHtml = '';
+    
+    let dynamicContent = '';
+    let pageScript = '';
+    
     if (ADDON_PASSWORD) {
-      const cacheUrl = `${base}/${ADDON_PASSWORD}/cached-reviews`;
-      cacheButtonHtml = `<a href="${cacheUrl}" class="btn cache">View Cached Reviews</a>`;
+      // SECURED: Render the password form and the client-side script to handle it.
+      dynamicContent = `
+        <form id="password-form">
+          <input type="password" id="addon-password" placeholder="Enter Addon Password" required />
+          <button type="submit" class="btn submit">Unlock</button>
+        </form>
+      `;
+      pageScript = `
+        <script>
+          document.getElementById('password-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const password = document.getElementById('addon-password').value.trim();
+            if (!password) {
+              alert('Please enter a password.');
+              return;
+            }
+
+            // Dynamically build the protected URLs on the client-side
+            const manifestStremioUrl = \`stremio://${base.replace(/^https?:\/\//, '')}/\${encodeURIComponent(password)}/manifest.json\`;
+            const cacheUrl = \`/\${encodeURIComponent(password)}/cached-reviews\`;
+
+            const buttonHtml = \`
+              <a href="\${manifestStremioUrl}" class="btn install">Install Addon</a>
+              <a href="\${cacheUrl}" class="btn cache">View Cached Reviews</a>
+            \`;
+
+            // Replace the form with the generated buttons
+            document.getElementById('dynamic-content-area').innerHTML = buttonHtml;
+          });
+        </script>
+      `;
+    } else {
+      // UNSECURED: Render the installation button directly.
+      const manifestUrl = `${base}/manifest.json`;
+      dynamicContent = `<a href="${manifestUrl.replace(/^https?:\/\//, 'stremio://')}" class="btn install">Install Addon</a>`;
+      pageScript = ''; // No script needed for the unsecured version.
     }
-    renderedHtml = renderedHtml.replace('{{CACHE_BUTTON_HTML}}', cacheButtonHtml);
+    
+    // Replace placeholders and send the final rendered HTML to the user.
+    let renderedHtml = html.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
+    renderedHtml = renderedHtml.replace('{{PAGE_SCRIPT}}', pageScript);
     res.send(renderedHtml);
   });
 });
 
-// Serve static public files (review.html, cached-reviews.html, etc.)
-// For any request not handled by a specific route above, Express will look for a file in the 'public' folder.
+// Serve static public files (review.html etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- MANIFEST AND STREAM ENDPOINTS WITH PASSWORD LOGIC ---
-const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 
 if (ADDON_PASSWORD) {
   const secretPath = `/${ADDON_PASSWORD}`;
@@ -81,7 +117,7 @@ function handleStreamRequest(req, res) {
   const streams = [{
     id: `quick-reviewer-${type}-${id}`,
     title: '⚡ Quick AI Review',
-    externalUrl: reviewUrl, 
+    externalUrl: reviewUrl,
     poster: manifest.icon || undefined,
     behaviorHints: { "notWebReady": true }
   }];
@@ -100,6 +136,7 @@ app.get('/health', (req, res) => res.send('OK'));
 app.listen(PORT, () => {
   console.log(`Quick Reviewer Addon running on port ${PORT}`);
   if (BASE_URL) console.log(`Base URL (env): ${BASE_URL}`);
+  if (ADDON_PASSWORD) console.log(`Password protection is ENABLED.`);
 });
 
 module.exports = app;
