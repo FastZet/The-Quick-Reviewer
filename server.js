@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const manifest = require('./manifest.json');
 const fs = require('fs');
+const { getReview } = require('./api.js');
 
 const app = express();
 
@@ -13,6 +14,7 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
+const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 14000;
 
 // Warn if API keys missing
 if (!TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fail.');
@@ -26,7 +28,7 @@ app.use(express.json());
 // Basic CORS for clients (placed BEFORE routes)
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Allow POST
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
@@ -39,12 +41,9 @@ app.get('/', (req, res) => {
       console.error("Could not read index.html file:", err);
       return res.status(500).send("Could not load landing page.");
     }
-
     let dynamicContent = '';
     let pageScript = '';
-
     if (ADDON_PASSWORD) {
-      // SECURED: Render the password form and the client-side script to handle it.
       dynamicContent = `
         <form id="password-form">
           <input type="password" id="addon-password" placeholder="Enter Addon Password" required />
@@ -59,28 +58,22 @@ app.get('/', (req, res) => {
             const password = document.getElementById('addon-password').value;
             const statusEl = document.getElementById('status-message');
             const submitBtn = this.querySelector('button');
-
             submitBtn.disabled = true;
             statusEl.textContent = 'Verifying...';
             statusEl.className = '';
-
             try {
               const response = await fetch('/api/validate-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
               });
-
               const data = await response.json();
-
               if (!response.ok) {
                 statusEl.className = 'error';
                 statusEl.textContent = data.error || 'An unknown error occurred.';
                 submitBtn.disabled = false;
                 return;
               }
-
-              // SUCCESS
               statusEl.className = 'success';
               statusEl.textContent = 'Success! Addon unlocked.';
               const buttonHtml = \`
@@ -88,7 +81,6 @@ app.get('/', (req, res) => {
                 <a href="\${data.cacheUrl}" class="btn cache">View Cached Reviews</a>
               \`;
               document.getElementById('dynamic-content-area').innerHTML = buttonHtml;
-
             } catch (err) {
               statusEl.className = 'error';
               statusEl.textContent = 'Failed to connect to the server. Please try again.';
@@ -98,14 +90,12 @@ app.get('/', (req, res) => {
         </script>
       `;
     } else {
-      // UNSECURED: Render the installation button directly.
       const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
       const host = req.get('x-forwarded-host') || req.get('host');
       const base = BASE_URL || (host ? `${proto}://${host}` : '');
       const manifestUrl = `${base}/manifest.json`;
       dynamicContent = `<a href="${manifestUrl.replace(/^https?:\/\//, 'stremio://')}" class="btn install">Install Addon</a>`;
     }
-
     let renderedHtml = html.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
     renderedHtml = renderedHtml.replace('{{PAGE_SCRIPT}}', pageScript);
     res.send(renderedHtml);
@@ -128,20 +118,45 @@ if (ADDON_PASSWORD) {
   app.get('/stream/:type/:id.json', (req, res) => { handleStreamRequest(req, res); });
 }
 
-function handleStreamRequest(req, res) {
+async function handleStreamRequest(req, res) {
   const { type, id } = req.params;
-  const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-  const host = req.get('x-forwarded-host') || req.get('host');
-  const base = BASE_URL || (host ? `${proto}://${host}` : '');
-  const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
-  const streams = [{
-    id: `quick-reviewer-${type}-${id}`,
-    title: '⚡ Quick AI Review',
-    externalUrl: reviewUrl,
-    poster: manifest.icon || undefined,
-    behaviorHints: { "notWebReady": true }
-  }];
-  res.json({ streams });
+  try {
+    console.log(`[Stream] Received request for ${id}. Starting pre-generation...`);
+  
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout')), ADDON_TIMEOUT_MS)
+    );
+
+    // Race the review generation against the timeout
+    await Promise.race([
+      getReview(new Date().toISOString().split('T')[0], String(id).trim(), type, false),
+      timeoutPromise
+    ]);
+
+    console.log(`[Stream] Pre-generation for ${id} SUCCEEDED before timeout.`);
+  } catch (error) {
+    if (error.message === 'Timeout') {
+      console.warn(`[Stream] Pre-generation for ${id} TIMED OUT. Will generate on page load.`);
+    } else {
+      console.error(`[Stream] Pre-generation for ${id} FAILED with error:`, error.message);
+    }
+  } finally {
+
+    // ALWAYS respond to Stremio, regardless of whether pre-generation succeeded, timed out, or failed.
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const base = BASE_URL || (host ? `${proto}://${host}` : '');
+    const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+    const streams = [{
+      id: `quick-reviewer-${type}-${id}`,
+      title: '⚡ Quick AI Review',
+      externalUrl: reviewUrl,
+      poster: manifest.icon || undefined,
+      behaviorHints: { "notWebReady": true }
+    }];
+    res.json({ streams });
+  }
 }
 
 app.get('/review', (req, res) => {
