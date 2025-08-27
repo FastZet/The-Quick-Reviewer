@@ -19,13 +19,14 @@ if (!TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fai
 if (!OMDB_API_KEY) console.warn('Warning: OMDB_API_KEY not set.');
 if (!GEMINI_API_KEY) console.warn('Warning: GEMINI_API_KEY not set. Reviews will not be generated.');
 
-// Trust proxy for correct proto/host in HF Spaces
+// Trust proxy for correct proto/host, IP address, and JSON body parsing
 app.set('trust proxy', true);
+app.use(express.json());
 
 // Basic CORS for clients (placed BEFORE routes)
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Allow POST
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
@@ -38,10 +39,7 @@ app.get('/', (req, res) => {
       console.error("Could not read index.html file:", err);
       return res.status(500).send("Could not load landing page.");
     }
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const base = BASE_URL || (host ? `${proto}://${host}` : '');
-    
+        
     let dynamicContent = '';
     let pageScript = '';
     
@@ -52,50 +50,116 @@ app.get('/', (req, res) => {
           <input type="password" id="addon-password" placeholder="Enter Addon Password" required />
           <button type="submit" class="btn submit">Unlock</button>
         </form>
+        <div id="status-message"></div>
       `;
       pageScript = `
         <script>
-          document.getElementById('password-form').addEventListener('submit', function(e) {
+          document.getElementById('password-form').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const password = document.getElementById('addon-password').value.trim();
-            if (!password) {
-              alert('Please enter a password.');
-              return;
+            const password = document.getElementById('addon-password').value;
+            const statusEl = document.getElementById('status-message');
+            const submitBtn = this.querySelector('button');
+
+            submitBtn.disabled = true;
+            statusEl.textContent = 'Verifying...';
+            statusEl.className = '';
+
+            try {
+              const response = await fetch('/api/validate-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+              });
+
+            const data = await response.json();
+
+              if (!response.ok) {
+                statusEl.className = 'error';
+                statusEl.textContent = data.error || 'An unknown error occurred.';
+                submitBtn.disabled = false;
+                return;
+              }
+
+              // SUCCESS
+              statusEl.className = 'success';
+              statusEl.textContent = 'Success! Addon unlocked.';
+              const buttonHtml = \`
+                <a href="\${data.manifestStremioUrl}" class="btn install">Install Addon</a>
+                <a href="\${data.cacheUrl}" class="btn cache">View Cached Reviews</a>
+              \`;
+              document.getElementById('dynamic-content-area').innerHTML = buttonHtml;
+
+            } catch (err) {
+              statusEl.className = 'error';
+              statusEl.textContent = 'Failed to connect to the server. Please try again.';
+              submitBtn.disabled = false;
             }
-
-            // Dynamically build the protected URLs on the client-side
-            const manifestStremioUrl = \`stremio://${base.replace(/^https?:\/\//, '')}/\${encodeURIComponent(password)}/manifest.json\`;
-            const cacheUrl = \`/\${encodeURIComponent(password)}/cached-reviews\`;
-
-            const buttonHtml = \`
-              <a href="\${manifestStremioUrl}" class="btn install">Install Addon</a>
-              <a href="\${cacheUrl}" class="btn cache">View Cached Reviews</a>
-            \`;
-
-            // Replace the form with the generated buttons
-            document.getElementById('dynamic-content-area').innerHTML = buttonHtml;
           });
         </script>
       `;
     } else {
       // UNSECURED: Render the installation button directly.
+      const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+      const host = req.get('x-forwarded-host') || req.get('host');
+      const base = BASE_URL || (host ? `${proto}://${host}` : '');
       const manifestUrl = `${base}/manifest.json`;
       dynamicContent = `<a href="${manifestUrl.replace(/^https?:\/\//, 'stremio://')}" class="btn install">Install Addon</a>`;
-      pageScript = ''; // No script needed for the unsecured version.
     }
     
-    // Replace placeholders and send the final rendered HTML to the user.
     let renderedHtml = html.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
     renderedHtml = renderedHtml.replace('{{PAGE_SCRIPT}}', pageScript);
     res.send(renderedHtml);
   });
 });
 
-// Serve static public files (review.html etc.)
+// --- New server-side endpoint for password validation ---
+app.post('/api/validate-password', (req, res) => {
+  if (!ADDON_PASSWORD) {
+    return res.status(403).json({ error: 'Password protection is not enabled.' });
+  }
+
+  const ip = req.ip;
+  const { password } = req.body;
+  const now = Date.now();
+  let attempts = loginAttempts.get(ip) || { count: 0, firstAttemptTime: now, lockoutUntil: null };
+
+  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
+    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
+    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
+  }
+
+  if (password === ADDON_PASSWORD) {
+    loginAttempts.delete(ip);
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const base = BASE_URL || (host ? `${proto}://${host}` : '');
+    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${encodeURIComponent(ADDON_PASSWORD)}/manifest.json`;
+    const cacheUrl = `/${encodeURIComponent(ADDON_PASSWORD)}/cached-reviews`;
+    return res.json({ manifestStremioUrl, cacheUrl });
+  }
+
+  // Incorrect password logic
+  if (now - attempts.firstAttemptTime > ATTEMPT_WINDOW_MS) {
+    attempts = { count: 1, firstAttemptTime: now, lockoutUntil: null };
+  } else {
+    attempts.count++;
+  }
+
+  if (attempts.count >= MAX_ATTEMPTS) {
+    attempts.lockoutUntil = now + LOCKOUT_MS;
+    loginAttempts.set(ip, attempts);
+    return res.status(429).json({ error: 'Too many failed attempts. You are locked out for 10 minutes.' });
+  } else {
+    loginAttempts.set(ip, attempts);
+    const remaining = MAX_ATTEMPTS - attempts.count;
+    return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
+  }
+});
+
+// Serve static public files (review.html, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- MANIFEST AND STREAM ENDPOINTS WITH PASSWORD LOGIC ---
-
 if (ADDON_PASSWORD) {
   const secretPath = `/${ADDON_PASSWORD}`;
   console.log('Addon is SECURED. All endpoints are password-protected.');
