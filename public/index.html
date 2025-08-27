@@ -4,42 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The Quick Reviewer Addon</title>
-  <style>
-    body { font-family: system-ui, sans-serif; background: #212529; color: #e9ecef; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-    .container { text-align: center; background: #343a40; padding: 2rem 3rem 3rem; border-radius: 12px; border: 1px solid #495057; max-width: 500px; }
-    h1 { margin-top: 0; color: #fff; }
-    p { color: #adb5bd; line-height: 1.6; }
-    .button-group { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
-    .btn { display: inline-block; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; transition: background-color 0.2s; min-width: 180px; }
-    .btn.install { background-color: #0d6efd; }
-    .btn.install:hover { background-color: #0b5ed7; }
-    .btn.cache { background-color: #6c757d; }
-    .btn.cache:hover { background-color: #5a6268; }
-    #password-form { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
-    input[type=password] {
-      padding: 12px;
-      border-radius: 6px;
-      border: 1px solid #6c757d;
-      background-color: #212529;
-      color: #e9ecef;
-      width: 90%;
-      max-width: 280px;
-      text-align: center;
-      font-size: 1rem;
-    }
-    .btn.submit { background-color: #198754; border: none; cursor: pointer; }
-    .btn.submit:hover { background-color: #157347; }
-    #status-message {
-      margin-top: 1rem;
-      min-height: 20px;
-      font-weight: 500;
-      color: #ffc107; /* Default color for warnings */
-    }
-    #status-message.error { color: #dc3545; } /* Red for errors/lockouts */
-    #status-message.success { color: #198754; } /* Green for success */
-  </style>
+  <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="main-page">
   <div class="container">
     <h1>⚡ The Quick Reviewer</h1>
     <p>This Stremio addon uses the Google Gemini API to provide spoiler-free, AI-generated reviews for movies and series episodes.</p>
