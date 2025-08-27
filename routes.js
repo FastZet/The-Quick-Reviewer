@@ -1,10 +1,16 @@
-// routes.js — now includes an endpoint to view all cached reviews.
+// routes.js — now includes all API endpoints, including password validation.
 
 const express = require('express');
 const { getReview } = require('./api');
 const { getAllCachedReviews } = require('./cache');
 
 const router = express.Router();
+
+// --- Rate limiting logic is now centralized in the API router file ---
+const loginAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const ATTEMPT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 function normalizeDate(input) {
   if (!input) return new Date().toISOString().split('T')[0];
@@ -15,7 +21,53 @@ function normalizeDate(input) {
 
 function isValidType(t) { return t === 'movie' || t === 'series'; }
 
-// New route to get all cached reviews as JSON data.
+// --- THE FIX: New server-side endpoint for password validation ---
+router.post('/api/validate-password', (req, res) => {
+  const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
+  if (!ADDON_PASSWORD) {
+    return res.status(403).json({ error: 'Password protection is not enabled.' });
+  }
+
+  const ip = req.ip;
+  const { password } = req.body;
+  const now = Date.now();
+  let attempts = loginAttempts.get(ip) || { count: 0, firstAttemptTime: now, lockoutUntil: null };
+
+  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
+    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
+    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
+  }
+
+  if (password === ADDON_PASSWORD) {
+    loginAttempts.delete(ip);
+    const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const base = BASE_URL || (host ? `${proto}://${host}` : '');
+    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${encodeURIComponent(ADDON_PASSWORD)}/manifest.json`;
+    const cacheUrl = `/${encodeURIComponent(ADDON_PASSWORD)}/cached-reviews`;
+    return res.json({ manifestStremioUrl, cacheUrl });
+  }
+
+  // Incorrect password logic
+  if (now - attempts.firstAttemptTime > ATTEMPT_WINDOW_MS) {
+    attempts = { count: 1, firstAttemptTime: now, lockoutUntil: null };
+  } else {
+    attempts.count++;
+  }
+
+  if (attempts.count >= MAX_ATTEMPTS) {
+    attempts.lockoutUntil = now + LOCKOUT_MS;
+    loginAttempts.set(ip, attempts);
+    return res.status(429).json({ error: 'Too many failed attempts. You are locked out for 10 minutes.' });
+  } else {
+    loginAttempts.set(ip, attempts);
+    const remaining = MAX_ATTEMPTS - attempts.count;
+    return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
+  }
+});
+
+// Route to get all cached reviews as JSON data.
 router.get('/api/cached-reviews', (req, res) => {
   try {
     const cachedItems = getAllCachedReviews();
