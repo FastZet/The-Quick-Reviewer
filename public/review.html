@@ -13,7 +13,6 @@
     <button id="refresh-btn" style="display:none;">Force New Review</button>
   </div>
 
-  <!-- THE FIX: Add the hidden modal structure to the page -->
   <div id="ratingModal" class="modal-overlay">
     <div class="modal-content">
       <span class="modal-close" onclick="closeModal()">&times;</span>
@@ -31,7 +30,6 @@
   
   <script>
     (function(){
-      // --- All your existing variable setup is fine ---
       const params=new URLSearchParams(window.location.search);
       const type=(params.get('type')||'').trim();
       const id=(params.get('id')||'').trim();
@@ -71,38 +69,42 @@
           refreshBtn.style.display='inline-block';
         });
 
+      function formatText(text) {
+        if (!text) return '';
+        return text
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/^\s*([*-])\s/gm, '&bull; ');
+      }
       function buildReviewAccordion(text) {
-        // Separate the main content from the final rating/verdict
         const outroMarker = 'Rating:';
         const mainContentEnd = text.lastIndexOf(outroMarker);
        
         const mainContent = (mainContentEnd !== -1 ? text.substring(0, mainContentEnd) : text).trim();
         const outroContent = (mainContentEnd !== -1 ? text.substring(mainContentEnd) : '').trim();
 
-        // Separate the intro (movie name, cast) from the accordion sections
         const accordionStartMarker = '• **Plot Summary:**';
         const accordionStartIndex = mainContent.indexOf(accordionStartMarker);
 
         const introContent = (accordionStartIndex !== -1 ? mainContent.substring(0, accordionStartIndex) : mainContent).trim();
-        const accordionContent = (accordionStartIndex !== -1 ? mainContent.substring(accordionStartIndex) : '').trim();
+        const accordionContentText = (accordionStartIndex !== -1 ? mainContent.substring(accordionStartIndex) : '').trim();
 
         let accordionHtml = '<div class="accordion">';
 
-        if (accordionContent) {
-          const sections = accordionContent.split(/• \*\*/g).filter(Boolean); // Split by the section marker
-          sections.forEach((section, index) => {
-            const parts = section.split(':**'); // Split heading from content
+        if (accordionContentText) {
+          const sections = accordionContentText.split(/• \*\*/g).filter(Boolean);
+          sections.forEach((section) => {
+            const parts = section.split(':**');
             if (parts.length < 2) return;
 
             const title = parts[0].trim();
             const content = parts.slice(1).join(':**').trim();
-            const isActive = title === 'Plot Summary'; // Plot Summary is open by default
+            const isActive = title === 'Plot Summary';
 
             accordionHtml += `
               <div class="accordion-item ${isActive ? 'active' : ''}">
                 <button class="accordion-header">${title}</button>
                 <div class="accordion-content">
-                  <div class="accordion-content-inner">${content}</div>
+                  <div class="accordion-content-inner">${formatText(content)}</div>
                 </div>
               </div>
             `;
@@ -110,17 +112,14 @@
         }
         accordionHtml += '</div>';
 
-        // Assemble the final HTML for the review box
         reviewBox.innerHTML = `
-          <div class="review-intro">${introContent.replace(/^\s*([*-])\s/gm, '&bull; ')}</div>
-          ${accordionContent ? accordionHtml : ''}
-          <div class="review-outro">${outroContent}</div>
+          <div class="review-intro">${formatText(introContent)}</div>
+          ${accordionContentText ? accordionHtml : ''}
+          <div class="review-outro">${formatText(outroContent)}</div>
         `;
         
-        // Post-render fixes (rating tooltip)
         setupRatingTooltip();
        
-        // Activate accordion functionality
         setupAccordion();
       }
 
@@ -140,16 +139,18 @@
         const accordion = reviewBox.querySelector('.accordion');
         if (!accordion) return;
 
-        // Set initial height for the active item
-        const activeItem = accordion.querySelector('.accordion-item.active .accordion-content');
-        if (activeItem) {
-          activeItem.style.maxHeight = activeItem.scrollHeight + "px";
-        }
+        // --- THE FIX: Delay height calculation to allow for browser rendering ---
+        setTimeout(() => {
+          const activeItem = accordion.querySelector('.accordion-item.active .accordion-content');
+          if (activeItem) {
+            activeItem.style.maxHeight = activeItem.scrollHeight + "px";
+          }
+        }, 0); // A 0ms timeout is enough to push it to the end of the event queue.
 
         accordion.addEventListener('click', (e) => {
           const header = e.target.closest('.accordion-header');
           if (!header) return;
-        
+ 
           const currentItem = header.parentElement;
           const currentContent = header.nextElementSibling;
           const currentlyActiveItem = accordion.querySelector('.accordion-item.active');
