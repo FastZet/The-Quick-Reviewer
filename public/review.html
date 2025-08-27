@@ -71,9 +71,14 @@
 
       function formatText(text) {
         if (!text) return '';
-        return text
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/^\s*([*-])\s/gm, '&bull; ');
+        // Bolding must come first
+        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Handle both bullet types
+        formatted = formatted.replace(/^\s*([*-])\s/gm, '&bull; ');
+        // Specific fix for the final "Rating:" and "Verdict..." lines to be bold
+        formatted = formatted.replace(/(Rating:.*<\/span>)/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/(Verdict in One Line:.*)/g, '<strong>$1</strong>');
+        return formatted;
       }
       function buildReviewAccordion(text) {
         const outroMarker = 'Rating:';
@@ -139,13 +144,15 @@
         const accordion = reviewBox.querySelector('.accordion');
         if (!accordion) return;
 
-        // --- THE FIX: Delay height calculation to allow for browser rendering ---
-        setTimeout(() => {
-          const activeItem = accordion.querySelector('.accordion-item.active .accordion-content');
-          if (activeItem) {
-            activeItem.style.maxHeight = activeItem.scrollHeight + "px";
-          }
-        }, 0); // A 0ms timeout is enough to push it to the end of the event queue.
+        // Set the initial open state for the default active item
+        const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
+        if (initiallyActiveItem) {
+          const content = initiallyActiveItem.querySelector('.accordion-content');
+          // Use setTimeout to ensure the DOM is painted and scrollHeight is accurate
+          setTimeout(() => {
+            content.style.maxHeight = content.scrollHeight + 'px';
+          }, 0);
+        }
 
         accordion.addEventListener('click', (e) => {
           const header = e.target.closest('.accordion-header');
@@ -164,7 +171,7 @@
           // Toggle the clicked item
           currentItem.classList.toggle('active');
           if (currentItem.classList.contains('active')) {
-            currentContent.style.maxHeight = currentContent.scrollHeight + "px";
+            currentContent.style.maxHeight = currentContent.scrollHeight + 'px';
           } else {
             currentContent.style.maxHeight = null;
           }
