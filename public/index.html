@@ -15,7 +15,6 @@
     .btn.install:hover { background-color: #0b5ed7; }
     .btn.cache { background-color: #6c757d; }
     .btn.cache:hover { background-color: #5a6268; }
-    /* --- Styles for the new password form --- */
     #password-form { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
     input[type=password] {
       padding: 12px;
@@ -30,6 +29,14 @@
     }
     .btn.submit { background-color: #198754; border: none; cursor: pointer; }
     .btn.submit:hover { background-color: #157347; }
+    #status-message {
+      margin-top: 1rem;
+      min-height: 20px;
+      font-weight: 500;
+      color: #ffc107; /* Default color for warnings */
+    }
+    #status-message.error { color: #dc3545; } /* Red for errors/lockouts */
+    #status-message.success { color: #198754; } /* Green for success */
   </style>
 </head>
 <body>
@@ -37,7 +44,7 @@
     <h1>⚡ The Quick Reviewer</h1>
     <p>This Stremio addon uses the Google Gemini API to provide spoiler-free, AI-generated reviews for movies and series episodes.</p>
     <div id="dynamic-content-area" class="button-group">
-      <!-- This content is now dynamically inserted by the server -->
+      <!-- This content is dynamically inserted by the server -->
       {{DYNAMIC_CONTENT}}
     </div>
   </div>
