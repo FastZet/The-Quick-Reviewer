@@ -39,10 +39,10 @@ app.get('/', (req, res) => {
       console.error("Could not read index.html file:", err);
       return res.status(500).send("Could not load landing page.");
     }
-        
+
     let dynamicContent = '';
     let pageScript = '';
-    
+
     if (ADDON_PASSWORD) {
       // SECURED: Render the password form and the client-side script to handle it.
       dynamicContent = `
@@ -71,7 +71,7 @@ app.get('/', (req, res) => {
                 body: JSON.stringify({ password })
               });
 
-            const data = await response.json();
+              const data = await response.json();
 
               if (!response.ok) {
                 statusEl.className = 'error';
@@ -105,55 +105,11 @@ app.get('/', (req, res) => {
       const manifestUrl = `${base}/manifest.json`;
       dynamicContent = `<a href="${manifestUrl.replace(/^https?:\/\//, 'stremio://')}" class="btn install">Install Addon</a>`;
     }
-    
+
     let renderedHtml = html.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
     renderedHtml = renderedHtml.replace('{{PAGE_SCRIPT}}', pageScript);
     res.send(renderedHtml);
   });
-});
-
-// --- New server-side endpoint for password validation ---
-app.post('/api/validate-password', (req, res) => {
-  if (!ADDON_PASSWORD) {
-    return res.status(403).json({ error: 'Password protection is not enabled.' });
-  }
-
-  const ip = req.ip;
-  const { password } = req.body;
-  const now = Date.now();
-  let attempts = loginAttempts.get(ip) || { count: 0, firstAttemptTime: now, lockoutUntil: null };
-
-  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
-    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
-    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
-  }
-
-  if (password === ADDON_PASSWORD) {
-    loginAttempts.delete(ip);
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const base = BASE_URL || (host ? `${proto}://${host}` : '');
-    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${encodeURIComponent(ADDON_PASSWORD)}/manifest.json`;
-    const cacheUrl = `/${encodeURIComponent(ADDON_PASSWORD)}/cached-reviews`;
-    return res.json({ manifestStremioUrl, cacheUrl });
-  }
-
-  // Incorrect password logic
-  if (now - attempts.firstAttemptTime > ATTEMPT_WINDOW_MS) {
-    attempts = { count: 1, firstAttemptTime: now, lockoutUntil: null };
-  } else {
-    attempts.count++;
-  }
-
-  if (attempts.count >= MAX_ATTEMPTS) {
-    attempts.lockoutUntil = now + LOCKOUT_MS;
-    loginAttempts.set(ip, attempts);
-    return res.status(429).json({ error: 'Too many failed attempts. You are locked out for 10 minutes.' });
-  } else {
-    loginAttempts.set(ip, attempts);
-    const remaining = MAX_ATTEMPTS - attempts.count;
-    return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
-  }
 });
 
 // Serve static public files (review.html, etc.)
