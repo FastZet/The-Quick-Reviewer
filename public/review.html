@@ -2,75 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>The Quick Reviewer</title>
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:#212529;color:#e9ecef;padding:2rem;max-width:800px;margin:auto;line-height:1.6}
-    h1{color:#fff;margin-bottom:.25rem}
-    .sub{color:#adb5bd;font-size:.95rem;margin:0 0 1rem 0}
-    .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem;white-space:pre-line;text-align:justify}
-    .loading{color:#ced4da}.err{color:#ff8c8c}strong{color:#fff;font-weight:600}
-    .controls{margin-top:2rem;text-align:center}
-    #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
-    #refresh-btn:hover{background-color:#6c757d}
-    #refresh-btn:disabled{background-color:#343a40;color:#6c757d;cursor:not-allowed}
-
-    /* --- THE FIX: Styles for the new Rating Tooltip and Modal --- */
-    .tooltip-trigger {
-      display: inline-block;
-      background-color: #495057;
-      color: #e9ecef;
-      border-radius: 50%;
-      width: 18px;
-      height: 18px;
-      line-height: 18px;
-      text-align: center;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-      user-select: none;
-      transition: background-color 0.2s;
-    }
-    .tooltip-trigger:hover { background-color: #6c757d; }
-    
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      z-index: 1000;
-      left: 0; top: 0;
-      width: 100%; height: 100%;
-      background-color: rgba(0, 0, 0, 0.7);
-      justify-content: center;
-      align-items: center;
-    }
-    .modal-content {
-      background-color: #343a40;
-      padding: 2rem;
-      border: 1px solid #495057;
-      border-radius: 12px;
-      max-width: 500px;
-      width: 90%;
-      position: relative;
-    }
-    .modal-close {
-      position: absolute;
-      top: 10px; right: 20px;
-      color: #adb5bd;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-    .modal-close:hover { color: #fff; }
-    .modal-content h2 { margin-top: 0; }
-    .modal-content ul { padding-left: 20px; }
-    .modal-content li { margin-bottom: 0.5rem; }
-
-    /* THE FIX: Add styles for smaller screens */
-    @media (max-width: 600px) {
-      body { padding: 1rem; }
-      .review-box { padding: 1.5rem; }
-    }
-  </style>
+  <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="review-page">
   <h1>⚡ Quick AI Review</h1>
   <p id="meta" class="sub"></p>
   <p id="loading" class="loading">Loading review...</p>
@@ -95,7 +29,7 @@
     </div>
   </div>
   
-    <script>
+  <script>
     (function(){
       // --- All your existing variable setup is fine ---
       const params=new URLSearchParams(window.location.search);
@@ -120,32 +54,13 @@
           loadingEl.style.display='none';
           const rawText=(data&&data.review&&typeof data.review==='string')?data.review.trim():'';
           
-          // Step 1: Perform simple markdown replacements that are safe.
-          let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-          formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
-          
-          // Step 2: Put the content (including the placeholder span) into the page.
-          reviewBox.innerHTML = formattedHtml || 'No review available.';
-
-          // THE FIX: Step 3: Find the placeholder and replace it with a functional button.
-          // This runs *after* the HTML is on the page.
-          const placeholder = document.getElementById('rating-context-placeholder');
-          if (placeholder) {
-            // Create the new button element programmatically
-            const button = document.createElement('span');
-            button.className = 'tooltip-trigger';
-            button.textContent = '?';
-            
-            // Add the event listener - this is the robust way.
-            button.addEventListener('click', openModal);
-
-            // Create a non-breaking space element
-            const space = document.createTextNode('\u00A0'); // This is the JS equivalent of &nbsp;
-
-            // Replace the placeholder with the space and the new button
-            placeholder.parentNode.replaceChild(button, placeholder);
-            button.parentNode.insertBefore(space, button);
+          if (!rawText) {
+            reviewBox.innerHTML = 'No review available.';
+            reviewBox.style.display = 'block';
+            return;
           }
+
+          buildReviewAccordion(rawText);
 
           reviewBox.style.display='block';
           refreshBtn.style.display='inline-block';
@@ -156,6 +71,105 @@
           refreshBtn.style.display='inline-block';
         });
 
+      function buildReviewAccordion(text) {
+        // Separate the main content from the final rating/verdict
+        const outroMarker = 'Rating:';
+        const mainContentEnd = text.lastIndexOf(outroMarker);
+       
+        const mainContent = (mainContentEnd !== -1 ? text.substring(0, mainContentEnd) : text).trim();
+        const outroContent = (mainContentEnd !== -1 ? text.substring(mainContentEnd) : '').trim();
+
+        // Separate the intro (movie name, cast) from the accordion sections
+        const accordionStartMarker = '• **Plot Summary:**';
+        const accordionStartIndex = mainContent.indexOf(accordionStartMarker);
+
+        const introContent = (accordionStartIndex !== -1 ? mainContent.substring(0, accordionStartIndex) : mainContent).trim();
+        const accordionContent = (accordionStartIndex !== -1 ? mainContent.substring(accordionStartIndex) : '').trim();
+
+        let accordionHtml = '<div class="accordion">';
+
+        if (accordionContent) {
+          const sections = accordionContent.split(/• \*\*/g).filter(Boolean); // Split by the section marker
+          sections.forEach((section, index) => {
+            const parts = section.split(':**'); // Split heading from content
+            if (parts.length < 2) return;
+
+            const title = parts[0].trim();
+            const content = parts.slice(1).join(':**').trim();
+            const isActive = title === 'Plot Summary'; // Plot Summary is open by default
+
+            accordionHtml += `
+              <div class="accordion-item ${isActive ? 'active' : ''}">
+                <button class="accordion-header">${title}</button>
+                <div class="accordion-content">
+                  <div class="accordion-content-inner">${content}</div>
+                </div>
+              </div>
+            `;
+          });
+        }
+        accordionHtml += '</div>';
+
+        // Assemble the final HTML for the review box
+        reviewBox.innerHTML = `
+          <div class="review-intro">${introContent.replace(/^\s*([*-])\s/gm, '&bull; ')}</div>
+          ${accordionContent ? accordionHtml : ''}
+          <div class="review-outro">${outroContent}</div>
+        `;
+        
+        // Post-render fixes (rating tooltip)
+        setupRatingTooltip();
+       
+        // Activate accordion functionality
+        setupAccordion();
+      }
+
+      function setupRatingTooltip() {
+        const placeholder = reviewBox.querySelector('#rating-context-placeholder');
+        if (!placeholder) return;
+        const button = document.createElement('span');
+        button.className = 'tooltip-trigger';
+        button.textContent = '?';
+        button.addEventListener('click', openModal);
+        const space = document.createTextNode('\u00A0');
+        placeholder.parentNode.replaceChild(button, placeholder);
+        button.parentNode.insertBefore(space, button);
+      }
+
+      function setupAccordion() {
+        const accordion = reviewBox.querySelector('.accordion');
+        if (!accordion) return;
+
+        // Set initial height for the active item
+        const activeItem = accordion.querySelector('.accordion-item.active .accordion-content');
+        if (activeItem) {
+          activeItem.style.maxHeight = activeItem.scrollHeight + "px";
+        }
+
+        accordion.addEventListener('click', (e) => {
+          const header = e.target.closest('.accordion-header');
+          if (!header) return;
+        
+          const currentItem = header.parentElement;
+          const currentContent = header.nextElementSibling;
+          const currentlyActiveItem = accordion.querySelector('.accordion-item.active');
+
+          // If there's an active item and it's not the one we just clicked, close it.
+          if (currentlyActiveItem && currentlyActiveItem !== currentItem) {
+            currentlyActiveItem.classList.remove('active');
+            currentlyActiveItem.querySelector('.accordion-content').style.maxHeight = null;
+          }
+
+          // Toggle the clicked item
+          currentItem.classList.toggle('active');
+          if (currentItem.classList.contains('active')) {
+            currentContent.style.maxHeight = currentContent.scrollHeight + "px";
+          } else {
+            currentContent.style.maxHeight = null;
+          }
+        });
+      }
+
       refreshBtn.addEventListener('click', () => {
         refreshBtn.disabled = true;
         refreshBtn.textContent = 'Refreshing...';
@@ -165,7 +179,6 @@
       });
     })();
 
-    // --- Modal control functions remain the same ---
     const modal = document.getElementById('ratingModal');
     function openModal() { modal.style.display = 'flex'; }
     function closeModal() { modal.style.display = 'none'; }
