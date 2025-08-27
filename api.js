@@ -14,7 +14,29 @@ const MAX_RETRIES = 2;
 let model;
 if (GEMINI_API_KEY) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, { apiVersion: 'v1' });
-  model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+  // --- Define and apply less restrictive safety settings ---
+  const safetySettings = [
+    {
+      category: 'HARM_CATEGORY_HARASSMENT',
+      threshold: 'BLOCK_NONE',
+    },
+    {
+      category: 'HARM_CATEGORY_HATE_SPEECH',
+      threshold: 'BLOCK_NONE',
+    },
+    {
+      category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+      threshold: 'BLOCK_NONE',
+    },
+    {
+      category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+      threshold: 'BLOCK_NONE',
+    },
+  ];
+  model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    safetySettings: safetySettings,
+  });
 }
 
 // --- API Fetching Logic ---
@@ -132,9 +154,15 @@ Balanced Tone – praise and criticism are both clearly stated with justificatio
 Concise but Insightful – reviews should be clear, easy to follow, and focused on quality assessment.
 
 ***Formatting Rules (Strict):***
-- Each section of the review MUST begin with a round dot (•) followed by a space and a bolded heading.
+- Each section of the review, including "Name of the movie/series/episode", "Season & Episode", "Casts", "Directed by", "Genre", "Released on", MUST begin with a round dot (•) followed by a space and a bolded heading.
 - There are no sub-bullets. The content for each section follows directly after its heading.
 - Example of the required format:
+  • **Name of the movie:** Name of the Movie...
+  • **Casts:** Name top five lead actors and actresses...
+  • **Directed by:** Name of the director...
+  • **Genre:** Specify the movie’s primary genre(s)...
+  • **Released on:** The date and the year when it was first released...
+  
   • **Plot Summary:** Provide a brief overview of the story...
   • **Storytelling, Writing, and Pacing:** Assess narrative coherence, structure, dialogue, and rhythm...
 
@@ -153,6 +181,7 @@ For movies, start with the following in separate lines. Each section MUST begin 
 - Name of the movie: Name of the Movie. Don't mention the release year here.
 - Casts: Name top five lead actors and actresses in the movie. Use Google Search tool and IMDB. If IMDB page for the movie returns unsatisfactory results, fallback to other websites.
 - Directed by: Name of the director.
+- Genre: Specify the movie’s primary genre(s).
 - Released on: The date and the year when it was first released. Mention the release medium; whether released on theaters, streaming platforms or others.
 
 For series' episodes, start with the following in separate lines. Each section MUST begin with a round dot (•) followed by a space and a bolded heading:
@@ -161,10 +190,11 @@ For series' episodes, start with the following in separate lines. Each section M
 - Season & Episode: Mention the Season and Episode number in the format "Season X, Episode Y".
 - Casts: Name top five lead actors and actresses in the Episode. Use Google Search tool and IMDB. If IMDB page for the episode returns unsatisfactory results, fallback to other websites.
 - Directed by: Name of the director of the episode, not the series.
+- Genre: Specify the series’ primary genre(s). Usually, series genre should suffice. If by any chance, the episode has a ifferent genre, mention both.
 - Released on: The date when the episode was first aired or released as per records available. Mention the release medium; whether released on theaters, streaming platforms or others.
 
 In the review for a movie or series' episode that you will generate, apart from the headings if you have to mention the name of anything significant and you feel the need to use bold characters, use double quotes instead.
-Use the below mentioned points and bullet headings and don't use sub bullet headings. Add a spacing among the points for easier legibility.
+Use the below mentioned points and bullet headings and don't use sub bullet headings. Add a spacing among the points for easier legibility. But don't use spacing at the introductory points like "Name of the movie/series/episode", "Season & Episode", "Casts", "Directed by", "Genre", "Released on" etc. Only start spacing from "Plot Summary" onwards.
 
 - Plot Summary: Provide a brief overview of the story premise without revealing key twists.
 - Storytelling: Evaluate the narrative coherence, clarity, structure, and emotional impact of the narrative of the movie/series.
@@ -190,7 +220,8 @@ Final Requirement:
 Provide a "Overall Verdict" in more than 50 words but less than 300 words, highlighting the overall verdict in a concise, professional manner and tone.
 
 Conclude with:
-A strict rating. After the rating (e.g., "Rating: 7/10"), you MUST append this exact, empty HTML element without the double quotes: "<span id="rating-context-placeholder"></span>".
+A strict rating. You can also use "0.5" ratings like 4.5/10. 8.5/10 etc. if you feel rounding off to nearest whole number is too harsh or gracious.
+After the rating (e.g., "Rating: 7/10"), you MUST append this exact, empty HTML element without the double quotes: "<span id="rating-context-placeholder"></span>".
 Example: Rating: 8/10<span id="rating-context-placeholder"></span>
 
 The scale is:
