@@ -14,7 +14,7 @@ const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
-const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 14000;
+const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 15000;
 
 // Warn if API keys missing
 if (!TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fail.');
@@ -137,13 +137,13 @@ async function handleStreamRequest(req, res) {
     console.log(`[Stream] Pre-generation for ${id} SUCCEEDED before timeout.`);
   } catch (error) {
     if (error.message === 'Timeout') {
-      console.warn(`[Stream] Pre-generation for ${id} TIMED OUT. Will generate on page load.`);
+      console.warn(`[Stream] Pre-generation for ${id} TIMED OUT. Responding to Stremio, but generation continues in the background.`);
     } else {
       console.error(`[Stream] Pre-generation for ${id} FAILED with error:`, error.message);
     }
   } finally {
 
-    // ALWAYS respond to Stremio, regardless of whether pre-generation succeeded, timed out, or failed.
+    // ALWAYS respond to Stremio
     const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
     const host = req.get('x-forwarded-host') || req.get('host');
     const base = BASE_URL || (host ? `${proto}://${host}` : '');
