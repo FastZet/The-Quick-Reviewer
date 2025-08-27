@@ -45,10 +45,8 @@ router.post('/api/validate-password', (req, res) => {
     const host = req.get('x-forwarded-host') || req.get('host');
     const base = BASE_URL || (host ? `${proto}://${host}` : '');
     
-    const stremioSafePassword = encodeURIComponent(ADDON_PASSWORD).replace(/%3D/g, '=');
-    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${stremioSafePassword}/manifest.json`;
-    
-    const cacheUrl = `/${encodeURIComponent(ADDON_PASSWORD)}/cached-reviews`;
+    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${ADDON_PASSWORD}/manifest.json`;
+    const cacheUrl = `/${ADDON_PASSWORD}/cached-reviews`;
     
     return res.json({ manifestStremioUrl, cacheUrl });
   }
