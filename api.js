@@ -4,6 +4,7 @@ const axios = require('axios');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { readReview, saveReview } = require('./cache');
 const scraper = require('./scraper.js');
+const pendingReviews = new Map();
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
@@ -280,59 +281,87 @@ async function generateReview(prompt) {
 async function getReview(id, type, forceRefresh = false) {
   console.log(`\n===== [API] New Request Start =====`);
   console.log(`[API] Received request for type: ${type}, id: ${id}, forceRefresh: ${forceRefresh}`);
-  if (!forceRefresh) {
+  
+  if (forceRefresh) {
+    console.log(`[Cache] Force refresh requested for ${id}. Bypassing cache and any pending requests.`);
+  } else {
+    // 1. Check permanent cache first
     const cached = readReview(id);
     if (cached) {
       console.log(`[Cache] Cache hit for ${id}. Returning cached review.`);
       console.log(`===== [API] Request End (Cached) =====\n`);
       return cached;
     }
+    // 2. --- Check for a pending review generation ---
+    if (pendingReviews.has(id)) {
+      console.log(`[API] Generation for ${id} is already in progress. Awaiting result...`);
+      // Wait for the existing promise to resolve
+      const review = await pendingReviews.get(id);
+      console.log(`[API] Pending generation for ${id} finished. Returning result.`);
+      console.log(`===== [API] Request End (Awaited Pending) =====\n`);
+      return review;
+    }
+
     console.log(`[Cache] Cache miss for ${id}. Proceeding to generate new review.`);
-  } else {
-    console.log(`[Cache] Force refresh requested for ${id}. Bypassing cache.`);
   }
+  // 3. This is the first request. Create and store the promise.
+  const generationPromise = (async () => {
+    try {
+      const idParts = String(id).split(':');
+      const isEpisode = type === 'series' && idParts.length === 3;
+      let metadata, prompt;
+      
+      if (isEpisode) {
+        const [seriesId, season, episode] = idParts;
+        console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
+        const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
+          scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode),
+          fetchEpisodeMetadata(seriesId, season, episode),
+          fetchMovieSeriesMetadata('series', seriesId)
+        ]);
+        metadata = episodeMetadata;
+        if (metadata && seriesMetadata) {
+          console.log("[API] Successfully gathered all required metadata for episode.");
+          const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
+          prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+        }
+      } else {
+        console.log(`[API] Handling ${type}: ${id}`);
+        metadata = await fetchMovieSeriesMetadata(type, id);
+        if (metadata) {
+          console.log(`[API] Successfully gathered metadata for ${type}.`);
+          prompt = buildPromptFromMetadata(metadata, type);
+        }
+      }
 
-  const idParts = String(id).split(':');
-  const isEpisode = type === 'series' && idParts.length === 3;
-  let metadata, prompt;
-  
-  if (isEpisode) {
-    const [seriesId, season, episode] = idParts;
-    console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
-    const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
-      scraper.scrapeImdbForEpisodeTitle(seriesId, season, episode),
-      fetchEpisodeMetadata(seriesId, season, episode),
-      fetchMovieSeriesMetadata('series', seriesId)
-    ]);
-    metadata = episodeMetadata;
-    if (metadata && seriesMetadata) {
-      console.log("[API] Successfully gathered all required metadata for episode.");
-      const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
-      prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
-    }
-  } else {
-    console.log(`[API] Handling ${type}: ${id}`);
-    metadata = await fetchMovieSeriesMetadata(type, id);
-    if (metadata) {
-      console.log(`[API] Successfully gathered metadata for ${type}.`);
-      prompt = buildPromptFromMetadata(metadata, type);
-    }
-  }
+      if (!metadata || !prompt) {
+        console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
+        const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.';
+        saveReview(id, fallbackText, type);
+        return fallbackText;
+      }
 
-  if (!metadata || !prompt) {
-    console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
-    const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.';
-    saveReview(id, fallbackText, type);
-    console.log(`===== [API] Request End (Failure) =====\n`);
-    return fallbackText;
-  }
-  
-  console.log(`[API] Generating review for ${id}...`);
-  const review = await generateReview(prompt);
-  console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
-  saveReview(id, review, type);
-  console.log(`===== [API] Request End (Success) =====\n`);
-  return review;
+      console.log(`[API] Generating review for ${id}...`);
+      const review = await generateReview(prompt);
+      console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
+      saveReview(id, review, type);
+      console.log(`===== [API] Request End (Success) =====\n`);
+      return review;
+    } catch (error) {
+        console.error(`[API] An error occurred during review generation for ${id}:`, error);
+        return 'Error: Review generation failed.';
+    } finally {
+      // 4. Clean up the pending map once generation is complete (or has failed)
+      pendingReviews.delete(id);
+      console.log(`[API] Removed ${id} from pending queue.`);
+    }
+  })();
+
+  // Store the promise in the map
+  pendingReviews.set(id, generationPromise);
+
+  // Return the result of the promise
+  return await generationPromise;
 }
 
 module.exports = { getReview, buildPromptFromMetadata };
