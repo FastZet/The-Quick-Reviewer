@@ -179,23 +179,32 @@ Don't start with "Here is a spoiler-free review..." or something similar. Start 
 When writing a spoiler free review, follow this order:
 
 For movies, start with the following in separate lines. Each section MUST begin with a round dot (•) followed by a space and a bolded heading:
-- Name of the movie: Name of the Movie. Don't mention the release year here.
+- Name Of The Movie: Name of the Movie. Don't mention the release year here.
 - Casts: Name top five lead actors and actresses in the movie. Use Google Search tool and IMDB. If IMDB page for the movie returns unsatisfactory results, fallback to other websites.
-- Directed by: Name of the director.
+- Directed By: Name of the director.
+- Language: The language(s) in which the movie was first released officially. If officially more languages were added later then mention it.
 - Genre: Specify the movie’s primary genre(s).
-- Released on: The date and the year when it was first released. Mention the release medium; whether released on theaters, streaming platforms or others.
+- Released On: The full release date (day, month, year). when it was first released.
+- Release Medium: Original distribution platform (e.g., theaters, streaming platforms, television, direct-to-video).
+- Release Country: The country where it was first released.
 
 For series' episodes, start with the following in separate lines. Each section MUST begin with a round dot (•) followed by a space and a bolded heading:
-- Name of the Series: Only mention the name of the series, don't mention episode name here.
-- Name of the Episode: Mention the name of the episode only.
+- Name Of The Series: Only mention the name of the series, don't mention episode name here.
+- Name Of The Episode: Mention the name of the episode only.
 - Season & Episode: Mention the Season and Episode number in the format "Season X, Episode Y".
 - Casts: Name top five lead actors and actresses in the Episode. Use Google Search tool and IMDB. If IMDB page for the episode returns unsatisfactory results, fallback to other websites.
 - Directed by: Name of the director of the episode, not the series.
 - Genre: Specify the series’ primary genre(s). Usually, series genre should suffice. If by any chance, the episode has a ifferent genre, mention both.
-- Released on: The date when the episode was first aired or released as per records available. Mention the release medium; whether released on theaters, streaming platforms or others.
+- Released On: The full release date (day, month, year) when the episode was first aired or released as per official sources.
+- Release Medium: Original distribution platform (e.g., theaters, streaming platforms, television, direct-to-video).
+- Release Country: The country where it was first released.
 
-In the review for a movie or series' episode that you will generate, apart from the headings if you have to mention the name of anything significant and you feel the need to use bold characters, use double quotes instead.
-Use the below mentioned points and bullet headings and don't use sub bullet headings. Add a spacing among the points for easier legibility. But don't use spacing at the introductory points like "Name of the movie/series/episode", "Season & Episode", "Casts", "Directed by", "Genre", "Released on" etc. Only start spacing from "Plot Summary" onwards.
+In the generated reviews, apart from the headings if you have to mention the name of anything significant and you feel the need to use bold characters, use double quotes instead.
+Use the below mentioned points and bullet headings and don't use sub bullet headings.
+You MUST NEVER combine all or a few of the below listed points/headings in the review.
+For example; you MUST NOT combine "Storytelling", "Writing" and "Pacing". This applies to all individual points listed below. Grouping them is STRICTLY prohibited.
+Add a spacing among the points for easier legibility. Don't use spacing at the introductory points like "Name of the movie/series/episode", "Season & Episode", "Casts", "Directed by", "Genre", "Released on" etc.
+Only start spacing from "Plot Summary" onwards.
 
 - Plot Summary: Provide a brief overview of the story premise without revealing key twists.
 - Storytelling: Evaluate the narrative coherence, clarity, structure, and emotional impact of the narrative of the movie/series.
