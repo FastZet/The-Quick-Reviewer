@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Quick Reviewer - Cached Reviews</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="cached-page">
+  <h1>Cached Reviews</h1>
+  <div id="status" class="loading">Loading cached reviews...</div>
+  <ul id="review-list"></ul>
+
+  <script>
+    (function() {
+      const statusEl = document.getElementById('status');
+      const listEl = document.getElementById('review-list');
+
+      fetch('/api/cached-reviews')
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed to fetch: Server responded with ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          statusEl.style.display = 'none';
+          if (!data || data.length === 0) {
+            statusEl.textContent = 'The cache is currently empty.';
+            statusEl.className = 'empty';
+            statusEl.style.display = 'block';
+            return;
+          }
+
+          data.forEach(item => {
+            const listItem = document.createElement('li');
+            listItem.className = 'review-item';
+
+            const reviewDate = new Date(item.ts).toLocaleString();
+
+            listItem.innerHTML = `
+              <a href="/review?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}" target="_blank">
+                Review for: ${item.id} (${item.type})
+              </a>
+              <div class="review-meta">Cached on: ${reviewDate}</div>
+            `;
+            listEl.appendChild(listItem);
+          });
+        })
+        .catch(err => {
+          statusEl.className = 'err';
+          statusEl.textContent = `Error: ${err.message}`;
+        });
+    })();
+  </script>
+</body>
+</html>

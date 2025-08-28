@@ -1,0 +1,86 @@
+/* --- Global & /public/index.html Styles --- */
+body.main-page { font-family: system-ui, sans-serif; background: #212529; color: #e9ecef; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+.main-page .container { text-align: center; background: #343a40; padding: 2rem 3rem 3rem; border-radius: 12px; border: 1px solid #495057; max-width: 500px; }
+.main-page h1 { margin-top: 0; color: #fff; }
+.main-page p { color: #adb5bd; line-height: 1.6; }
+.main-page .button-group { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+.main-page .btn { display: inline-block; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; transition: background-color 0.2s; min-width: 180px; }
+.main-page .btn.install { background-color: #0d6efd; }
+.main-page .btn.install:hover { background-color: #0b5ed7; }
+.main-page .btn.cache { background-color: #6c757d; }
+.main-page .btn.cache:hover { background-color: #5a6268; }
+.main-page #password-form { display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+.main-page input[type=password] { padding: 12px; border-radius: 6px; border: 1px solid #6c757d; background-color: #212529; color: #e9ecef; width: 90%; max-width: 280px; text-align: center; font-size: 1rem; }
+.main-page .btn.submit { background-color: #198754; border: none; cursor: pointer; }
+.main-page .btn.submit:hover { background-color: #157347; }
+.main-page #status-message { margin-top: 1rem; min-height: 20px; font-weight: 500; color: #ffc107; }
+.main-page #status-message.error { color: #dc3545; }
+.main-page #status-message.success { color: #198754; }
+
+/* --- /public/cached-reviews.html Styles --- */
+body.cached-page { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #212529; color: #e9ecef; padding: 2rem; max-width: 800px; margin: auto; line-height: 1.6; }
+.cached-page h1 { color: #fff; }
+.cached-page #review-list { list-style: none; padding: 0; }
+.cached-page .review-item { background: #343a40; padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #495057; }
+.cached-page .review-item a { color: #74c0fc; text-decoration: none; font-weight: 600; font-size: 1.1rem; }
+.cached-page .review-item a:hover { text-decoration: underline; }
+.cached-page .review-meta { font-size: 0.9rem; color: #adb5bd; margin-top: 0.5rem; }
+.cached-page .loading, .cached-page .empty { text-align: center; color: #ced4da; margin-top: 2rem; }
+.cached-page .err { color: #ff8c8c; }
+@media (max-width: 600px) { .cached-page body { padding: 1rem; } .cached-page .review-item { padding: 0.8rem 1rem; } }
+
+/* --- /public/configure.html Styles --- */
+body.config-page { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; padding: 2rem; max-width: 700px; margin: auto; }
+.config-page h1 { color: #444; }
+.config-page .card { background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-top: 2rem; }
+.config-page input[type=text] { width: 100%; padding: 10px; margin: 0.5rem 0 1rem; border-radius: 6px; border: 1px solid #ccc; }
+.config-page button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+
+/* --- /public/review.html Styles --- */
+body.review-page { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:#212529;color:#e9ecef;padding:2rem;max-width:800px;margin:auto;line-height:1.6 }
+.review-page h1{color:#fff;margin-bottom:.25rem}
+.review-page .sub{color:#adb5bd;font-size:.95rem;margin:0 0 1rem 0}
+.review-page .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem}
+.review-page .review-intro { white-space: pre-line; margin-bottom: 1.5rem; }
+.review-page .review-outro { white-space: pre-line; margin-top: 1.5rem; }
+.review-page .loading{color:#ced4da}.review-page .err{color:#ff8c8c}strong{color:#fff;font-weight:600}
+.review-page .controls{margin-top:2rem;text-align:center}
+.review-page #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
+.review-page #refresh-btn:hover{background-color:#6c757d}
+.review-page #refresh-btn:disabled{background-color:#343a40;color:#6c757d;cursor:not-allowed}
+.review-page .tooltip-trigger{display:inline-block;background-color:#495057;color:#e9ecef;border-radius:50%;width:18px;height:18px;line-height:18px;text-align:center;font-size:14px;font-weight:bold;cursor:pointer;user-select:none;transition:background-color .2s}
+.review-page .tooltip-trigger:hover{background-color:#6c757d}
+.review-page .modal-overlay{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.7);justify-content:center;align-items:center}
+.review-page .modal-content{background-color:#343a40;padding:2rem;border:1px solid #495057;border-radius:12px;max-width:500px;width:90%;position:relative}
+.review-page .modal-close{position:absolute;top:10px;right:20px;color:#adb5bd;font-size:28px;font-weight:bold;cursor:pointer}
+.review-page .modal-close:hover{color:#fff}
+.review-page .modal-content h2{margin-top:0}
+.review-page .modal-content ul{padding-left:20px}
+.review-page .modal-content li{margin-bottom:.5rem}
+@media (max-width: 600px) { body.review-page { padding: 1rem; } .review-page .review-box { padding: 1.5rem; } }
+
+/* --- THE FIX: Robust max-height Accordion Styles --- */
+.accordion { border-top: 1px solid #495057; }
+.accordion-item { border-bottom: 1px solid #495057; }
+.accordion-header { background: none; border: none; width: 100%; text-align: left; padding: 1rem 0; font-size: 1.1rem; font-weight: 600; color: #e9ecef; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.accordion-header:hover { color: #fff; }
+.accordion-header::after { content: '+'; font-size: 1.5rem; color: #adb5bd; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+.accordion-item.active .accordion-header::after { transform: rotate(45deg); }
+
+.accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  background-color: #2c3034;
+  border-radius: 6px;
+}
+
+.accordion-content-inner {
+  white-space: pre-line;
+  text-align: justify;
+  padding: 1rem 1.25rem;
+}
+
+.accordion-item.active .accordion-content {
+  margin-bottom: 1rem;
+}

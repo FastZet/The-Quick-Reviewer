@@ -2,29 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>The Quick Reviewer</title>
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background-color:#212529;color:#e9ecef;padding:2rem;max-width:800px;margin:auto;line-height:1.6}
-    h1{color:#fff;margin-bottom:.25rem}
-    .sub{color:#adb5bd;font-size:.95rem;margin:0 0 1rem 0}
-    .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem;white-space:pre-line;text-align:justify}
-    .loading{color:#ced4da}.err{color:#ff8c8c}strong{color:#fff;font-weight:600}
-    .controls{margin-top:2rem;text-align:center}
-    #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
-    #refresh-btn:hover{background-color:#6c757d}
-    #refresh-btn:disabled{background-color:#343a40;color:#6c757d;cursor:not-allowed}
-
-    /* THE FIX: Add styles for smaller screens */
-    @media (max-width: 600px) {
-      body {
-        padding: 1rem; /* Reduce padding on mobile */
-      }
-      .review-box {
-        padding: 1.5rem; /* Reduce padding inside the card on mobile */
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="review-page">
   <h1>⚡ Quick AI Review</h1>
   <p id="meta" class="sub"></p>
   <p id="loading" class="loading">Loading review...</p>
@@ -32,6 +12,22 @@
   <div class="controls">
     <button id="refresh-btn" style="display:none;">Force New Review</button>
   </div>
+
+  <div id="ratingModal" class="modal-overlay">
+    <div class="modal-content">
+      <span class="modal-close" onclick="closeModal()">&times;</span>
+      <h2>Rating Scale</h2>
+      <ul>
+        <li><strong>9–10:</strong> Exceptional, rare masterpiece</li>
+        <li><strong>7–8:</strong> Strong, worth watching despite flaws</li>
+        <li><strong>5–6:</strong> Average, watchable but forgettable</li>
+        <li><strong>3–4:</strong> Weak, major flaws outweigh positives</li>
+        <li><strong>1–2:</strong> Poor, barely redeemable</li>
+        <li><strong>0:</strong> Unwatchable, complete failure</li>
+      </ul>
+    </div>
+  </div>
+  
   <script>
     (function(){
       const params=new URLSearchParams(window.location.search);
@@ -47,26 +43,139 @@
       metaEl.textContent=`Type: ${type} • ID: ${id}`;
       if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
 
-      const today=new Date().toISOString().split('T')[0];
-      const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}${isForced ? '&force=true' : ''}`;
+      const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
 
-      fetch(url).then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()}).then(data=>{
-        loadingEl.style.display='none';
-        const rawText=(data&&typeof data.review==='string')?data.review.trim():'';
+      fetch(url)
+        .then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()})
+        .then(data=>{
+          loadingEl.style.display='none';
+          const rawText=(data&&data.review&&typeof data.review==='string')?data.review.trim():'';
+          
+          if (!rawText) {
+            reviewBox.innerHTML = 'No review available.';
+            reviewBox.style.display = 'block';
+            return;
+          }
+
+          buildReviewAccordion(rawText);
+
+          reviewBox.style.display='block';
+          refreshBtn.style.display='inline-block';
+        })
+        .catch(err=>{
+          loadingEl.className='err';
+          loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
+          refreshBtn.style.display='inline-block';
+        });
+
+      function formatText(text) {
+        if (!text) return '';
+        // Bolding must come first
+        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // Handle both bullet types
+        formatted = formatted.replace(/^\s*([*-])\s/gm, '&bull; ');
+        // Target only the labels for bolding, not the entire line ---
+        formatted = formatted.replace(/(Rating:)/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/(Verdict in One Line:)/g, '<strong>$1</strong>');
+        return formatted;
+      }
+      function buildReviewAccordion(text) {
+        const outroMarker = 'Rating:';
+        const mainContentEnd = text.lastIndexOf(outroMarker);
+       
+        const mainContent = (mainContentEnd !== -1 ? text.substring(0, mainContentEnd) : text).trim();
+        const outroContent = (mainContentEnd !== -1 ? text.substring(mainContentEnd) : '').trim();
+
+        const accordionStartMarker = '• **Plot Summary:**';
+        const accordionStartIndex = mainContent.indexOf(accordionStartMarker);
+
+        const introContent = (accordionStartIndex !== -1 ? mainContent.substring(0, accordionStartIndex) : mainContent).trim();
+        const accordionContentText = (accordionStartIndex !== -1 ? mainContent.substring(accordionStartIndex) : '').trim();
+
+        let accordionHtml = '<div class="accordion">';
+
+        if (accordionContentText) {
+          const sections = accordionContentText.split(/• \*\*/g).filter(Boolean);
+          sections.forEach((section) => {
+            const parts = section.split(':**');
+            if (parts.length < 2) return;
+
+            const title = parts[0].trim();
+            const content = parts.slice(1).join(':**').trim();
+            const isActive = title === 'Plot Summary';
+
+            accordionHtml += `
+              <div class="accordion-item ${isActive ? 'active' : ''}">
+                <button class="accordion-header">${title}</button>
+                <div class="accordion-content">
+                  <div class="accordion-content-inner">${formatText(content)}</div>
+                </div>
+              </div>
+            `;
+          });
+        }
+        accordionHtml += '</div>';
+
+        reviewBox.innerHTML = `
+          <div class="review-intro">${formatText(introContent)}</div>
+          ${accordionContentText ? accordionHtml : ''}
+          <div class="review-outro">${formatText(outroContent)}</div>
+        `;
         
-        // Handle bolding with asterisks
-        let formattedHtml = rawText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // Handle list items starting with a hyphen or asterisk
-        formattedHtml = formattedHtml.replace(/^\s*([*-])\s/gm, '&bull; ');
-        
-        reviewBox.innerHTML = formattedHtml || 'No review available.';
-        reviewBox.style.display='block';
-        refreshBtn.style.display='inline-block';
-      }).catch(err=>{
-        loadingEl.className='err';
-        loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
-        refreshBtn.style.display='inline-block';
-      });
+        setupRatingTooltip();
+       
+        setupAccordion();
+      }
+
+      function setupRatingTooltip() {
+        const placeholder = reviewBox.querySelector('#rating-context-placeholder');
+        if (!placeholder) return;
+        const button = document.createElement('span');
+        button.className = 'tooltip-trigger';
+        button.textContent = '?';
+        button.addEventListener('click', openModal);
+        const space = document.createTextNode('\u00A0');
+        placeholder.parentNode.replaceChild(button, placeholder);
+        button.parentNode.insertBefore(space, button);
+      }
+
+      function setupAccordion() {
+        const accordion = reviewBox.querySelector('.accordion');
+        if (!accordion) return;
+
+        // Set the initial open state for the default active item
+        const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
+        if (initiallyActiveItem) {
+          const content = initiallyActiveItem.querySelector('.accordion-content');
+          // Use setTimeout to ensure the DOM is painted and scrollHeight is accurate
+          setTimeout(() => {
+            content.style.maxHeight = content.scrollHeight + 'px';
+          }, 0);
+        }
+
+        accordion.addEventListener('click', (e) => {
+          const header = e.target.closest('.accordion-header');
+          if (!header) return;
+ 
+          const currentItem = header.parentElement;
+          const currentContent = header.nextElementSibling;
+          const currentlyActiveItem = accordion.querySelector('.accordion-item.active');
+
+          // If there's an active item and it's not the one we just clicked, close it.
+          if (currentlyActiveItem && currentlyActiveItem !== currentItem) {
+            currentlyActiveItem.classList.remove('active');
+            currentlyActiveItem.querySelector('.accordion-content').style.maxHeight = null;
+          }
+
+          // Toggle the clicked item
+          currentItem.classList.toggle('active');
+          if (currentItem.classList.contains('active')) {
+            currentContent.style.maxHeight = currentContent.scrollHeight + 'px';
+          } else {
+            currentContent.style.maxHeight = null;
+          }
+        });
+      }
 
       refreshBtn.addEventListener('click', () => {
         refreshBtn.disabled = true;
@@ -76,6 +185,11 @@
         window.location.href = newUrl.href;
       });
     })();
+
+    const modal = document.getElementById('ratingModal');
+    function openModal() { modal.style.display = 'flex'; }
+    function closeModal() { modal.style.display = 'none'; }
+    window.onclick = function(event) { if (event.target == modal) { closeModal(); } }
   </script>
 </body>
 </html>
