@@ -40,11 +40,10 @@
       const refreshBtn=document.getElementById('refresh-btn');
 
       if(!type||!id){loadingEl.className='err';loadingEl.textContent='Missing parameters.';return}
-      metaEl.textContent=`Type: ${type} • ID: ${id}`;
+      metaEl.textContent=`Type: ${type} • ID: ${id}`
       if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
 
-      const today=new Date().toISOString().split('T')[0];
-      const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}&date=${encodeURIComponent(today)}${isForced ? '&force=true' : ''}`;
+      const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
 
       fetch(url)
         .then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()})
