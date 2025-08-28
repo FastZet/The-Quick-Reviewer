@@ -131,7 +131,8 @@ async function handleStreamRequest(req, res) {
 
   const streamPayload = {
     id: `quick-reviewer-${type}-${id}`,
-    title: '⚡ Click To Read The Quick AI Review', // Default fallback title
+    title: '⚡ Click To Read The Quick AI Review',
+    name: 'The Quick Reviewer',  // Default fallback title
     externalUrl: reviewUrl,
     poster: manifest.icon || undefined,
     behaviorHints: { "notWebReady": true }
@@ -154,8 +155,8 @@ async function handleStreamRequest(req, res) {
     // 3. If the race is won, attempt to parse the verdict and modify the payload.
     const verdict = parseVerdictFromReview(reviewText);
     if (verdict) {
-      streamPayload.title = `⚡ Verdict: ${verdict}`;
-      streamPayload.name = 'Click to read the full AI review';
+      streamPayload.title = `⚡ Verdict in One Line: ${verdict}. Click to read full review`;
+      streamPayload.name = 'The Quick Reviewer';
       console.log(`[Stream] Generation for ${id} SUCCEEDED. Found verdict.`);
     } else {
       console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title.`);
