@@ -70,19 +70,11 @@ router.post('/api/validate-password', (req, res) => {
 });
 
 
-// Route to get all cached reviews as JSON data.
+// --- Adjust logic for the new output of getAllCachedReviews ---
 router.get('/api/cached-reviews', (req, res) => {
   try {
     const cachedItems = getAllCachedReviews();
-    const formattedItems = cachedItems.map(item => {
-      const id = item.key.split(':').slice(1).join(':');
-      return {
-        id: id,
-        type: item.type,
-        ts: item.ts
-      };
-    });
-    res.json(formattedItems);
+    res.json(cachedItems);
   } catch (err) {
     console.error('Error in /api/cached-reviews route:', err);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -92,7 +84,6 @@ router.get('/api/cached-reviews', (req, res) => {
 router.get('/api/review', async (req, res) => {
   try {
     const { type, id } = req.query;
-    const date = normalizeDate(req.query.date);
     const forceRefresh = req.query.force === 'true';
 
     if (!type || !id) {
@@ -102,7 +93,7 @@ router.get('/api/review', async (req, res) => {
       return res.status(400).json({ error: 'Invalid type. Use "movie" or "series".' });
     }
 
-    const review = await getReview(date, String(id).trim(), type, forceRefresh);
+    const review = await getReview(String(id).trim(), type, forceRefresh);
     res.json({ review });
   } catch (err) {
     console.error('Error in /api/review route:', err);
