@@ -4,6 +4,7 @@ const path = require('path');
 const manifest = require('./manifest.json');
 const fs = require('fs');
 const { getReview } = require('./api.js');
+const { parseVerdictFromReview } = require('./reviewParser.js');
 
 const app = express();
 
@@ -120,8 +121,13 @@ if (ADDON_PASSWORD) {
 
 async function handleStreamRequest(req, res) {
   const { type, id } = req.params;
+  
+  // Define default/fallback stream details
+  let streamTitle = '⚡ Click To Read The Quick AI Review';
+  let streamSubtitle = null; // No subtitle for the fallback state
+  
   try {
-    console.log(`[Stream] Received request for ${id}. Starting pre-generation...`);
+    console.log(`[Stream] Received request for ${id}. Starting review generation/retrieval...`);
   
     // Create a timeout promise
     const timeoutPromise = new Promise((_, reject) =>
@@ -129,33 +135,46 @@ async function handleStreamRequest(req, res) {
     );
 
     // Race the review generation against the timeout
-    await Promise.race([
-      getReview(new Date().toISOString().split('T')[0], String(id).trim(), type, false),
+    const reviewText = await Promise.race([
+      getReview(String(id).trim(), type, false), // forceRefresh is false
       timeoutPromise
     ]);
 
-    console.log(`[Stream] Pre-generation for ${id} SUCCEEDED before timeout.`);
+    // If the race is won, try to parse the verdict
+    const verdict = parseVerdictFromReview(reviewText);
+    if (verdict) {
+      streamTitle = `⚡ Verdict: ${verdict}`;
+      streamSubtitle = 'Click to read the full AI review';
+      console.log(`[Stream] Generation for ${id} SUCCEEDED. Found verdict.`);
+    } else {
+        console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title.`);
+    }
+    
   } catch (error) {
     if (error.message === 'Timeout') {
-      console.warn(`[Stream] Pre-generation for ${id} TIMED OUT. Responding to Stremio, but generation continues in the background.`);
+      console.warn(`[Stream] Generation for ${id} TIMED OUT. Responding to Stremio with fallback title, but generation continues in the background.`);
     } else {
-      console.error(`[Stream] Pre-generation for ${id} FAILED with error:`, error.message);
+      console.error(`[Stream] Generation for ${id} FAILED with an UNEXPECTED error:`, error.message);
     }
   } finally {
-
-    // ALWAYS respond to Stremio
+    // ALWAYS respond to Stremio with the best stream details we have
     const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
     const host = req.get('x-forwarded-host') || req.get('host');
     const base = BASE_URL || (host ? `${proto}://${host}` : '');
     const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
-    const streams = [{
+    const streams = {
       id: `quick-reviewer-${type}-${id}`,
-      title: '⚡ Quick AI Review',
+      title: streamTitle,
       externalUrl: reviewUrl,
       poster: manifest.icon || undefined,
       behaviorHints: { "notWebReady": true }
-    }];
-    res.json({ streams });
+    };
+    // Conditionally add the subtitle only if it exists
+    if (streamSubtitle) {
+      stream.name = streamSubtitle;
+    }
+
+    res.json({ streams: [stream] });
   }
 }
 
