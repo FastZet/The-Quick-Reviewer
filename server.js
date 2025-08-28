@@ -122,9 +122,20 @@ if (ADDON_PASSWORD) {
 async function handleStreamRequest(req, res) {
   const { type, id } = req.params;
   
-  // Define default/fallback stream details
-  let streamTitle = '⚡ Click To Read The Quick AI Review';
-  let streamSubtitle = null; // No subtitle for the fallback state
+  // 1. Define the complete stream object with fallback values first.
+  // This guarantees the object always exists.
+  const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const host = req.get('x-forwarded-host') || req.get('host');
+  const base = BASE_URL || (host ? `${proto}://${host}` : '');
+  const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+
+  const streamPayload = {
+    id: `quick-reviewer-${type}-${id}`,
+    title: '⚡ Click To Read The Quick AI Review', // Default fallback title
+    externalUrl: reviewUrl,
+    poster: manifest.icon || undefined,
+    behaviorHints: { "notWebReady": true }
+  };
   
   try {
     console.log(`[Stream] Received request for ${id}. Starting review generation/retrieval...`);
@@ -134,20 +145,20 @@ async function handleStreamRequest(req, res) {
       setTimeout(() => reject(new Error('Timeout')), ADDON_TIMEOUT_MS)
     );
 
-    // Race the review generation against the timeout
+    // 2. Race the review generation against the timeout.
     const reviewText = await Promise.race([
-      getReview(String(id).trim(), type, false), // forceRefresh is false
+      getReview(String(id).trim(), type, false),
       timeoutPromise
     ]);
 
-    // If the race is won, try to parse the verdict
+    // 3. If the race is won, attempt to parse the verdict and modify the payload.
     const verdict = parseVerdictFromReview(reviewText);
     if (verdict) {
-      streamTitle = `⚡ Verdict: ${verdict}`;
-      streamSubtitle = 'Click to read the full AI review';
+      streamPayload.title = `⚡ Verdict: ${verdict}`;
+      streamPayload.name = 'Click to read the full AI review';
       console.log(`[Stream] Generation for ${id} SUCCEEDED. Found verdict.`);
     } else {
-        console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title.`);
+      console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title.`);
     }
     
   } catch (error) {
@@ -156,26 +167,10 @@ async function handleStreamRequest(req, res) {
     } else {
       console.error(`[Stream] Generation for ${id} FAILED with an UNEXPECTED error:`, error.message);
     }
-  } finally {
-    // ALWAYS respond to Stremio with the best stream details we have
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const base = BASE_URL || (host ? `${proto}://${host}` : '');
-    const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
-    const streams = {
-      id: `quick-reviewer-${type}-${id}`,
-      title: streamTitle,
-      externalUrl: reviewUrl,
-      poster: manifest.icon || undefined,
-      behaviorHints: { "notWebReady": true }
-    };
-    // Conditionally add the subtitle only if it exists
-    if (streamSubtitle) {
-      stream.name = streamSubtitle;
-    }
-
-    res.json({ streams: [stream] });
   }
+
+  // 4. Finally, send the response. This line is now guaranteed to work.
+  res.json({ streams: [streamPayload] });
 }
 
 app.get('/review', (req, res) => {
