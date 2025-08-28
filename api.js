@@ -17,27 +17,12 @@ if (GEMINI_API_KEY) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, { apiVersion: 'v1' });
   // --- Define and apply less restrictive safety settings ---
   const safetySettings = [
-    {
-      category: 'HARM_CATEGORY_HARASSMENT',
-      threshold: 'BLOCK_NONE',
-    },
-    {
-      category: 'HARM_CATEGORY_HATE_SPEECH',
-      threshold: 'BLOCK_NONE',
-    },
-    {
-      category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-      threshold: 'BLOCK_NONE',
-    },
-    {
-      category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-      threshold: 'BLOCK_NONE',
-    },
+    {  category: 'HARM_CATEGORY_HARASSMENT',  threshold: 'BLOCK_NONE',},
+    {  category: 'HARM_CATEGORY_HATE_SPEECH',  threshold: 'BLOCK_NONE',},
+    {  category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',  threshold: 'BLOCK_NONE',},
+    {  category: 'HARM_CATEGORY_DANGEROUS_CONTENT',  threshold: 'BLOCK_NONE',},
   ];
-  model = genAI.getGenerativeModel({
-    model: GEMINI_MODEL,
-    safetySettings: safetySettings,
-  });
+  model = genAI.getGenerativeModel({  model: GEMINI_MODEL,  safetySettings: safetySettings,});
 }
 
 // --- API Fetching Logic ---
@@ -64,6 +49,8 @@ async function resolveImdbToTmdbId(imdbId, type) {
 
 async function fetchMovieSeriesMetadata(type, imdbId) {
   const tmdbId = await resolveImdbToTmdbId(imdbId, type);
+  let apiLanguages = [];
+  
   // TMDB (Primary)
   if (tmdbId) {
     try {
@@ -73,7 +60,10 @@ async function fetchMovieSeriesMetadata(type, imdbId) {
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data) {
         console.log(`[API/TMDB] Successfully fetched metadata for ${type} (TMDB ID: ${tmdbId}).`);
-        return {source: 'tmdb', data: res.data };
+        if (res.data.spoken_languages && res.data.spoken_languages.length > 0) {
+          apiLanguages = res.data.spoken_languages.map(lang => lang.english_name);
+        }
+        return { source: 'tmdb', data: res.data, languages: apiLanguages };
       }
     } catch (error) {
       console.warn(`[API/TMDB] Failed to fetch from TMDB for ${imdbId} (TMDB ID: ${tmdbId}): ${error.message}`);
@@ -88,7 +78,10 @@ async function fetchMovieSeriesMetadata(type, imdbId) {
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data && res.data.Response === 'True') {
         console.log(`[API/OMDB] Successfully fetched metadata for ${imdbId} from OMDB.`);
-        return { source: 'omdb', data: res.data };
+        if (res.data.Language) {
+          apiLanguages = res.data.Language.split(',').map(lang => lang.trim());
+        }
+        return { source: 'omdb', data: res.data, languages: apiLanguages };
       }
     } catch (error) {
       console.warn(`[API/OMDB] Failed to fetch from OMDB for ${imdbId}: ${error.message}`);
@@ -158,11 +151,14 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
 - Each section of the review, including "Name of the movie/series/episode", "Season & Episode", "Casts", "Directed by", "Genre", "Released on", MUST begin with a round dot (•) followed by a space and a bolded heading.
 - There are no sub-bullets. The content for each section follows directly after its heading.
 - Example of the required format:
-  • **Name of the movie:** Name of the Movie...
+  • **Name Of The Movie:** Name of the Movie...
   • **Casts:** Name top five lead actors and actresses...
-  • **Directed by:** Name of the director...
+  • **Directed By:** Name of the director...
+  • **Language:** The language(s) in which the movie was first released...
   • **Genre:** Specify the movie’s primary genre(s)...
-  • **Released on:** The date and the year when it was first released...
+  • **Released On:** The full release date (day, month, year)...
+  • **Release Medium:** Original distribution platform.
+  • **Release Country:** The country where it was first released...
   
   • **Plot Summary:** Provide a brief overview of the story...
   • **Storytelling, Writing, and Pacing:** Assess narrative coherence, structure, dialogue, and rhythm...
@@ -286,34 +282,64 @@ async function generateReview(prompt) {
   return 'Error generating review after all retries.';
 }
 
+function reconcileLanguage(reviewText, apiLanguages, sourceName) {
+    const langRegex = /• \*\*Language:\*\*([^\n]*)/;
+    const match = reviewText.match(langRegex);
+    const aiLangs = match ? match[1].trim().split(',').map(l => l.trim()).filter(Boolean) : [];
+    const apiLangs = (apiLanguages || []).filter(Boolean);
+
+    if (apiLangs.length === 0 && aiLangs.length === 0) {
+        // Both are empty, so remove the line if it exists
+        return match ? reviewText.replace(langRegex, '').replace(/^\s*[\r\n]/gm, '') : reviewText;
+    }
+
+    if (apiLangs.length > 0 && aiLangs.length === 0) {
+        const apiLangLine = `• **Language:** ${apiLangs.join(', ')}`;
+        if (match) {
+            return reviewText.replace(langRegex, apiLangLine);
+        } else {
+            const directorRegex = /(• \*\*(?:Directed By|Directed by):\*\*[^\n]*)/;
+            return reviewText.replace(directorRegex, `$1\n${apiLangLine}`);
+        }
+    }
+
+    if (apiLangs.length === 0 && aiLangs.length > 0) {
+        const aiLangLine = `• **Language:** ${aiLangs.join(', ')} (Gemini AI)`;
+        return reviewText.replace(langRegex, aiLangLine);
+    }
+
+    const combinedLangs = new Set([...aiLangs, ...apiLangs]);
+    const finalLangs = Array.from(combinedLangs).map(lang => {
+        const inApi = apiLangs.includes(lang);
+        const inAi = aiLangs.includes(lang);
+        if (inApi && inAi) return lang;
+        if (inApi) return `${lang} (${sourceName.toUpperCase()})`;
+        return `${lang} (Gemini AI)`;
+    });
+
+    const finalLine = `• **Language:** ${finalLangs.join(', ')}`;
+    return reviewText.replace(langRegex, finalLine);
+}
+
 // --- Main Orchestrator ---
 async function getReview(id, type, forceRefresh = false) {
   console.log(`\n===== [API] New Request Start =====`);
   console.log(`[API] Received request for type: ${type}, id: ${id}, forceRefresh: ${forceRefresh}`);
   
-  if (forceRefresh) {
-    console.log(`[Cache] Force refresh requested for ${id}. Bypassing cache and any pending requests.`);
-  } else {
-    // 1. Check permanent cache first
+  if (!forceRefresh) {
     const cached = readReview(id);
     if (cached) {
       console.log(`[Cache] Cache hit for ${id}. Returning cached review.`);
-      console.log(`===== [API] Request End (Cached) =====\n`);
       return cached;
     }
-    // 2. --- Check for a pending review generation ---
     if (pendingReviews.has(id)) {
       console.log(`[API] Generation for ${id} is already in progress. Awaiting result...`);
-      // Wait for the existing promise to resolve
-      const review = await pendingReviews.get(id);
-      console.log(`[API] Pending generation for ${id} finished. Returning result.`);
-      console.log(`===== [API] Request End (Awaited Pending) =====\n`);
-      return review;
+      return await pendingReviews.get(id);
     }
 
     console.log(`[Cache] Cache miss for ${id}. Proceeding to generate new review.`);
   }
-  // 3. This is the first request. Create and store the promise.
+
   const generationPromise = (async () => {
     try {
       const idParts = String(id).split(':');
@@ -332,6 +358,8 @@ async function getReview(id, type, forceRefresh = false) {
         if (metadata && seriesMetadata) {
           console.log("[API] Successfully gathered all required metadata for episode.");
           const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
+          metadata.languages = seriesMetadata.languages;
+          metadata.source = seriesMetadata.source;
           prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
         }
       } else {
@@ -351,7 +379,13 @@ async function getReview(id, type, forceRefresh = false) {
       }
 
       console.log(`[API] Generating review for ${id}...`);
-      const review = await generateReview(prompt);
+      let review = await generateReview(prompt);
+
+      // *** Call the reconciliation function ***
+      if (review && !review.startsWith('Error')) {
+        review = reconcileLanguage(review, metadata.languages, metadata.source);
+      }
+      
       console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
       saveReview(id, review, type);
       console.log(`===== [API] Request End (Success) =====\n`);
@@ -360,16 +394,13 @@ async function getReview(id, type, forceRefresh = false) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
         return 'Error: Review generation failed.';
     } finally {
-      // 4. Clean up the pending map once generation is complete (or has failed)
       pendingReviews.delete(id);
       console.log(`[API] Removed ${id} from pending queue.`);
     }
   })();
 
-  // Store the promise in the map
   pendingReviews.set(id, generationPromise);
 
-  // Return the result of the promise
   return await generationPromise;
 }
 
