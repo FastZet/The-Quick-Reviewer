@@ -185,7 +185,7 @@ For movies, start with the following in separate lines. Each section MUST begin 
 - Language: The language(s) in which the movie was first released officially. If officially more languages were added later then mention it.
 - Genre: Specify the movie’s primary genre(s).
 - Released On: The full release date (day, month, year). when it was first released.
-- Release Medium: Original distribution platform (e.g., theaters, streaming platforms, television, direct-to-video).
+- Release Medium: Original distribution platform. Choose from: Theatrical Release (released in cinemas), Streaming Release (released directly on platforms like Netflix, Amazon Prime, Disney+, etc.), Television Broadcast (premiered on TV channels), Direct-to-Video (released physically without theaters), Film Festival Premiere (first shown at a festival before wider release), Digital Release (available on platforms like iTunes, Google Play, etc.), Hybrid Release (simultaneous release;e.g., theaters + streaming) or others (if the release medium does not fit any of these categories, use Others and specify what it is in parentheses; e.g., 'Others – Radio Broadcast').
 - Release Country: The country where it was first released.
 
 For series' episodes, start with the following in separate lines. Each section MUST begin with a round dot (•) followed by a space and a bolded heading:
