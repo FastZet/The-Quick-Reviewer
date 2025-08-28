@@ -155,7 +155,7 @@ async function handleStreamRequest(req, res) {
     // 3. If the race is won, attempt to parse the verdict and modify the payload.
     const verdict = parseVerdictFromReview(reviewText);
     if (verdict) {
-      streamPayload.title = `⚡ Verdict in One Line: ${verdict}. Click to read full review`;
+      streamPayload.title = `⚡ Verdict in One Line: ${verdict} Click here to read full review.`;
       streamPayload.name = 'The Quick Reviewer';
       console.log(`[Stream] Generation for ${id} SUCCEEDED. Found verdict.`);
     } else {
