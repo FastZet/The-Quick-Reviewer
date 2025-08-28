@@ -12,13 +12,14 @@ function parseVerdictFromReview(reviewText) {
     return null;
   }
 
-  // Regex looks for "Verdict in One Line" potentially with bold markers (**)
-  // and captures everything on that line after the colon. Case-insensitive.
-  const verdictRegex = /\*\*Verdict in One Line:\*\*([^\n]*)/i;
+  // *** MODIFICATION START: Make the regex more flexible ***
+  // This new regex makes the surrounding bold markers (**) optional and looks for
+  // the key phrase followed by a colon and whitespace.
+  const verdictRegex = /(?:\*\*)?Verdict in One Line(?:\*\*)?:\s*([^\n]*)/i;
   
   const match = reviewText.match(verdictRegex);
 
-  // If a match is found, return the captured group (the verdict text), trimmed of whitespace.
+  // If a match is found, the captured group is the verdict text.
   if (match && match[1]) {
     return match[1].trim();
   }
