@@ -40,7 +40,7 @@
       const refreshBtn=document.getElementById('refresh-btn');
 
       if(!type||!id){loadingEl.className='err';loadingEl.textContent='Missing parameters.';return}
-      metaEl.textContent=`Type: ${type} • ID: ${id}`
+      metaEl.textContent=`Type: ${type} • ID: ${id}`;
       if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
 
       const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
@@ -74,9 +74,9 @@
         let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         // Handle both bullet types
         formatted = formatted.replace(/^\s*([*-])\s/gm, '&bull; ');
-        // Specific fix for the final "Rating:" and "Verdict..." lines to be bold
-        formatted = formatted.replace(/(Rating:.*<\/span>)/g, '<strong>$1</strong>');
-        formatted = formatted.replace(/(Verdict in One Line:.*)/g, '<strong>$1</strong>');
+        // Target only the labels for bolding, not the entire line ---
+        formatted = formatted.replace(/(Rating:)/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/(Verdict in One Line:)/g, '<strong>$1</strong>');
         return formatted;
       }
       function buildReviewAccordion(text) {
