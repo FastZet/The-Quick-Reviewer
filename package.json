@@ -1,6 +1,6 @@
 {
   "name": "tqr-stremio-addon",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "A Stremio addon to provide AI-generated, spoiler-free reviews.",
   "main": "server.js",
   "scripts": {
