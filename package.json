@@ -13,6 +13,6 @@
     "cheerio": "^1.0.0-rc.12"
   },
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   }
 }
