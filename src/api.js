@@ -2,6 +2,7 @@
 
 const { readReview, saveReview } = require('./core/cache');
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
+const { enforceReviewStructure } = require('./core/formatEnforcer');
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/metadataService');
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/geminiService');
@@ -65,16 +66,18 @@ async function getReview(id, type, forceRefresh = false) {
       }
 
       console.log(`[API] Generating review for ${id}...`);
-      let review = await generateReview(prompt);
+      let rawReview = await generateReview(prompt);
 
-      if (review && !review.startsWith('Error')) {
-        review = reconcileLanguage(review, metadata.languages, metadata.source);
+      let finalReview = rawReview;
+      if (finalReview && !finalReview.startsWith('Error')) {
+        finalReview = enforceReviewStructure(rawReview);
+        finalReview = reconcileLanguage(finalReview, metadata.languages, metadata.source);
       }
       
       console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
-      saveReview(id, review, type);
+      saveReview(id, finalReview, type);
       console.log(`===== [API] Request End (Success) =====\n`);
-      return review;
+      return finalReview;
     } catch (error) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
         return 'Error: Review generation failed.';
