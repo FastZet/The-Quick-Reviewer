@@ -43,6 +43,8 @@ body.review-page { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Robot
 .review-page .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem}
 .review-page .review-intro { white-space: pre-line; margin-bottom: 1.5rem; }
 .review-page .review-outro { white-space: pre-line; margin-top: 1.5rem; }
+.review-page .review-outro div { margin-bottom: 0.5rem; }
+.review-page .review-outro div:last-child { margin-bottom: 0; }
 .review-page .loading{color:#ced4da}.review-page .err{color:#ff8c8c}strong{color:#fff;font-weight:600}
 .review-page .controls{margin-top:2rem;text-align:center}
 .review-page #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
