@@ -30,102 +30,49 @@
   
   <script>
     (function(){
-      const params=new URLSearchParams(window.location.search);
-      const type=(params.get('type')||'').trim();
-      const id=(params.get('id')||'').trim();
+      const params = new URLSearchParams(window.location.search);
+      const type = (params.get('type') || '').trim();
+      const id = (params.get('id') || '').trim();
       const isForced = params.has('force');
-      const metaEl=document.getElementById('meta');
-      const loadingEl=document.getElementById('loading');
-      const reviewBox=document.getElementById('review');
-      const refreshBtn=document.getElementById('refresh-btn');
+      
+      const metaEl = document.getElementById('meta');
+      const loadingEl = document.getElementById('loading');
+      const reviewBox = document.getElementById('review');
+      const refreshBtn = document.getElementById('refresh-btn');
 
-      if(!type||!id){loadingEl.className='err';loadingEl.textContent='Missing parameters.';return}
-      metaEl.textContent=`Type: ${type} • ID: ${id}`;
-      if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
+      if (!type || !id) {
+        loadingEl.className = 'err';
+        loadingEl.textContent = 'Missing parameters.';
+        return;
+      }
+      metaEl.textContent = `Type: ${type} • ID: ${id}`;
+      if (isForced) { 
+        loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; 
+      }
 
-      const url=`/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
+      const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
 
       fetch(url)
-        .then(res=>{if(!res.ok)throw new Error(`Failed to fetch review (HTTP ${res.status})`);return res.json()})
-        .then(data=>{
-          loadingEl.style.display='none';
-          const rawText=(data&&data.review&&typeof data.review==='string')?data.review.trim():'';
-          
-          if (!rawText) {
-            reviewBox.innerHTML = 'No review available.';
-            reviewBox.style.display = 'block';
-            return;
-          }
-
-          buildReviewAccordion(rawText);
-
-          reviewBox.style.display='block';
-          refreshBtn.style.display='inline-block';
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
+          return res.json();
         })
-        .catch(err=>{
-          loadingEl.className='err';
-          loadingEl.textContent='Error: '+(err&&err.message?err.message:'Unknown error');
-          refreshBtn.style.display='inline-block';
+        .then(data => {
+          loadingEl.style.display = 'none';
+          const reviewHtml = (data && data.review) ? data.review : '<p>No review available.</p>';
+          
+          reviewBox.innerHTML = reviewHtml;
+          reviewBox.style.display = 'block';
+
+          setupAccordion();
+          setupRatingTooltip();
+          refreshBtn.style.display = 'inline-block';
+        })
+        .catch(err => {
+          loadingEl.className = 'err';
+          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
+          refreshBtn.style.display = 'inline-block';
         });
-
-      function formatText(text) {
-        if (!text) return '';
-        // Bolding must come first
-        let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        // Handle both bullet types
-        formatted = formatted.replace(/^\s*([*-])\s/gm, '&bull; ');
-        // Target only the labels for bolding, not the entire line ---
-        formatted = formatted.replace(/(Rating:)/g, '<strong>$1</strong>');
-        formatted = formatted.replace(/(Verdict in One Line:)/g, '<strong>$1</strong>');
-        return formatted;
-      }
-      function buildReviewAccordion(text) {
-        const outroMarker = 'Rating:';
-        const mainContentEnd = text.lastIndexOf(outroMarker);
-       
-        const mainContent = (mainContentEnd !== -1 ? text.substring(0, mainContentEnd) : text).trim();
-        const outroContent = (mainContentEnd !== -1 ? text.substring(mainContentEnd) : '').trim();
-
-        const accordionStartMarker = '• **Plot Summary:**';
-        const accordionStartIndex = mainContent.indexOf(accordionStartMarker);
-
-        const introContent = (accordionStartIndex !== -1 ? mainContent.substring(0, accordionStartIndex) : mainContent).trim();
-        const accordionContentText = (accordionStartIndex !== -1 ? mainContent.substring(accordionStartIndex) : '').trim();
-
-        let accordionHtml = '<div class="accordion">';
-
-        if (accordionContentText) {
-          const sections = accordionContentText.split(/• \*\*/g).filter(Boolean);
-          sections.forEach((section) => {
-            const parts = section.split(':**');
-            if (parts.length < 2) return;
-
-            const title = parts[0].trim();
-            const content = parts.slice(1).join(':**').trim();
-            const isActive = title === 'Plot Summary';
-
-            accordionHtml += `
-              <div class="accordion-item ${isActive ? 'active' : ''}">
-                <button class="accordion-header">${title}</button>
-                <div class="accordion-content">
-                  <div class="accordion-content-inner">${formatText(content)}</div>
-                </div>
-              </div>
-            `;
-          });
-        }
-        accordionHtml += '</div>';
-
-        reviewBox.innerHTML = `
-          <div class="review-intro">${formatText(introContent)}</div>
-          ${accordionContentText ? accordionHtml : ''}
-          <div class="review-outro">${formatText(outroContent)}</div>
-        `;
-        
-        setupRatingTooltip();
-       
-        setupAccordion();
-      }
 
       function setupRatingTooltip() {
         const placeholder = reviewBox.querySelector('#rating-context-placeholder');
@@ -143,11 +90,9 @@
         const accordion = reviewBox.querySelector('.accordion');
         if (!accordion) return;
 
-        // Set the initial open state for the default active item
         const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
         if (initiallyActiveItem) {
           const content = initiallyActiveItem.querySelector('.accordion-content');
-          // Use setTimeout to ensure the DOM is painted and scrollHeight is accurate
           setTimeout(() => {
             content.style.maxHeight = content.scrollHeight + 'px';
           }, 0);
@@ -161,13 +106,11 @@
           const currentContent = header.nextElementSibling;
           const currentlyActiveItem = accordion.querySelector('.accordion-item.active');
 
-          // If there's an active item and it's not the one we just clicked, close it.
           if (currentlyActiveItem && currentlyActiveItem !== currentItem) {
             currentlyActiveItem.classList.remove('active');
             currentlyActiveItem.querySelector('.accordion-content').style.maxHeight = null;
           }
 
-          // Toggle the clicked item
           currentItem.classList.toggle('active');
           if (currentItem.classList.contains('active')) {
             currentContent.style.maxHeight = currentContent.scrollHeight + 'px';
