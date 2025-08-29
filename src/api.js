@@ -60,18 +60,21 @@ async function getReview(id, type, forceRefresh = false) {
 
       if (!metadata || !prompt) {
         console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
-        const fallbackText = 'Plot Summary:\n- Unable to fetch official metadata for this item. Please try again later.';
+        const fallbackText = '<div class="review-intro"><div>• <strong>Plot Summary:</strong> Unable to fetch official metadata for this item. Please try again later.</div></div>';
         saveReview(id, fallbackText, type);
         return fallbackText;
       }
 
       console.log(`[API] Generating review for ${id}...`);
-      let rawReview = await generateReview(prompt);
+      const rawReview = await generateReview(prompt);
 
       let finalReview = rawReview;
       if (finalReview && !finalReview.startsWith('Error')) {
-        finalReview = enforceReviewStructure(rawReview);
-        finalReview = reconcileLanguage(finalReview, metadata.languages, metadata.source);
+        // Step 1: Reconcile language on the RAW text first.
+        const reconciledText = reconcileLanguage(rawReview, metadata.languages, metadata.source);
+
+        // Step 2: Enforce the HTML structure on the reconciled text.
+        finalReview = enforceReviewStructure(reconciledText);
       }
       
       console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
