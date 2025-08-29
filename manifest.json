@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "name": "The Quick Reviewer",
   "description": "Provides spoiler-free bullet-point AI reviews for movies/series via a single review stream link.",
-  "icon": "https://raw.githubusercontent.com/thequickreviewer/assets/main/icon.png",
+  "icon": "/assets/icon.png",
   "resources": ["stream"],
   "types": ["movie", "series"],
   "catalogs": [],
