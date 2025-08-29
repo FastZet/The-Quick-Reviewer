@@ -41,6 +41,7 @@ function enforceReviewStructure(rawReviewText) {
     const match = rawReviewText.match(regex);
     if (match && match[1]) {
       const canonicalHeader = header === 'Directed by' ? 'Directed By' : header;
+      const cleanedContent = match[1].replace(/^[\s*_]+|[\s*_]+$/g, '').trim();
       contentMap.set(canonicalHeader, match[1].trim());
     }
   }
