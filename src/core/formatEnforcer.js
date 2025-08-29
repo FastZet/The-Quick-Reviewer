@@ -7,16 +7,17 @@ function cleanVerdict(verdictText) {
 }
 
 /**
- * Takes raw review text and converts it into a structured HTML block with an accordion.
+ * Rebuilds the entire review to conform to a strict, consistent format.
+ * Fixes merged sections, inconsistent headings, and other AI formatting quirks.
  * @param {string} rawReviewText - The full, raw review text from the Gemini API.
- * @returns {string} A string containing the complete HTML for the review box.
+ * @returns {string} The perfectly formatted review text.
  */
 function enforceReviewStructure(rawReviewText) {
   if (!rawReviewText || typeof rawReviewText !== 'string') return '';
 
   // The "golden source" of all possible sections in their correct order.
   const ALL_SECTIONS = [
-    // Intro Headers (handled separately but defined for completeness)
+    // Intro Headers
     'Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season & Episode', 
     'Casts', 'Directed By', 'Directed by', 'Language', 'Genre', 'Released On', 
     'Release Medium', 'Release Country',
@@ -26,7 +27,7 @@ function enforceReviewStructure(rawReviewText) {
     'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception',
     'Audience Reception & Reaction', 'Box Office and Viewership',
     'Who would like it', 'Who would not like it', 'Overall Verdict',
-    // Outro Headers (handled separately)
+    // Outro Headers
     'Rating', 'Verdict in One Line'
   ];
 
@@ -34,14 +35,11 @@ function enforceReviewStructure(rawReviewText) {
 
   // --- 1. Extract content for every possible section ---
   for (const header of ALL_SECTIONS) {
-    // This robust regex finds a header, ignoring surrounding formatting,
-    // and captures everything until the next bullet point heading or the end of the text.
     const regex = new RegExp(
       `[•*\\s]*${header}[*\\s]*:[*\\s]*([\\s\\S]*?)(?=\\s*•\\s*\\*\\*|$)`, 'i'
     );
     const match = rawReviewText.match(regex);
     if (match && match[1]) {
-      // Use the canonical header name as the key for consistency.
       const canonicalHeader = header === 'Directed by' ? 'Directed By' : header;
       contentMap.set(canonicalHeader, match[1].trim());
     }
@@ -74,3 +72,26 @@ function enforceReviewStructure(rawReviewText) {
           <div class="accordion-content">
             <div class="accordion-content-inner">${formatText(contentMap.get(header))}</div>
           </div>
+        </div>`;
+    }
+  }
+  accordionHtml += '</div>';
+
+  let outroHtml = '<div class="review-outro">';
+  if (contentMap.has('Rating')) {
+    const ratingContent = formatText(contentMap.get('Rating')) + '<span id="rating-context-placeholder"></span>';
+    outroHtml += `<div><strong>Rating:</strong> ${ratingContent}</div>`;
+  }
+  if (contentMap.has('Verdict in One Line')) {
+    outroHtml += `<div><strong>Verdict in One Line:</strong> ${formatText(contentMap.get('Verdict in One Line'))}</div>`;
+  }
+  outroHtml += '</div>';
+
+  console.log('[FormatEnforcer] Review HTML structure has been successfully generated.');
+  return introHtml + accordionHtml + outroHtml;
+}
+
+module.exports = {
+  cleanVerdict,
+  enforceReviewStructure,
+};
