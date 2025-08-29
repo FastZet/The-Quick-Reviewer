@@ -13,7 +13,8 @@ body.main-page { font-family: system-ui, sans-serif; background: #212529; color:
 .main-page input[type=password] { padding: 12px; border-radius: 6px; border: 1px solid #6c757d; background-color: #212529; color: #e9ecef; width: 90%; max-width: 280px; text-align: center; font-size: 1rem; }
 .main-page .btn.submit { background-color: #198754; border: none; cursor: pointer; }
 .main-page .btn.submit:hover { background-color: #157347; }
-.main-page #status-message { margin-top: 1rem; min-height: 20px; font-weight: 500; color: #ffc107; }
+.main-page #status-message { margin-top: 1rem; min-height: 20px; font-weight: 500; color: #ffc107; transition: min-height 0.2s, margin-top 0.2s; }
+.main-page #status-message:empty { min-height: 0; margin-top: 0; }
 .main-page #status-message.error { color: #dc3545; }
 .main-page #status-message.success { color: #198754; }
 
@@ -43,6 +44,8 @@ body.review-page { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Robot
 .review-page .review-box{background:#343a40;padding:1.5rem 2rem;border-radius:12px;border:1px solid #495057;margin-top:1.5rem}
 .review-page .review-intro { white-space: pre-line; margin-bottom: 1.5rem; }
 .review-page .review-outro { white-space: pre-line; margin-top: 1.5rem; }
+.review-page .review-outro div { margin-bottom: 0.5rem; }
+.review-page .review-outro div:last-child { margin-bottom: 0; }
 .review-page .loading{color:#ced4da}.review-page .err{color:#ff8c8c}strong{color:#fff;font-weight:600}
 .review-page .controls{margin-top:2rem;text-align:center}
 .review-page #refresh-btn{background-color:#495057;color:#e9ecef;border:1px solid #6c757d;padding:10px 20px;font-size:1rem;border-radius:8px;cursor:pointer;transition:background-color .2s}
