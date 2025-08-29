@@ -30,11 +30,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static public files (style.css, review.html, etc.)
-app.use(express.static(path.join(__dirname, 'public')));
-
 // --- Dynamic Homepage Route ---
-// This remains here as it's part of the server's core presentation logic.
 app.get('/', (req, res) => {
   fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
     if (err) {
@@ -108,6 +104,9 @@ app.get('/', (req, res) => {
 app.get('/review', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'review.html'));
 });
+
+// Serve static public files (style.css, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Mounting Routers ---
 app.use('/api', apiRouter);   // Internal APIs for the frontend
