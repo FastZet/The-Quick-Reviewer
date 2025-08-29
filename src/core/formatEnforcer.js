@@ -36,7 +36,7 @@ function enforceReviewStructure(rawReviewText) {
   // --- 1. Extract content for every possible section ---
   for (const header of ALL_SECTIONS) {
     const regex = new RegExp(
-      `[•*\\s]*${header}[*\\s]*:[*\\s]*([\\s\\S]*?)(?=\\s*•\\s*\\*\\*|$)`, 'i'
+      `[•*\\s]*${header}[*\\s]*:[*\\s]*([\\s\\S]*?)(?=\\s*•\\s*\\*\\*|Rating:|Verdict in One Line:|$)`, 'i'
     );
     const match = rawReviewText.match(regex);
     if (match && match[1]) {
