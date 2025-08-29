@@ -1,9 +1,11 @@
 // src/core/formatEnforcer.js — Cleans and builds a structured HTML review.
 
-function cleanVerdict(verdictText) {
-  if (!verdictText) return '';
-  // Removes leading/trailing asterisks, underscores, and trims whitespace.
-  return verdictText.replace(/^[\s*_]+|[\s*_]+$/g, '').trim();
+function cleanSectionContent(text) {
+  if (!text) return '';
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^[*_]+/, '');
+  cleaned = cleaned.replace(/[*_]+$/, '');
+  return cleaned.trim();
 }
 
 /**
@@ -15,7 +17,6 @@ function cleanVerdict(verdictText) {
 function enforceReviewStructure(rawReviewText) {
   if (!rawReviewText || typeof rawReviewText !== 'string') return '';
 
-  // The "golden source" of all possible sections in their correct order.
   const ALL_SECTIONS = [
     // Intro Headers
     'Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season & Episode', 
@@ -41,8 +42,8 @@ function enforceReviewStructure(rawReviewText) {
     const match = rawReviewText.match(regex);
     if (match && match[1]) {
       const canonicalHeader = header === 'Directed by' ? 'Directed By' : header;
-      const cleanedContent = match[1].replace(/^[\s*_]+|[\s*_]+$/g, '').trim();
-      contentMap.set(canonicalHeader, match[1].trim());
+      const cleanedContent = cleanSectionContent(match[1]);
+      contentMap.set(canonicalHeader, cleanedContent);
     }
   }
 
@@ -63,7 +64,6 @@ function enforceReviewStructure(rawReviewText) {
   const mainContentHeaders = [
     'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 'Cinematography', 'Sound Design', 'Music & Score', 'Editing', 'Direction and Vision', 'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 'Audience Reception & Reaction', 'Box Office and Viewership', 'Who would like it', 'Who would not like it', 'Overall Verdict'
   ];
-  let mainContentAdded = false;
   for (const header of mainContentHeaders) {
     if (contentMap.has(header)) {
       const isActive = header === 'Plot Summary';
@@ -93,6 +93,6 @@ function enforceReviewStructure(rawReviewText) {
 }
 
 module.exports = {
-  cleanVerdict,
+  cleanVerdict: cleanSectionContent,
   enforceReviewStructure,
 };
