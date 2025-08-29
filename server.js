@@ -1,32 +1,27 @@
-// server.js — HuggingFace-ready Stremio addon server (Express-only version)
+// server.js — The main entry point for the Stremio addon server.
+
 const express = require('express');
 const path = require('path');
-const manifest = require('./manifest.json');
 const fs = require('fs');
-const { getReview } = require('./src/api.js');
-const { parseVerdictFromReview } = require('./reviewParser.js');
+const addonRouter = require('./src/routes/addonRouter');
+const apiRouter = require('./src/routes/apiRouter');
 
 const app = express();
 
-// Environment config
+// --- Environment Config ---
 const PORT = process.env.PORT || 7860;
-const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
-const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
-const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
-const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 15000;
 
-// Warn if API keys missing
-if (!TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fail.');
-if (!OMDB_API_KEY) console.warn('Warning: OMDB_API_KEY not set.');
-if (!GEMINI_API_KEY) console.warn('Warning: GEMINI_API_KEY not set. Reviews will not be generated.');
+// Warn if essential API keys are missing
+if (!process.env.TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fail.');
+if (!process.env.OMDB_API_KEY) console.warn('Warning: OMDB_API_KEY not set.');
+if (!process.env.GEMINI_API_KEY) console.warn('Warning: GEMINI_API_KEY not set. Reviews will not be generated.');
 
-// Trust proxy for correct proto/host, IP address, and JSON body parsing
-app.set('trust proxy', true);
-app.use(express.json());
+// --- Global Middleware ---
+app.set('trust proxy', true); // Trust proxy for correct IP address and protocol
+app.use(express.json());      // Parse JSON bodies
 
-// Basic CORS for clients (placed BEFORE routes)
+// Basic CORS for all routes
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -35,7 +30,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- Homepage route is now fully dynamic and password-aware ---
+// Serve static public files (style.css, review.html, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- Dynamic Homepage Route ---
+// This remains here as it's part of the server's core presentation logic.
 app.get('/', (req, res) => {
   fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
     if (err) {
@@ -44,7 +43,9 @@ app.get('/', (req, res) => {
     }
     let dynamicContent = '';
     let pageScript = '';
+
     if (ADDON_PASSWORD) {
+      // Logic for password-protected homepage
       dynamicContent = `
         <form id="password-form">
           <input type="password" id="addon-password" placeholder="Enter Addon Password" required />
@@ -52,8 +53,7 @@ app.get('/', (req, res) => {
         </form>
         <div id="status-message"></div>
       `;
-      pageScript = `
-        <script>
+      pageScript = `<script>
           document.getElementById('password-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             const password = document.getElementById('addon-password').value;
@@ -88,105 +88,32 @@ app.get('/', (req, res) => {
               submitBtn.disabled = false;
             }
           });
-        </script>
-      `;
+        </script>`;
     } else {
+      // Logic for public homepage
       const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
       const host = req.get('x-forwarded-host') || req.get('host');
-      const base = BASE_URL || (host ? `${proto}://${host}` : '');
+      const base = process.env.BASE_URL || (host ? `${proto}://${host}` : '');
       const manifestUrl = `${base}/manifest.json`;
       dynamicContent = `<a href="${manifestUrl.replace(/^https?:\/\//, 'stremio://')}" class="btn install">Install Addon</a>`;
     }
+
     let renderedHtml = html.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
     renderedHtml = renderedHtml.replace('{{PAGE_SCRIPT}}', pageScript);
     res.send(renderedHtml);
   });
 });
 
-// Serve static public files (review.html, etc.)
-app.use(express.static(path.join(__dirname, 'public')));
+// --- Mounting Routers ---
+app.use('/api', apiRouter);   // Internal APIs for the frontend
+app.use('/', addonRouter);  // Stremio-facing addon routes
 
-// --- MANIFEST AND STREAM ENDPOINTS WITH PASSWORD LOGIC ---
-if (ADDON_PASSWORD) {
-  const secretPath = `/${ADDON_PASSWORD}`;
-  console.log('Addon is SECURED. All endpoints are password-protected.');
-  app.get(`${secretPath}/manifest.json`, (req, res) => { res.json(manifest); });
-  app.get(`${secretPath}/cached-reviews`, (req, res) => { res.sendFile(path.join(__dirname, 'public', 'cached-reviews.html')); });
-  app.get(`${secretPath}/stream/:type/:id.json`, (req, res) => { handleStreamRequest(req, res); });
-} else {
-  console.log('Addon is UNSECURED.');
-  app.get('/manifest.json', (req, res) => { res.json(manifest); });
-  app.get('/stream/:type/:id.json', (req, res) => { handleStreamRequest(req, res); });
-}
-
-async function handleStreamRequest(req, res) {
-  const { type, id } = req.params;
-  
-  // 1. Define the complete stream object with fallback values first.
-  // This guarantees the object always exists.
-  const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-  const host = req.get('x-forwarded-host') || req.get('host');
-  const base = BASE_URL || (host ? `${proto}://${host}` : '');
-  const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
-
-  const streamPayload = {
-    id: `quick-reviewer-${type}-${id}`,
-    title: '⚡ Click To Read The Quick AI Review',
-    name: 'The Quick Reviewer',  // Default fallback title
-    externalUrl: reviewUrl,
-    poster: manifest.icon || undefined,
-    behaviorHints: { "notWebReady": true }
-  };
-  
-  try {
-    console.log(`[Stream] Received request for ${id}. Starting review generation/retrieval...`);
-  
-    // Create a timeout promise
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), ADDON_TIMEOUT_MS)
-    );
-
-    // 2. Race the review generation against the timeout.
-    const reviewText = await Promise.race([
-      getReview(String(id).trim(), type, false),
-      timeoutPromise
-    ]);
-
-    // 3. If the race is won, attempt to parse the verdict and modify the payload.
-    const verdict = parseVerdictFromReview(reviewText);
-    if (verdict) {
-      streamPayload.title = `⚡ Verdict in One Line: ${verdict} Click here to read the full AI generated review!`;
-      streamPayload.name = 'The Quick Reviewer';
-      console.log(`[Stream] Generation for ${id} SUCCEEDED. Found verdict.`);
-    } else {
-      console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title.`);
-    }
-    
-  } catch (error) {
-    if (error.message === 'Timeout') {
-      console.warn(`[Stream] Generation for ${id} TIMED OUT. Responding to Stremio with fallback title, but generation continues in the background.`);
-    } else {
-      console.error(`[Stream] Generation for ${id} FAILED with an UNEXPECTED error:`, error.message);
-    }
-  }
-
-  // 4. Finally, send the response. This line is now guaranteed to work.
-  res.json({ streams: [streamPayload] });
-}
-
-app.get('/review', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'review.html'));
-});
-
-const apiRouter = require('./routes');
-app.use(apiRouter);
-
+// --- Health Check and Server Start ---
 app.get('/health', (req, res) => res.send('OK'));
 
 app.listen(PORT, () => {
   console.log(`Quick Reviewer Addon running on port ${PORT}`);
-  if (BASE_URL) console.log(`Base URL (env): ${BASE_URL}`);
-  if (ADDON_PASSWORD) console.log(`Password protection is ENABLED.`);
+  if (process.env.BASE_URL) console.log(`Base URL (env): ${process.env.BASE_URL}`);
 });
 
 module.exports = app;
