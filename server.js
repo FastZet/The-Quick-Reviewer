@@ -104,6 +104,11 @@ app.get('/', (req, res) => {
   });
 });
 
+// --- Route to serve the review page ---
+app.get('/review', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'review.html'));
+});
+
 // --- Mounting Routers ---
 app.use('/api', apiRouter);   // Internal APIs for the frontend
 app.use('/', addonRouter);  // Stremio-facing addon routes
