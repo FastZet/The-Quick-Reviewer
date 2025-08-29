@@ -1,10 +1,5 @@
-// src/core/formatEnforcer.js — Cleans and enforces a strict structure on AI-generated review text.
+// src/core/formatEnforcer.js — Cleans and builds a structured HTML review.
 
-/**
- * Removes leading/trailing Markdown characters (like **) and whitespace from the verdict.
- * @param {string} verdictText - The raw verdict string.
- * @returns {string} A clean string suitable for display in plain text fields.
- */
 function cleanVerdict(verdictText) {
   if (!verdictText) return '';
   // Removes leading/trailing asterisks, underscores, and trims whitespace.
@@ -12,10 +7,9 @@ function cleanVerdict(verdictText) {
 }
 
 /**
- * Rebuilds the entire review to conform to a strict, consistent format.
- * Fixes merged sections, inconsistent headings, and other AI formatting quirks.
+ * Takes raw review text and converts it into a structured HTML block with an accordion.
  * @param {string} rawReviewText - The full, raw review text from the Gemini API.
- * @returns {string} The perfectly formatted review text.
+ * @returns {string} A string containing the complete HTML for the review box.
  */
 function enforceReviewStructure(rawReviewText) {
   if (!rawReviewText || typeof rawReviewText !== 'string') return '';
@@ -53,50 +47,30 @@ function enforceReviewStructure(rawReviewText) {
     }
   }
 
-  // --- 2. Rebuild the review string from the extracted parts ---
-  let finalReview = '';
-  
-  // A. Rebuild the intro section (no extra spacing)
+  // Helper to format text content for HTML display
+  const formatText = (text = '') => text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // --- 2. Rebuild the review as an HTML string ---
+  let introHtml = '<div class="review-intro">';
   const introHeaders = ['Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season & Episode', 'Casts', 'Directed By', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country'];
   for (const header of introHeaders) {
     if (contentMap.has(header)) {
-      finalReview += `• **${header}:** ${contentMap.get(header)}\n`;
+      introHtml += `<div>• <strong>${header}:</strong> ${formatText(contentMap.get(header))}</div>`;
     }
   }
+  introHtml += '</div>';
 
-  // B. Rebuild the main content section (with extra spacing)
+  let accordionHtml = '<div class="accordion">';
   const mainContentHeaders = [
-    'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development',
-    'Cinematography', 'Sound Design', 'Music & Score', 'Editing', 'Direction and Vision',
-    'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception',
-    'Audience Reception & Reaction', 'Box Office and Viewership',
-    'Who would like it', 'Who would not like it', 'Overall Verdict'
+    'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 'Cinematography', 'Sound Design', 'Music & Score', 'Editing', 'Direction and Vision', 'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 'Audience Reception & Reaction', 'Box Office and Viewership', 'Who would like it', 'Who would not like it', 'Overall Verdict'
   ];
   let mainContentAdded = false;
   for (const header of mainContentHeaders) {
     if (contentMap.has(header)) {
-      if (!mainContentAdded) {
-        finalReview += '\n'; // Add initial space before the first main section
-        mainContentAdded = true;
-      }
-      finalReview += `• **${header}:** ${contentMap.get(header)}\n\n`;
-    }
-  }
-  finalReview = finalReview.trim(); // Remove trailing newlines
-
-  // C. Rebuild the outro section
-  if (contentMap.has('Rating')) {
-    finalReview += `\n\nRating: ${contentMap.get('Rating')}`;
-  }
-  if (contentMap.has('Verdict in One Line')) {
-    finalReview += `\nVerdict in One Line: ${contentMap.get('Verdict in One Line')}`;
-  }
-
-  console.log('[FormatEnforcer] Review structure has been successfully enforced.');
-  return finalReview.trim();
-}
-
-module.exports = {
-  cleanVerdict,
-  enforceReviewStructure,
-};
+      const isActive = header === 'Plot Summary';
+      accordionHtml += `
+        <div class="accordion-item ${isActive ? 'active' : ''}">
+          <button class="accordion-header">${header}</button>
+          <div class="accordion-content">
+            <div class="accordion-content-inner">${formatText(contentMap.get(header))}</div>
+          </div>
