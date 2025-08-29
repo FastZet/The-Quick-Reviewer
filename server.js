@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const manifest = require('./manifest.json');
 const fs = require('fs');
-const { getReview } = require('./api.js');
+const { getReview } = require('./src/api.js');
 const { parseVerdictFromReview } = require('./reviewParser.js');
 
 const app = express();
