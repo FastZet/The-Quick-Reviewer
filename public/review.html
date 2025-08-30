@@ -10,12 +10,14 @@
   <link rel="manifest" href="/assets/site.webmanifest">
 </head>
 <body class="review-page">
-  <h1>⚡ Quick AI Review</h1>
-  <p id="meta" class="sub"></p>
-  <p id="loading" class="loading">Loading review...</p>
-  <div id="review" class="review-box" style="display:none;"></div>
-  <div class="controls">
-    <button id="refresh-btn" style="display:none;">Force New Review</button>
+  <div class="page-container">
+    <h1>⚡ Quick AI Review</h1>
+    <p id="meta" class="sub"></p>
+    <p id="loading" class="loading">Loading review...</p>
+    <div id="review" class="review-box" style="display:none;"></div>
+    <div class="controls">
+      <button id="refresh-btn" style="display:none;">Force New Review</button>
+    </div>
   </div>
 
   <div id="ratingModal" class="modal-overlay">
@@ -39,24 +41,18 @@
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
       const isForced = params.has('force');
-      
       const metaEl = document.getElementById('meta');
       const loadingEl = document.getElementById('loading');
       const reviewBox = document.getElementById('review');
       const refreshBtn = document.getElementById('refresh-btn');
-
       if (!type || !id) {
         loadingEl.className = 'err';
         loadingEl.textContent = 'Missing parameters.';
         return;
       }
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
-      if (isForced) { 
-        loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; 
-      }
-
+      if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
       const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
-
       fetch(url)
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
@@ -65,10 +61,8 @@
         .then(data => {
           loadingEl.style.display = 'none';
           const reviewHtml = (data && data.review) ? data.review : '<p>No review available.</p>';
-          
           reviewBox.innerHTML = reviewHtml;
           reviewBox.style.display = 'block';
-
           setupAccordion();
           setupRatingTooltip();
           refreshBtn.style.display = 'inline-block';
@@ -78,7 +72,6 @@
           loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
           refreshBtn.style.display = 'inline-block';
         });
-
       function setupRatingTooltip() {
         const placeholder = reviewBox.querySelector('#rating-context-placeholder');
         if (!placeholder) return;
@@ -90,32 +83,24 @@
         placeholder.parentNode.replaceChild(button, placeholder);
         button.parentNode.insertBefore(space, button);
       }
-
       function setupAccordion() {
         const accordion = reviewBox.querySelector('.accordion');
         if (!accordion) return;
-
         const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
         if (initiallyActiveItem) {
           const content = initiallyActiveItem.querySelector('.accordion-content');
-          setTimeout(() => {
-            content.style.maxHeight = content.scrollHeight + 'px';
-          }, 0);
+          setTimeout(() => { content.style.maxHeight = content.scrollHeight + 'px'; }, 0);
         }
-
         accordion.addEventListener('click', (e) => {
           const header = e.target.closest('.accordion-header');
           if (!header) return;
- 
           const currentItem = header.parentElement;
           const currentContent = header.nextElementSibling;
           const currentlyActiveItem = accordion.querySelector('.accordion-item.active');
-
           if (currentlyActiveItem && currentlyActiveItem !== currentItem) {
             currentlyActiveItem.classList.remove('active');
             currentlyActiveItem.querySelector('.accordion-content').style.maxHeight = null;
           }
-
           currentItem.classList.toggle('active');
           if (currentItem.classList.contains('active')) {
             currentContent.style.maxHeight = currentContent.scrollHeight + 'px';
@@ -124,7 +109,6 @@
           }
         });
       }
-
       refreshBtn.addEventListener('click', () => {
         refreshBtn.disabled = true;
         refreshBtn.textContent = 'Refreshing...';
@@ -135,7 +119,7 @@
     })();
 
     const modal = document.getElementById('ratingModal');
-    function openModal() { modal.style.display = 'block'; }
+    function openModal() { modal.style.display = 'flex'; }
     function closeModal() { modal.style.display = 'none'; }
     window.onclick = function(event) { if (event.target == modal) { closeModal(); } }
   </script>
