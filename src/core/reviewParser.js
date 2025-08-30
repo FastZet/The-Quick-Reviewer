@@ -24,7 +24,7 @@ function parseVerdictFromReview(reviewText) {
     return cleanVerdict;
   }
   
-  console.log("[Parser] Verdict could not be found in the review text.");
+  console.warn(`[Parser] Verdict could not be found. The AI-generated text did not contain the expected 'Verdict in One Line:' heading. Full text received from AI:\n---\n${reviewText}\n---`);
   return null;
 }
 
