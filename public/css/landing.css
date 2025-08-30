@@ -15,7 +15,7 @@
   text-fill-color: transparent;
 }
 
-.hero { text-align: center; padding: 30px 0 15px 0; }
+.hero { text-align: center; padding: 30px 0 20px 0; }
 .hero h2 { margin-bottom: 1rem; }
 .hero p.subtitle { color: var(--secondary-text); max-width: 90%; margin: 0 auto; font-size: 1.1rem; }
 
