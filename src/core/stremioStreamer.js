@@ -6,7 +6,7 @@ const { parseVerdictFromReview } = require('./reviewParser.js');
 const { buildStreamTitle } = require('./streamTitleBuilder.js');
 
 const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
-const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 15000;
+const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 13000;
 
 async function buildStreamResponse(req) {
   const { type, id } = req.params;
@@ -39,6 +39,7 @@ async function buildStreamResponse(req) {
 
     const verdict = parseVerdictFromReview(reviewText);
     streamPayload.title = buildStreamTitle(verdict);
+    
     if (verdict) {
       console.log(`[Stream] Generation for ${id} SUCCEEDED. Found clean verdict.`);
     } else {
@@ -46,7 +47,7 @@ async function buildStreamResponse(req) {
     }
   } catch (error) {
     if (error.message === 'Timeout') {
-      console.warn(`[Stream] Generation for ${id} TIMED OUT. Responding with fallback title, but generation continues in background.`);
+      console.warn(`[Stream] Generation for ${id} TIMED OUT at ${ADDON_TIMEOUT_MS}ms. Responding with fallback title, but generation continues in background.`);
       streamPayload.title = buildStreamTitle(null, { timedOut: true });
     } else {
       console.error(`[Stream] Generation for ${id} FAILED with an UNEXPECTED error:`, error.message);
