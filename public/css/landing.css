@@ -57,8 +57,8 @@ input[type=password] {
 #status-message.error { color: var(--error-color); }
 #status-message.success { color: var(--success-color); }
 
-.features { margin-top: 40px; }
-.features h2 { text-align: center; margin-bottom: 2rem; }
+.features, .faq { margin-top: 20px; }
+.features h2, .faq h2 { text-align: center; margin-bottom: 2rem; }
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -75,8 +75,6 @@ input[type=password] {
 .feature-card h3 { margin-top: 0; font-size: 1.2rem; color: var(--accent-color); }
 .feature-card p { margin-bottom: 0; color: var(--secondary-text); }
 
-.faq { margin-top: 40px; }
-.faq h2 { text-align: center; margin-bottom: 2rem; }
 .faq p { margin-bottom: 1.5rem; color: var(--secondary-text); background: rgba(30, 36, 44, 0.5); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--accent-color); }
 .faq strong { color: var(--primary-text); display: block; margin-bottom: 4px; }
 
