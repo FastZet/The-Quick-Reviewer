@@ -1,0 +1,8 @@
+/* --- Cached Reviews Page Styles (/public/cached-reviews.html) --- */
+#review-list { list-style: none; padding: 0; }
+.review-item { background: #343a40; padding: 1rem 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border-color); }
+.review-item a { color: var(--accent-color); font-weight: 600; font-size: 1.1rem; }
+.review-meta { font-size: 0.9rem; color: var(--secondary-text); margin-top: 0.5rem; }
+.loading, .empty { text-align: center; color: var(--secondary-text); margin-top: 2rem; }
+.err { color: var(--error-color); }
+@media (max-width: 600px) { .review-item { padding: 0.8rem 1rem; } }

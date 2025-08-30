@@ -3,10 +3,10 @@
 const manifest = require('../../manifest.json');
 const { getReview } = require('../api.js');
 const { parseVerdictFromReview } = require('./reviewParser.js');
-const { cleanVerdict } = require('./formatEnforcer.js');
+const { buildStreamTitle } = require('./streamTitleBuilder.js');
 
 const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
-const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 15000;
+const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 13000;
 
 async function buildStreamResponse(req) {
   const { type, id } = req.params;
@@ -18,7 +18,7 @@ async function buildStreamResponse(req) {
 
   const streamPayload = {
     id: `quick-reviewer-${type}-${id}`,
-    title: '⚡ Click To Read The Quick AI Review',
+    title: '',
     name: 'The Quick Reviewer',
     externalUrl: reviewUrl,
     poster: manifest.icon || undefined,
@@ -37,19 +37,21 @@ async function buildStreamResponse(req) {
       timeoutPromise
     ]);
 
-    let verdict = parseVerdictFromReview(reviewText);
+    const verdict = parseVerdictFromReview(reviewText);
+    streamPayload.title = buildStreamTitle(verdict);
+    
     if (verdict) {
-      streamPayload.title = `⚡ Verdict: ${verdict} (Click to read the full AI review)`;
-      streamPayload.name = 'The Quick Reviewer';
       console.log(`[Stream] Generation for ${id} SUCCEEDED. Found clean verdict.`);
     } else {
-      console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title.`);
+      console.log(`[Stream] Generation for ${id} finished, but no verdict was parsed. Using fallback title structure.`);
     }
   } catch (error) {
     if (error.message === 'Timeout') {
-      console.warn(`[Stream] Generation for ${id} TIMED OUT. Responding with fallback title, but generation continues in background.`);
+      console.warn(`[Stream] Generation for ${id} TIMED OUT at ${ADDON_TIMEOUT_MS}ms. Responding with fallback title, but generation continues in background.`);
+      streamPayload.title = buildStreamTitle(null, { timedOut: true });
     } else {
       console.error(`[Stream] Generation for ${id} FAILED with an UNEXPECTED error:`, error.message);
+      streamPayload.title = buildStreamTitle(null);
     }
   }
 
