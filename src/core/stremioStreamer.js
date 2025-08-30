@@ -6,7 +6,7 @@ const { parseVerdictFromReview } = require('./reviewParser.js');
 const { buildStreamTitle } = require('./streamTitleBuilder.js');
 
 const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
-const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 13000;
+const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 14000;
 
 async function buildStreamResponse(req) {
   const { type, id } = req.params;
