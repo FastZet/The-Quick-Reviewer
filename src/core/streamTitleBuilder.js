@@ -11,8 +11,8 @@ function buildStreamTitle(verdict, options = {}) {
   // Handle the timeout case first
   if (options.timedOut) {
     return [
-      '⏳ AI Review Generating (In Progress)...',
-      'Click to open, the review will appear when ready'
+      '⚡ Finalizing AI Review...',
+      'Click to open, it will appear in a moment!'
     ].join('\n');
   }
 
