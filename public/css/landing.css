@@ -1,45 +1,42 @@
 /* --- Landing Page Styles (/public/index.html) --- */
-body { max-width: 700px; }
-
-h2 {
-  padding: 10px 0;
-  margin: 30px 0 15px;
-  border-bottom: 2px solid var(--border-color);
-}
 
 .header {
   display: flex;
   align-items: center;
-  justify-content: center;
   padding: 20px 0;
-  text-align: center;
-  border-bottom: 2px solid var(--border-color);
+  text-align: left;
+}
+.header img { width: 50px; height: 50px; border-radius: 10px; margin-right: 1rem; }
+.header h1 {
+  background: linear-gradient(90deg, #58a6ff, #91bbf0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
 }
 
-.header img { width: 60px; height: 60px; border-radius: 12px; margin-right: 1rem; }
-.hero { text-align: center; padding: 20px 0; }
-.hero p { color: var(--secondary-text); max-width: 90%; margin: 15px auto; }
+.hero { text-align: center; padding: 40px 0; }
+.hero h2 { margin-bottom: 1rem; }
+.hero p.subtitle { color: var(--secondary-text); max-width: 90%; margin: 0 auto; font-size: 1.1rem; }
 
-.install-container { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+.install-container { margin-top: 2rem; display: flex; flex-direction: column; gap: 1rem; align-items: center; }
 
 a.btn, button.btn {
   display: inline-block;
   background: var(--accent-color);
-  color: white;
+  color: #fff;
   padding: 12px 28px;
   border-radius: 8px;
   text-decoration: none;
   font-weight: 600;
-  transition: background-color 0.2s, transform 0.1s;
-  border: none;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  min-width: 180px;
+  min-width: 220px;
   font-size: 1rem;
 }
 
-a.btn:hover, button.btn:hover { background: var(--accent-hover); transform: translateY(-2px); text-decoration: none; }
-a.btn.cache { background-color: var(--border-color); }
-a.btn.cache:hover { background-color: #4a637d; }
+a.btn:hover, button.btn:hover { background: var(--accent-hover); transform: translateY(-3px); box-shadow: 0 4px 15px rgba(88, 166, 255, 0.2); }
 
 #password-form { width: 100%; }
 input[type=password] {
@@ -54,19 +51,36 @@ input[type=password] {
   font-size: 1rem;
   margin-bottom: 1rem;
 }
+#password-form + p { font-size: 0.9rem; color: var(--secondary-text); }
 
 #status-message { margin-top: 1rem; min-height: 20px; font-weight: 500; color: var(--accent-color); }
 #status-message.error { color: var(--error-color); }
 #status-message.success { color: var(--success-color); }
 
-.features ul { list-style: '✅ '; padding-left: 20px; }
-.features li, .faq p { margin-bottom: 1rem; color: var(--secondary-text); }
+.features { margin-top: 40px; }
+.features h2 { text-align: center; margin-bottom: 2rem; }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+.feature-card {
+  background: rgba(30, 36, 44, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.feature-card:hover { transform: translateY(-5px); box-shadow: 0 6px 20px rgba(0,0,0,0.2); }
+.feature-card h3 { margin-top: 0; font-size: 1.2rem; color: var(--accent-color); }
+.feature-card p { margin-bottom: 0; color: var(--secondary-text); }
+
+.faq { margin-top: 40px; }
+.faq h2 { text-align: center; margin-bottom: 2rem; }
+.faq p { margin-bottom: 1.5rem; color: var(--secondary-text); background: rgba(30, 36, 44, 0.5); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--accent-color); }
 .faq strong { color: var(--primary-text); display: block; margin-bottom: 4px; }
 
-.support, .footer { text-align: center; padding: 15px; margin-top: 20px; border-top: 2px solid var(--border-color); color: var(--secondary-text); font-size: 0.9rem; }
-.support p { margin: 0; }
-
-@media only screen and (max-width: 600px) {
-  .header { flex-direction: column; gap: 10px; }
-  h1 { padding-left: 0; }
-}
+.footer { text-align: center; padding: 25px; margin-top: 30px; border-top: 1px solid var(--border-color); color: var(--secondary-text); }
+.footer p { margin: 0 0 1rem 0; }
+.footer .btn.github { background-color: #24292e; color: #fff; border-color: #c9d1d9; }
+.footer .btn.github:hover { background-color: #30363d; }
