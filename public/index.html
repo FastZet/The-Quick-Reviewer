@@ -26,21 +26,23 @@
   <link rel="stylesheet" href="/css/landing.css">
 </head>
 <body>
-  <div class="header">
-    <img src="/assets/icon.png" alt="The Quick Reviewer Logo"/>
-    <h1>The Quick Reviewer</h1>
-  </div>
-
-  <div class="hero">
-    <h2>Your Personal AI Film Critic.</h2>
-    <p class="subtitle">
-      An open-source Stremio addon that generates in-depth, spoiler-free reviews powered by Gemini, delivered directly to your Stremio interface.
-    </p>
-    <div id="dynamic-content-area" class="install-container">
-      <!-- This content is dynamically inserted by the server -->
-      {{DYNAMIC_CONTENT}}
+  <div class="page-container">
+    <div class="header">
+      <img src="/assets/icon.png" alt="The Quick Reviewer Logo"/>
+      <h1>The Quick Reviewer</h1>
     </div>
-  </div>
+    <div class="hero">
+      <div class="hero-container">
+        <h2>Your Personal AI Film Critic.</h2>
+        <p class="subtitle">
+          An open-source Stremio addon that generates in-depth, spoiler-free reviews powered by Gemini, delivered directly to your Stremio interface.
+        </p>
+        <div id="dynamic-content-area" class="install-container">
+          <!-- This content is dynamically inserted by the server -->
+          {{DYNAMIC_CONTENT}}
+        </div>
+      </div>
+    </div>
 
   <div class="features">
     <h2>Why Build Your Own?</h2>
@@ -84,6 +86,7 @@
     <p>This project is open source. All code is available on GitHub.</p>
     <a href="https://github.com/fastzet/The-Quick-Reviewer" target="_blank" rel="noopener noreferrer" class="btn github">View on GitHub</a>
   </div>
+</div>
 
   <!-- This script is also dynamically inserted by the server -->
   {{PAGE_SCRIPT}}
