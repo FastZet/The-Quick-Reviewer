@@ -3,8 +3,8 @@
 .header {
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 20px 0;
-  text-align: left;
 }
 .header img { width: 50px; height: 50px; border-radius: 10px; margin-right: 1rem; }
 .header h1 {
@@ -15,7 +15,24 @@
   text-fill-color: transparent;
 }
 
-.hero { text-align: center; padding: 40px 0; }
+.hero {
+  text-align: center;
+  padding: 30px 0 20px 0;
+}
+
+
+.hero-container {
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); /* Safari compatibility */
+  border: 1px solid var(--border-color); /* Matches page container style */
+}
+
 .hero h2 { margin-bottom: 1rem; }
 .hero p.subtitle { color: var(--secondary-text); max-width: 90%; margin: 0 auto; font-size: 1.1rem; }
 
@@ -57,8 +74,9 @@ input[type=password] {
 #status-message.error { color: var(--error-color); }
 #status-message.success { color: var(--success-color); }
 
-.features, .faq { margin-top: 20px; }
+.features, .faq { margin-top: 30px; }
 .features h2, .faq h2 { text-align: center; margin-bottom: 2rem; }
+
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
