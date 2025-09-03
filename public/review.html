@@ -52,7 +52,9 @@
       }
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
       if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
-      const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
+      const basePath = window.location.pathname.replace('/review', ''); // Will be either "" or "/THE_PASSWORD"
+      const apiUrl = `${basePath}/api/review`;
+      const url = `${apiUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
       fetch(url)
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
