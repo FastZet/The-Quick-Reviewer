@@ -109,7 +109,7 @@ if (ADDON_PASSWORD) {
 
   // Stremio Routes
   router.get('/manifest.json', (req, res) => res.json(manifest));
-  router.get('/stream/:type/:id.json`, (req, res) => buildStreamResponse(req).then(data => res.json(data)));
+  router.get('/stream/:type/:id.json', (req, res) => buildStreamResponse(req).then(data => res.json(data)));
   
   // User-facing Pages & APIs (now unprotected)
   router.get('/review', handleReviewPageRequest);
