@@ -31,26 +31,9 @@
         <button id="refresh-btn" class="control-btn refresh" title="Force a new AI review to be generated">⟳</button>
       </div>
     </div>
-
     <p id="meta" class="sub"></p>
-    <!-- SSR Placeholders: These will be replaced by the server before the page is sent to the browser -->
     <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
     <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
-  </div>
-
-  <div id="ratingModal" class="modal-overlay">
-    <div class="modal-content">
-      <span class="modal-close" onclick="closeModal()">&times;</span>
-      <h2>Rating Scale</h2>
-      <ul>
-        <li><strong>9–10:</strong> Exceptional, rare masterpiece</li>
-        <li><strong>7–8:</strong> Strong, worth watching despite flaws</li>
-        <li><strong>5–6:</strong> Average, watchable but forgettable</li>
-        <li><strong>3–4:</strong> Weak, major flaws outweigh positives</li>
-        <li><strong>1–2:</strong> Poor, barely redeemable</li>
-        <li><strong>0:</strong> Unwatchable, complete failure</li>
-      </ul>
-    </div>
   </div>
   
   <script>
@@ -66,11 +49,9 @@
       const id = (params.get('id') || '').trim();
       
       const metaEl = document.getElementById('meta');
-      const reviewBox = document.getElementById('review');
       const controlsTop = document.getElementById('controls-top');
       const refreshBtn = document.getElementById('refresh-btn');
       const translateBtn = document.getElementById('translate-btn');
-      const languageSelect = document.getElementById('language-select');
 
       if (isTranslated) {
         controlsTop.style.display = 'none';
@@ -84,9 +65,7 @@
             if (originalUrlParam) {
                 originalUrl = originalUrlParam;
             }
-        } catch (e) {
-            console.error('Could not parse original URL');
-        }
+        } catch (e) { console.error('Could not parse original URL'); }
 
         banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + originalUrl + '">View Original</a>';
         document.querySelector('.page-container').prepend(banner);
@@ -94,11 +73,9 @@
 
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
       
-      // The content is already on the page, so we just add interactivity.
       if (!isTranslated) {
         setupAccordion();
       }
-      setupRatingTooltip();
       
       translateBtn.addEventListener('click', () => {
         const targetLanguage = languageSelect.value;
@@ -161,11 +138,6 @@
         });
       }
     })();
-
-    const modal = document.getElementById('ratingModal');
-    function openModal() { modal.style.display = 'flex'; }
-    function closeModal() { modal.style.display = 'none'; }
-    window.onclick = function(event) { if (event.target == modal) { closeModal(); } }
   </script>
 </body>
 </html>
