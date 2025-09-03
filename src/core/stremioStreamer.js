@@ -2,7 +2,6 @@
 
 const manifest = require('../../manifest.json');
 const { getReview } = require('../api.js');
-const { parseVerdictFromReview } = require('./reviewParser.js');
 const { buildStreamTitle } = require('./streamTitleBuilder.js');
 
 const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
@@ -11,7 +10,6 @@ const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 13000;
 
 async function buildStreamResponse(req) {
   const { type, id } = req.params;
-
   const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
   const host = req.get('x-forwarded-host') || req.get('host');
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
@@ -29,17 +27,16 @@ async function buildStreamResponse(req) {
 
   try {
     console.log(`[Stream] Received request for ${id}. Starting review generation/retrieval...`);
-
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Timeout')), ADDON_TIMEOUT_MS)
     );
 
-    const reviewText = await Promise.race([
+    const reviewData = await Promise.race([
       getReview(String(id).trim(), type, false),
       timeoutPromise
     ]);
 
-    const verdict = parseVerdictFromReview(reviewText);
+    const verdict = reviewData ? reviewData.verdict : null;
     streamPayload.title = buildStreamTitle(verdict);
     
     if (verdict) {
@@ -49,7 +46,7 @@ async function buildStreamResponse(req) {
     }
   } catch (error) {
     if (error.message === 'Timeout') {
-      console.warn(`[Stream] Generation for ${id} TIMED OUT at ${ADDON_TIMEOUT_MS}ms. Responding with fallback title, but generation continues in background.`);
+      console.warn(`[Stream] Generation for ${id} TIMED OUT. Responding with fallback title.`);
       streamPayload.title = buildStreamTitle(null, { timedOut: true });
     } else {
       console.error(`[Stream] Generation for ${id} FAILED with an UNEXPECTED error:`, error.message);
