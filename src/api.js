@@ -6,6 +6,7 @@ const { enforceReviewStructure } = require('./core/formatEnforcer');
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/metadataService');
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/geminiService');
+const { parseVerdictFromReview } = require('./core/reviewParser');
 
 const pendingReviews = new Map();
 
@@ -68,22 +69,19 @@ async function getReview(id, type, forceRefresh = false) {
       console.log(`[API] Generating review for ${id}...`);
       const rawReview = await generateReview(prompt);
 
-      let finalReview = rawReview;
-      if (finalReview && !finalReview.startsWith('Error')) {
-        // Step 1: Reconcile language on the RAW text first.
-        const reconciledText = reconcileLanguage(rawReview, metadata.languages, metadata.source);
+      const verdict = parseVerdictFromReview(rawReview);
 
-        // Step 2: Enforce the HTML structure on the reconciled text.
-        finalReview = enforceReviewStructure(reconciledText);
-      }
+      const finalReviewHtml = enforceReviewStructure(rawReview);
       
       console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
-      saveReview(id, finalReview, type);
+      const result = { review: finalReviewHtml, verdict: verdict };
+      saveReview(id, result, type);
       console.log(`===== [API] Request End (Success) =====\n`);
-      return finalReview;
+      return result;
+      
     } catch (error) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
-        return 'Error: Review generation failed.';
+        return { review: 'Error: Review generation failed.', verdict: null };
     } finally {
       pendingReviews.delete(id);
       console.log(`[API] Removed ${id} from pending queue.`);
