@@ -12,7 +12,10 @@
 <body class="review-page">
   <div class="page-container">
     <div class="title-bar">
+      <div class="title-group">
       <h1>⚡ Quick AI Review</h1>
+      <p id="meta" class="sub"></p>
+      </div>
       <div id="controls-top" class="controls-top">
         <select id="language-select" class="control-select">
           <option value="en">English</option>
@@ -37,11 +40,10 @@
           <option value="vi">Vietnamese</option>
         </select>
         <button id="translate-btn" class="control-btn">Translate</button>
-        <button id="refresh-btn" class="control-btn refresh" title="Force a new AI review to be generated">⟳</button>
+        <button id="refresh-btn" class="control-btn refresh" title="Generate a new AI review">⟳</button>
       </div>
     </div>
 
-    <p id="meta" class="sub"></p>
     <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
     <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
   </div>
