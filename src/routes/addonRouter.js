@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs').promises;
 const manifest = require('../../manifest.json');
 const { buildStreamResponse } = require('../core/stremioStreamer.js');
 const { getReview } = require('../api');
@@ -38,8 +39,27 @@ const handleCachedReviewsApiRequest = (req, res) => {
 };
 
 // --- Page Handlers ---
-const handleReviewPageRequest = (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'public', 'review.html'));
+// SSR Handler for the Review Page
+const handleReviewPageRequest = async (req, res) => {
+  try {
+    const { type, id } = req.query;
+    if (!type || !id) {
+      return res.status(400).send('Missing "type" or "id" in URL query.');
+    }
+
+    const reviewHtml = await getReview(String(id).trim(), type, false);
+    const templatePath = path.join(__dirname, '..', '..', 'public', 'review.html');
+    let htmlTemplate = await fs.readFile(templatePath, 'utf-8');
+
+    htmlTemplate = htmlTemplate
+      .replace('{{LOADING_STATE}}', 'style="display: none;"')
+      .replace('{{REVIEW_CONTENT}}', reviewHtml || '<p>Review could not be loaded.</p>');
+
+    res.send(htmlTemplate);
+  } catch (error) {
+    console.error('SSR Error for review page:', error);
+    res.status(500).send('Error generating review page.');
+  }
 };
 
 const handleCachedReviewsPageRequest = (req, res) => {
@@ -47,14 +67,11 @@ const handleCachedReviewsPageRequest = (req, res) => {
 };
 
 // --- Password Validation ---
-// This is an API endpoint, but its logic is specific to the addon's security model,
-// so it lives here with the other conditional routes.
 const loginAttempts = new Map();
 router.post('/api/validate-password', (req, res) => {
     if (!ADDON_PASSWORD) {
         return res.status(403).json({ error: 'Password protection is not enabled.' });
     }
-    // ... (Full rate-limiting and password validation logic as before)
     const ip = req.ip;
     const { password } = req.body;
     const now = Date.now();
@@ -88,6 +105,7 @@ router.post('/api/validate-password', (req, res) => {
 
 
 // --- Conditional Routing ---
+
 if (ADDON_PASSWORD) {
   const secretPath = `/${ADDON_PASSWORD}`;
   console.log('Addon is SECURED. All functional routes are password-protected.');
@@ -104,18 +122,17 @@ if (ADDON_PASSWORD) {
   router.get(`${secretPath}/api/review`, handleReviewApiRequest);
   router.get(`${secretPath}/api/cached-reviews`, handleCachedReviewsApiRequest);
 
-  // A handler to explicitly deny access to unprotected paths when a password is set.
+  // Forbidden Routes
   const forbiddenHandler = (req, res) => {
     res.status(403).send('You are not authorized. Contact the administrator.');
   };
-
   router.get('/manifest.json', forbiddenHandler);
   router.get('/stream/:type/:id.json', forbiddenHandler);
   router.get('/review', forbiddenHandler);
   router.get('/cached-reviews', forbiddenHandler);
   router.get('/api/review', forbiddenHandler);
   router.get('/api/cached-reviews', forbiddenHandler);
-  
+
 } else {
   console.log('Addon is UNSECURED.');
 
