@@ -6,6 +6,7 @@ const { parseVerdictFromReview } = require('./reviewParser.js');
 const { buildStreamTitle } = require('./streamTitleBuilder.js');
 
 const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
+const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 13000;
 
 async function buildStreamResponse(req) {
@@ -14,7 +15,8 @@ async function buildStreamResponse(req) {
   const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
   const host = req.get('x-forwarded-host') || req.get('host');
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
-  const reviewUrl = `${base}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  const secretPath = ADDON_PASSWORD ? `/${ADDON_PASSWORD}` : '';
+  const reviewUrl = `${base}${secretPath}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
 
   const streamPayload = {
     id: `quick-reviewer-${type}-${id}`,
