@@ -104,6 +104,18 @@ if (ADDON_PASSWORD) {
   router.get(`${secretPath}/api/review`, handleReviewApiRequest);
   router.get(`${secretPath}/api/cached-reviews`, handleCachedReviewsApiRequest);
 
+  // A handler to explicitly deny access to unprotected paths when a password is set.
+  const forbiddenHandler = (req, res) => {
+    res.status(403).send('You are not authorized. Contact the administrator.');
+  };
+
+  router.get('/manifest.json', forbiddenHandler);
+  router.get('/stream/:type/:id.json', forbiddenHandler);
+  router.get('/review', forbiddenHandler);
+  router.get('/cached-reviews', forbiddenHandler);
+  router.get('/api/review', forbiddenHandler);
+  router.get('/api/cached-reviews', forbiddenHandler);
+  
 } else {
   console.log('Addon is UNSECURED.');
 
