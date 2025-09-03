@@ -1,61 +1,67 @@
 /* --- Review Page Styles (/public/review.html) --- */
 
-/* --- NEW: Top Controls Styling --- */
-.controls-top {
+/* --- NEW: Title Bar and Redesigned Controls --- */
+.title-bar {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap; /* Allow controls to wrap below title on small screens */
   gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+  margin-bottom: 0.5rem; /* Reduced margin */
 }
 
-.control-btn {
-  background-color: #3fb950; /* Green for translate */
-  color: #fff;
-  border: 1px solid #2d883b;
-  padding: 8px 16px;
-  font-size: 0.95rem;
+.controls-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.control-btn, .control-select {
+  background-color: transparent;
+  color: var(--secondary-text);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  font-size: 0.9rem;
   font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
-  transition: all .2s;
-  white-space: nowrap; /* Prevent button text from wrapping */
+  transition: all .2s ease-in-out;
+  white-space: nowrap;
 }
 
-.control-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
+.control-btn:hover, .control-select:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background-color: rgba(88, 166, 255, 0.1); /* Subtle blue glow */
 }
 
 .control-btn.refresh {
-  background-color: #495057; /* Original dark grey for refresh */
-  border-color: #6c757d;
-}
-
-.control-btn.refresh:hover {
-  background-color: #6c757d;
-}
-
-.control-btn:disabled {
-  background-color: #343a40;
-  color: #6c757d;
-  cursor: not-allowed;
-  transform: none;
-  opacity: 0.7;
+  padding: 6px 10px; /* Adjust padding for icon */
+  font-size: 1.2rem; /* Make refresh icon a bit larger */
 }
 
 .control-select {
-  background-color: #495057;
-  color: #e9ecef;
-  border: 1px solid #6c757d;
-  padding: 8px 12px;
-  font-size: 0.95rem;
-  border-radius: 8px;
-  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2rem; /* Make space for arrow icon */
 }
-/* --- End of New Styles --- */
 
+/* --- NEW: Google Translate Banner --- */
+.translated-banner {
+  background-color: #30363d;
+  border: 1px solid var(--border-color);
+  color: var(--primary-text);
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+/* --- Original Styles --- */
 .sub { color: var(--secondary-text); font-size: .95rem; margin:0 0 1rem 0; }
 .review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid #495057; margin-top: 1.5rem; }
 .review-intro, .review-outro { white-space: pre-line; }
@@ -70,30 +76,8 @@ strong { color: white; font-weight: 600; }
 .tooltip-trigger { display: inline-block; background-color: #495057; color: #e9ecef; border-radius: 50%; width: 18px; height: 18px; line-height: 18px; text-align: center; font-size: 14px; font-weight: bold; cursor: pointer; user-select: none; transition: background-color .2s; }
 .tooltip-trigger:hover { background-color: #6c757d; }
 
-.modal-overlay {
-  display: none;
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.7);
-  justify-content: center;
-  align-items: center;
-}
-
-.modal-content {
-  background-color: #343a40;
-  padding: 2rem;
-  border: 1px solid #495057;
-  border-radius: 12px;
-  max-width: 500px;
-  width: 90%;
-  box-sizing: border-box;
-  position: relative;
-}
-
+.modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+.modal-content { background-color: #343a40; padding: 2rem; border: 1px solid #495057; border-radius: 12px; max-width: 500px; width: 90%; box-sizing: border-box; position: relative; }
 .modal-close { position: absolute; top: 10px; right: 20px; color: #adb5bd; font-size: 28px; font-weight: bold; cursor: pointer; }
 .modal-close:hover { color: #fff; }
 .modal-content h2 { margin-top: 0; }
@@ -111,12 +95,9 @@ strong { color: white; font-weight: 600; }
 .accordion-item.active .accordion-content { margin-bottom: 1rem; }
 
 @media (max-width: 600px) {
+  .title-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .review-box { padding: 1.5rem; }
-  .controls-top {
-    gap: 0.5rem; /* Reduce gap on smaller screens */
-  }
-  .control-btn, .control-select {
-    font-size: 0.9rem;
-    padding: 6px 12px;
-  }
 }
