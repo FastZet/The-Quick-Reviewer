@@ -11,13 +11,28 @@
 </head>
 <body class="review-page">
   <div class="page-container">
+    <div class="controls-top">
+      <button id="translate-btn" class="control-btn" style="display:none;">Translate</button>
+      <select id="language-select" class="control-select" style="display:none;">
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="hi">Hindi</option>
+        <option value="it">Italian</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="pt">Portuguese</option>
+        <option value="ru">Russian</option>
+        <option value="zh-CN">Chinese (Simplified)</option>
+      </select>
+      <button id="refresh-btn" class="control-btn refresh" style="display:none;">Force New Review</button>
+    </div>
+
     <h1>⚡ Quick AI Review</h1>
     <p id="meta" class="sub"></p>
     <p id="loading" class="loading">Loading review...</p>
     <div id="review" class="review-box" style="display:none;"></div>
-    <div class="controls">
-      <button id="refresh-btn" style="display:none;">Force New Review</button>
-    </div>
   </div>
 
   <div id="ratingModal" class="modal-overlay">
@@ -41,20 +56,28 @@
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
       const isForced = params.has('force');
+      
       const metaEl = document.getElementById('meta');
       const loadingEl = document.getElementById('loading');
       const reviewBox = document.getElementById('review');
+      
       const refreshBtn = document.getElementById('refresh-btn');
+      const translateBtn = document.getElementById('translate-btn');
+      const languageSelect = document.getElementById('language-select');
+
       if (!type || !id) {
         loadingEl.className = 'err';
         loadingEl.textContent = 'Missing parameters.';
         return;
       }
+      
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
       if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
-      const basePath = window.location.pathname.replace('/review', ''); // Will be either "" or "/THE_PASSWORD"
+      
+      const basePath = window.location.pathname.replace('/review', '');
       const apiUrl = `${basePath}/api/review`;
       const url = `${apiUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
+      
       fetch(url)
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
@@ -65,15 +88,40 @@
           const reviewHtml = (data && data.review) ? data.review : '<p>No review available.</p>';
           reviewBox.innerHTML = reviewHtml;
           reviewBox.style.display = 'block';
+          
           setupAccordion();
           setupRatingTooltip();
+          
           refreshBtn.style.display = 'inline-block';
+          translateBtn.style.display = 'inline-block';
+          languageSelect.style.display = 'inline-block';
         })
         .catch(err => {
           loadingEl.className = 'err';
           loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
           refreshBtn.style.display = 'inline-block';
         });
+      
+      translateBtn.addEventListener('click', () => {
+        const targetLanguage = languageSelect.value;
+        const currentPageUrl = window.location.href;
+        
+        const translateUrl = new URL('https://translate.google.com/translate');
+        translateUrl.searchParams.set('sl', 'auto');
+        translateUrl.searchParams.set('tl', targetLanguage);
+        translateUrl.searchParams.set('u', currentPageUrl);
+        
+        window.open(translateUrl.href, '_blank');
+      });
+
+      refreshBtn.addEventListener('click', () => {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('force', 'true');
+        window.location.href = newUrl.href;
+      });
+
       function setupRatingTooltip() {
         const placeholder = reviewBox.querySelector('#rating-context-placeholder');
         if (!placeholder) return;
@@ -85,6 +133,7 @@
         placeholder.parentNode.replaceChild(button, placeholder);
         button.parentNode.insertBefore(space, button);
       }
+
       function setupAccordion() {
         const accordion = reviewBox.querySelector('.accordion');
         if (!accordion) return;
@@ -111,13 +160,6 @@
           }
         });
       }
-      refreshBtn.addEventListener('click', () => {
-        refreshBtn.disabled = true;
-        refreshBtn.textContent = 'Refreshing...';
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.set('force', 'true');
-        window.location.href = newUrl.href;
-      });
     })();
 
     const modal = document.getElementById('ratingModal');
