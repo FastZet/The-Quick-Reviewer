@@ -14,7 +14,7 @@
     <div class="title-bar">
       <h1>⚡ Quick AI Review</h1>
       <div id="controls-top" class="controls-top">
-        <select id="language-select" class="control-select" style="display:none;">
+        <select id="language-select" class="control-select">
           <option value="en">English</option>
           <option value="es">Spanish</option>
           <option value="fr">French</option>
@@ -27,14 +27,15 @@
           <option value="ru">Russian</option>
           <option value="zh-CN">Chinese (Simplified)</option>
         </select>
-        <button id="translate-btn" class="control-btn" style="display:none;">Translate</button>
-        <button id="refresh-btn" class="control-btn refresh" style="display:none;" title="Force a new AI review to be generated">⟳</button>
+        <button id="translate-btn" class="control-btn">Translate</button>
+        <button id="refresh-btn" class="control-btn refresh" title="Force a new AI review to be generated">⟳</button>
       </div>
     </div>
 
     <p id="meta" class="sub"></p>
-    <p id="loading" class="loading">Loading review...</p>
-    <div id="review" class="review-box" style="display:none;"></div>
+    <!-- SSR Placeholders: These will be replaced by the server before the page is sent to the browser -->
+    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
+    <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
   </div>
 
   <div id="ratingModal" class="modal-overlay">
@@ -63,12 +64,9 @@
       const params = new URLSearchParams(window.location.search);
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
-      const isForced = params.has('force');
       
       const metaEl = document.getElementById('meta');
-      const loadingEl = document.getElementById('loading');
       const reviewBox = document.getElementById('review');
-      
       const controlsTop = document.getElementById('controls-top');
       const refreshBtn = document.getElementById('refresh-btn');
       const translateBtn = document.getElementById('translate-btn');
@@ -78,53 +76,29 @@
         controlsTop.style.display = 'none';
         const banner = document.createElement('div');
         banner.className = 'translated-banner';
-        banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + window.location.href.replace(window.location.hostname, new URLSearchParams(window.location.search).get('u').split('/')[2]) + '">View Original</a>';
+        
+        let originalUrl = '#';
+        try {
+            const translatedUrlParams = new URLSearchParams(window.location.search);
+            const originalUrlParam = translatedUrlParams.get('u');
+            if (originalUrlParam) {
+                originalUrl = originalUrlParam;
+            }
+        } catch (e) {
+            console.error('Could not parse original URL');
+        }
+
+        banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + originalUrl + '">View Original</a>';
         document.querySelector('.page-container').prepend(banner);
       }
 
-      if (!type || !id) {
-        loadingEl.className = 'err';
-        loadingEl.textContent = 'Missing parameters.';
-        return;
-      }
-      
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
-      if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
       
-      const basePath = window.location.pathname.replace('/review', '');
-      const apiUrl = `${basePath}/api/review`;
-      const url = `${apiUrl}?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
-      
-      fetch(url)
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
-          return res.json();
-        })
-        .then(data => {
-          loadingEl.style.display = 'none';
-          const reviewHtml = (data && data.review) ? data.review : '<p>No review available.</p>';
-          reviewBox.innerHTML = reviewHtml;
-          reviewBox.style.display = 'block';
-          
-          if (!isTranslated) {
-            setupAccordion();
-          }
-          
-          setupRatingTooltip();
-          
-          if (!isTranslated) {
-            refreshBtn.style.display = 'flex';
-            translateBtn.style.display = 'flex';
-            languageSelect.style.display = 'flex';
-          }
-        })
-        .catch(err => {
-          loadingEl.className = 'err';
-          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
-          if (!isTranslated) {
-            refreshBtn.style.display = 'flex';
-          }
-        });
+      // The content is already on the page, so we just add interactivity.
+      if (!isTranslated) {
+        setupAccordion();
+      }
+      setupRatingTooltip();
       
       translateBtn.addEventListener('click', () => {
         const targetLanguage = languageSelect.value;
@@ -152,7 +126,9 @@
         const button = document.createElement('span');
         button.className = 'tooltip-trigger';
         button.textContent = '?';
-        if (!isTranslated) button.addEventListener('click', openModal);
+        if (!isTranslated) {
+          button.addEventListener('click', openModal);
+        }
         const space = document.createTextNode('\u00A0');
         placeholder.parentNode.replaceChild(button, placeholder);
         button.parentNode.insertBefore(space, button);
