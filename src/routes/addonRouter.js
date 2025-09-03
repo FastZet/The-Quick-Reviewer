@@ -38,16 +38,18 @@ const handleCachedReviewsApiRequest = (req, res) => {
   }
 };
 
-// --- Page Handlers ---
 // SSR Handler for the Review Page
 const handleReviewPageRequest = async (req, res) => {
   try {
     const { type, id } = req.query;
+    const forceRefresh = req.query.force === 'true';
     if (!type || !id) {
       return res.status(400).send('Missing "type" or "id" in URL query.');
     }
 
-    const reviewHtml = await getReview(String(id).trim(), type, false);
+    const reviewData = await getReview(String(id).trim(), type, forceRefresh);
+    const reviewHtml = reviewData ? reviewData.review : null;
+    
     const templatePath = path.join(__dirname, '..', '..', 'public', 'review.html');
     let htmlTemplate = await fs.readFile(templatePath, 'utf-8');
 
