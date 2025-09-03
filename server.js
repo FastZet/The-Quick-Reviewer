@@ -3,8 +3,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const addonRouter = require('./src/routes/addonRouter');
-const apiRouter = require('./src/routes/apiRouter');
+const addonRouter = require('./src/routes/addonRouter.js');
 
 const app = express();
 
@@ -100,16 +99,10 @@ app.get('/', (req, res) => {
   });
 });
 
-// --- Route to serve the review page ---
-app.get('/review', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'review.html'));
-});
-
-// Serve static public files (style.css, etc.)
+// Serve static public files (style.css, assets etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Mounting Routers ---
-app.use('/api', apiRouter);   // Internal APIs for the frontend
+// --- Mounting Main Router ---
 app.use('/', addonRouter);  // Stremio-facing addon routes
 
 // --- Health Check and Server Start ---
