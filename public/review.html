@@ -14,21 +14,22 @@
     <div class="title-bar">
       <h1>⚡ Quick AI Review</h1>
       <div id="controls-top" class="controls-top">
-      <select id="language-select" class="control-select" style="display:none;">
-        <option value="en">English</option>
-        <option value="es">Spanish</option>
-        <option value="fr">French</option>
-        <option value="de">German</option>
-        <option value="hi">Hindi</option>
-        <option value="it">Italian</option>
-        <option value="ja">Japanese</option>
-        <option value="ko">Korean</option>
-        <option value="pt">Portuguese</option>
-        <option value="ru">Russian</option>
-        <option value="zh-CN">Chinese (Simplified)</option>
-      </select>
-      <button id="translate-btn" class="control-btn" style="display:none;">Translate</button>
-      <button id="refresh-btn" class="control-btn refresh" style="display:none;">⟳</button>
+        <select id="language-select" class="control-select" style="display:none;">
+          <option value="en">English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="hi">Hindi</option>
+          <option value="it">Italian</option>
+          <option value="ja">Japanese</option>
+          <option value="ko">Korean</option>
+          <option value="pt">Portuguese</option>
+          <option value="ru">Russian</option>
+          <option value="zh-CN">Chinese (Simplified)</option>
+        </select>
+        <button id="translate-btn" class="control-btn" style="display:none;">Translate</button>
+        <button id="refresh-btn" class="control-btn refresh" style="display:none;" title="Force a new AI review to be generated">⟳</button>
+      </div>
     </div>
 
     <p id="meta" class="sub"></p>
@@ -53,8 +54,12 @@
   
   <script>
     (function(){
-      // --- GOOGLE TRANSLATE FIX: Detect if we are inside the proxy ---
       const isTranslated = window.location.hostname.endsWith('.translate.goog');
+
+      if (isTranslated) {
+        document.body.classList.add('translated-view');
+      }
+      
       const params = new URLSearchParams(window.location.search);
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
@@ -69,12 +74,11 @@
       const translateBtn = document.getElementById('translate-btn');
       const languageSelect = document.getElementById('language-select');
 
-      // --- GOOGLE TRANSLATE FIX: If translated, disable controls and show a banner ---
       if (isTranslated) {
         controlsTop.style.display = 'none';
         const banner = document.createElement('div');
         banner.className = 'translated-banner';
-        banner.textContent = 'You are viewing a translated version. Interactive features like accordions are disabled to prevent errors.';
+        banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + window.location.href.replace(window.location.hostname, new URLSearchParams(window.location.search).get('u').split('/')[2]) + '">View Original</a>';
         document.querySelector('.page-container').prepend(banner);
       }
 
@@ -102,7 +106,6 @@
           reviewBox.innerHTML = reviewHtml;
           reviewBox.style.display = 'block';
           
-          // --- GOOGLE TRANSLATE FIX: Only enable accordion if not in a translated view ---
           if (!isTranslated) {
             setupAccordion();
           }
@@ -110,16 +113,16 @@
           setupRatingTooltip();
           
           if (!isTranslated) {
-            refreshBtn.style.display = 'inline-block';
-            translateBtn.style.display = 'inline-block';
-            languageSelect.style.display = 'inline-block';
+            refreshBtn.style.display = 'flex';
+            translateBtn.style.display = 'flex';
+            languageSelect.style.display = 'flex';
           }
         })
         .catch(err => {
           loadingEl.className = 'err';
           loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
           if (!isTranslated) {
-            refreshBtn.style.display = 'inline-block';
+            refreshBtn.style.display = 'flex';
           }
         });
       
@@ -149,7 +152,7 @@
         const button = document.createElement('span');
         button.className = 'tooltip-trigger';
         button.textContent = '?';
-        button.addEventListener('click', openModal);
+        if (!isTranslated) button.addEventListener('click', openModal);
         const space = document.createTextNode('\u00A0');
         placeholder.parentNode.replaceChild(button, placeholder);
         button.parentNode.insertBefore(space, button);
