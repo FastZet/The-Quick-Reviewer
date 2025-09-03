@@ -76,4 +76,4 @@ strong { color: white; font-weight: 600; }
     align-items: flex-start;
   }
 }
-@media (max-width: 600px) { .review-box { padding: 1.5rem; } }```
+@media (max-width: 600px) { .review-box { padding: 1.5rem; } }
