@@ -1,4 +1,61 @@
 /* --- Review Page Styles (/public/review.html) --- */
+
+/* --- NEW: Top Controls Styling --- */
+.controls-top {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap; /* Allow controls to wrap on smaller screens */
+}
+
+.control-btn {
+  background-color: #3fb950; /* Green for translate */
+  color: #fff;
+  border: 1px solid #2d883b;
+  padding: 8px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap; /* Prevent button text from wrapping */
+}
+
+.control-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.control-btn.refresh {
+  background-color: #495057; /* Original dark grey for refresh */
+  border-color: #6c757d;
+}
+
+.control-btn.refresh:hover {
+  background-color: #6c757d;
+}
+
+.control-btn:disabled {
+  background-color: #343a40;
+  color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.7;
+}
+
+.control-select {
+  background-color: #495057;
+  color: #e9ecef;
+  border: 1px solid #6c757d;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+/* --- End of New Styles --- */
+
 .sub { color: var(--secondary-text); font-size: .95rem; margin:0 0 1rem 0; }
 .review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid #495057; margin-top: 1.5rem; }
 .review-intro, .review-outro { white-space: pre-line; }
@@ -9,10 +66,7 @@
 .loading { color: var(--secondary-text); }
 .err { color: var(--error-color); }
 strong { color: white; font-weight: 600; }
-.controls { margin-top: 2rem; text-align: center; }
-#refresh-btn { background-color: #495057; color: #e9ecef; border: 1px solid #6c757d; padding: 10px 20px; font-size: 1rem; border-radius: 8px; cursor: pointer; transition: background-color .2s; }
-#refresh-btn:hover { background-color: #6c757d; }
-#refresh-btn:disabled { background-color: #343a40; color: #6c757d; cursor: not-allowed; }
+
 .tooltip-trigger { display: inline-block; background-color: #495057; color: #e9ecef; border-radius: 50%; width: 18px; height: 18px; line-height: 18px; text-align: center; font-size: 14px; font-weight: bold; cursor: pointer; user-select: none; transition: background-color .2s; }
 .tooltip-trigger:hover { background-color: #6c757d; }
 
@@ -45,6 +99,7 @@ strong { color: white; font-weight: 600; }
 .modal-content h2 { margin-top: 0; }
 .modal-content ul { padding-left: 20px; }
 .modal-content li { margin-bottom: .5rem; }
+
 .accordion { border-top: 1px solid #495057; }
 .accordion-item { border-bottom: 1px solid #495057; }
 .accordion-header { background: none; border: none; width: 100%; text-align: left; padding: 1rem 0; font-size: 1.1rem; font-weight: 600; color: #e9ecef; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
@@ -54,4 +109,14 @@ strong { color: white; font-weight: 600; }
 .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1); background-color: #2c3034; border-radius: 6px; }
 .accordion-content-inner { white-space: pre-line; text-align: justify; padding: 1rem 1.25rem; }
 .accordion-item.active .accordion-content { margin-bottom: 1rem; }
-@media (max-width: 600px) { .review-box { padding: 1.5rem; } }
+
+@media (max-width: 600px) {
+  .review-box { padding: 1.5rem; }
+  .controls-top {
+    gap: 0.5rem; /* Reduce gap on smaller screens */
+  }
+  .control-btn, .control-select {
+    font-size: 0.9rem;
+    padding: 6px 12px;
+  }
+}
