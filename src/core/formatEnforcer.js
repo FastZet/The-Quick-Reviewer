@@ -38,6 +38,7 @@ function enforceReviewStructure(rawReviewText) {
   
   mainContentHeaders.forEach(header => {
     if (contentMap.has(header)) {
+      const isActive = header === 'Plot Summary';
       let accordionHeader = header;
       let accordionContent = formatText(contentMap.get(header));
 
@@ -46,7 +47,7 @@ function enforceReviewStructure(rawReviewText) {
         accordionContent = getRatingScaleText();
       }
 
-      accordionHtml += `<div class="accordion-item"><button class="accordion-header">${accordionHeader}</button><div class="accordion-content"><div class="accordion-content-inner">${accordionContent}</div></div></div>`;
+      accordionHtml += `<div class="accordion-item ${isActive ? 'active' : ''}"><button class="accordion-header">${accordionHeader}</button><div class="accordion-content"><div class="accordion-content-inner">${accordionContent}</div></div></div>`;
     }
   });
   accordionHtml += '</div>';
