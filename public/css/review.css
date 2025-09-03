@@ -118,8 +118,7 @@ strong { color: white; font-weight: 600; }
 .accordion-item.active .accordion-header::after { transform: rotate(45deg); }
 .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1); background-color: #2c3034; border-radius: 6px; }
 
-.accordion-content-inner { 
-  white-space: pre-line; 
+.accordion-content-inner {
   text-align: justify; 
   padding: 1rem 1.25rem; 
 }
