@@ -31,6 +31,7 @@
         <button id="refresh-btn" class="control-btn refresh" title="Force a new AI review to be generated">⟳</button>
       </div>
     </div>
+    
     <p id="meta" class="sub"></p>
     <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
     <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
@@ -49,9 +50,11 @@
       const id = (params.get('id') || '').trim();
       
       const metaEl = document.getElementById('meta');
+      const reviewBox = document.getElementById('review');
       const controlsTop = document.getElementById('controls-top');
       const refreshBtn = document.getElementById('refresh-btn');
       const translateBtn = document.getElementById('translate-btn');
+      const languageSelect = document.getElementById('language-select');
 
       if (isTranslated) {
         controlsTop.style.display = 'none';
@@ -65,7 +68,9 @@
             if (originalUrlParam) {
                 originalUrl = originalUrlParam;
             }
-        } catch (e) { console.error('Could not parse original URL'); }
+        } catch (e) {
+            console.error('Could not parse original URL');
+        }
 
         banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + originalUrl + '">View Original</a>';
         document.querySelector('.page-container').prepend(banner);
@@ -96,20 +101,6 @@
         newUrl.searchParams.set('force', 'true');
         window.location.href = newUrl.href;
       });
-
-      function setupRatingTooltip() {
-        const placeholder = reviewBox.querySelector('#rating-context-placeholder');
-        if (!placeholder) return;
-        const button = document.createElement('span');
-        button.className = 'tooltip-trigger';
-        button.textContent = '?';
-        if (!isTranslated) {
-          button.addEventListener('click', openModal);
-        }
-        const space = document.createTextNode('\u00A0');
-        placeholder.parentNode.replaceChild(button, placeholder);
-        button.parentNode.insertBefore(space, button);
-      }
 
       function setupAccordion() {
         const accordion = reviewBox.querySelector('.accordion');
