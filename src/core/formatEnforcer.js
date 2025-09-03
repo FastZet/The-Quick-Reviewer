@@ -47,8 +47,13 @@ function enforceReviewStructure(rawReviewText) {
     }
   }
 
-  // Helper to format text content for HTML display
-  const formatText = (text = '') => text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // Helper converts newlines to <br> tags. 
+  const formatText = (text = '') => {
+    if (!text) return '';
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+  };
 
   // --- 2. Rebuild the review as an HTML string ---
   let introHtml = '<div class="review-intro">';
