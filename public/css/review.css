@@ -83,17 +83,26 @@
   cursor: default;
 }
 
+
+/* --- FIX: Normalize Spacing on Translated Content --- */
+/*
+ * Google Translate often wraps text in its own tags (like <font> or <p>),
+ * which can add unwanted default margins. This rule resets the top margin
+ * on the very first element inside our content container to ensure consistent spacing.
+*/
+.accordion-content-inner > *:first-child {
+  margin-top: 0;
+}
+
 /* --- Original Styles --- */
 .sub { color: var(--secondary-text); font-size: .95rem; margin:0 0 1rem 0; }
 .review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid #495057; margin-top: 1.5rem; }
 
-/* --- Use Flexbox for robust spacing --- */
 .review-intro, .review-outro {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .review-intro { margin-bottom: 1.5rem; }
 .review-outro { margin-top: 1.5rem; }
 
