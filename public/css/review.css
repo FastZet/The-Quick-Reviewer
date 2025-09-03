@@ -15,7 +15,28 @@
 .translated-view .accordion-header { cursor: default; }
 .translated-view .accordion-header::after { display: none; }
 
-/* --- PURE CSS TOOLTIP STYLES --- */
+/* Hide the interactive '?' trigger on the translated page */
+.translated-view .tooltip-trigger {
+  display: none;
+}
+/* Force the tooltip content to display as a normal block element */
+.translated-view .tooltip-content {
+  display: block;
+  position: static;
+  transform: none;
+  width: auto;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0 0 0;
+  box-shadow: none;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+  background-color: transparent;
+}
+.translated-view .tooltip-content::after {
+  display: none;
+}
+
+/* --- PURE CSS TOOLTIP STYLES (for original page) --- */
 .tooltip-container { position: relative; display: inline-flex; vertical-align: middle; margin-left: 0.25rem; }
 .tooltip-trigger { display: inline-block; background-color: #495057; color: #e9ecef; border-radius: 50%; width: 18px; height: 18px; line-height: 18px; text-align: center; font-size: 14px; font-weight: bold; cursor: pointer; user-select: none; transition: background-color .2s; }
 .tooltip-container:hover .tooltip-trigger { background-color: #6c757d; }
@@ -31,13 +52,7 @@
 .review-intro, .review-outro { display: flex; flex-direction: column; gap: 0.5rem; }
 .review-intro { margin-bottom: 1.5rem; }
 .review-outro { margin-top: 1.5rem; }
-
-/* --- ALIGNMENT FIX: Use Flexbox on the rating line --- */
-.review-outro div { 
-  display: flex;
-  align-items: center;
-}
-
+.review-outro div { display: flex; align-items: center; }
 .loading { color: var(--secondary-text); }
 .err { color: var(--error-color); }
 strong { color: white; font-weight: 600; }
