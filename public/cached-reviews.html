@@ -21,7 +21,13 @@
       const statusEl = document.getElementById('status');
       const listEl = document.getElementById('review-list');
 
-      fetch('/api/cached-reviews')
+      // Determine the correct API path by inspecting the current page's URL.
+      // This ensures that if the page is loaded from a protected path (e.g., /password/cached-reviews),
+      // the API call is also made to the protected path (e.g., /password/api/cached-reviews).
+      const basePath = window.location.pathname.replace('/cached-reviews', ''); // Will be "" or "/THE_PASSWORD"
+      const apiUrl = `${basePath}/api/cached-reviews`;
+
+      fetch(apiUrl) // Use the dynamically constructed URL
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch: Server responded with ${res.status}`);
           return res.json();
@@ -40,9 +46,12 @@
             listItem.className = 'review-item';
 
             const reviewDate = new Date(item.ts).toLocaleString();
+            
+            // The review URL must also be constructed with the correct base path
+            const reviewUrl = `${basePath}/review?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}`;
 
             listItem.innerHTML = `
-              <a href="/review?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}" target="_blank">
+              <a href="${reviewUrl}" target="_blank">
                 Review for: ${item.id} (${item.type})
               </a>
               <div class="review-meta">Cached on: ${reviewDate}</div>
