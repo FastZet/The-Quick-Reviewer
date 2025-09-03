@@ -27,7 +27,6 @@
   cursor: pointer;
   transition: all .2s ease-in-out;
   white-space: nowrap;
-  /* --- UI FIX: Ensure consistent height --- */
   height: 34px;
   display: flex;
   align-items: center;
@@ -71,27 +70,33 @@
 }
 
 .translated-view .accordion-content {
-  max-height: 1000px; /* Effectively makes it always open */
+  max-height: 1000px;
   margin-bottom: 1rem;
 }
 .translated-view .accordion-header {
   cursor: default;
 }
 .translated-view .accordion-header::after {
-  display: none; /* Hide the + icon */
+  display: none;
 }
 .translated-view .tooltip-trigger {
-  cursor: default; /* Make the rating tooltip non-interactive */
+  cursor: default;
 }
 
 /* --- Original Styles --- */
 .sub { color: var(--secondary-text); font-size: .95rem; margin:0 0 1rem 0; }
 .review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid #495057; margin-top: 1.5rem; }
-.review-intro, .review-outro { white-space: pre-line; }
+
+/* --- Use Flexbox for robust spacing --- */
+.review-intro, .review-outro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .review-intro { margin-bottom: 1.5rem; }
 .review-outro { margin-top: 1.5rem; }
-.review-outro div { margin-bottom: 0.5rem; }
-.review-outro div:last-child { margin-bottom: 0; }
+
 .loading { color: var(--secondary-text); }
 .err { color: var(--error-color); }
 strong { color: white; font-weight: 600; }
