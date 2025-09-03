@@ -12,22 +12,23 @@
   <link rel="manifest" href="/assets/site.webmanifest">
 </head>
 <body class="cached-page">
-  <h1>Cached Reviews</h1>
-  <div id="status" class="loading">Loading cached reviews...</div>
-  <ul id="review-list"></ul>
+
+  <!-- Wrap the content in a div with the "page-container" class -->
+  <div class="page-container">
+    <h1>Cached Reviews</h1>
+    <div id="status" class="loading">Loading cached reviews...</div>
+    <ul id="review-list"></ul>
+  </div>
 
   <script>
     (function() {
       const statusEl = document.getElementById('status');
       const listEl = document.getElementById('review-list');
 
-      // Determine the correct API path by inspecting the current page's URL.
-      // This ensures that if the page is loaded from a protected path (e.g., /password/cached-reviews),
-      // the API call is also made to the protected path (e.g., /password/api/cached-reviews).
-      const basePath = window.location.pathname.replace('/cached-reviews', ''); // Will be "" or "/THE_PASSWORD"
+      const basePath = window.location.pathname.replace('/cached-reviews', '');
       const apiUrl = `${basePath}/api/cached-reviews`;
 
-      fetch(apiUrl) // Use the dynamically constructed URL
+      fetch(apiUrl)
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch: Server responded with ${res.status}`);
           return res.json();
@@ -46,8 +47,6 @@
             listItem.className = 'review-item';
 
             const reviewDate = new Date(item.ts).toLocaleString();
-            
-            // The review URL must also be constructed with the correct base path
             const reviewUrl = `${basePath}/review?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}`;
 
             listItem.innerHTML = `
