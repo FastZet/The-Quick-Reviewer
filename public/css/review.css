@@ -83,17 +83,6 @@
   cursor: default;
 }
 
-
-/* --- FIX: Normalize Spacing on Translated Content --- */
-/*
- * Google Translate often wraps text in its own tags (like <font> or <p>),
- * which can add unwanted default margins. This rule resets the top margin
- * on the very first element inside our content container to ensure consistent spacing.
-*/
-.accordion-content-inner > *:first-child {
-  margin-top: 0;
-}
-
 /* --- Original Styles --- */
 .sub { color: var(--secondary-text); font-size: .95rem; margin:0 0 1rem 0; }
 .review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid #495057; margin-top: 1.5rem; }
@@ -128,7 +117,13 @@ strong { color: white; font-weight: 600; }
 .accordion-header::after { content: '+'; font-size: 1.5rem; color: #adb5bd; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
 .accordion-item.active .accordion-header::after { transform: rotate(45deg); }
 .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1); background-color: #2c3034; border-radius: 6px; }
-.accordion-content-inner { white-space: pre-line; text-align: justify; padding: 1rem 1.25rem; }
+
+.accordion-content-inner { 
+  white-space: pre-line; 
+  text-align: justify; 
+  padding: 1rem 1.25rem; 
+}
+
 .accordion-item.active .accordion-content { margin-bottom: 1rem; }
 
 @media (max-width: 768px) {
