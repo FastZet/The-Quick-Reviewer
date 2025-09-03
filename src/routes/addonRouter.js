@@ -71,7 +71,7 @@ if (ADDON_PASSWORD) {
   router.get('/manifest.json', (req, res) => res.json(manifest));
 
   // Stream route
-  router.get('/stream/:type/:id.json`, handleStreamRequest);
+  router.get('/stream/:type/:id.json', handleStreamRequest);
   
   // --- UNSECURED REVIEW ROUTES ---
   // The review page and its API are left public as there is no password
