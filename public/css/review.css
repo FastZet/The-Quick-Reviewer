@@ -9,13 +9,11 @@
   gap: 1rem;
   margin-bottom: 0.5rem;
 }
-
 .controls-top {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
-
 .control-btn, .control-select {
   background-color: transparent;
   color: var(--secondary-text);
@@ -33,18 +31,15 @@
   justify-content: center;
   box-sizing: border-box;
 }
-
 .control-btn:hover, .control-select:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
   background-color: rgba(88, 166, 255, 0.1);
 }
-
 .control-btn.refresh {
   padding: 6px 12px;
   font-size: 1.2rem;
 }
-
 .control-select {
   -webkit-appearance: none;
   appearance: none;
@@ -55,60 +50,78 @@
 }
 
 /* --- Google Translate Read-Only Mode Styling --- */
-.translated-banner {
-  background-color: #30363d;
-  border: 1px solid var(--border-color);
-  color: var(--primary-text);
-  padding: 0.75rem 1.25rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  font-size: 0.95rem;
-}
-.translated-banner a {
-  font-weight: 600;
-}
+.translated-banner { background-color: #30363d; border: 1px solid var(--border-color); color: var(--primary-text); padding: 0.75rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; font-size: 0.95rem; }
+.translated-banner a { font-weight: 600; }
+.translated-view .accordion-content { max-height: 1000px; margin-bottom: 1rem; }
+.translated-view .accordion-header { cursor: default; }
+.translated-view .accordion-header::after { display: none; }
 
-.translated-view .accordion-content {
-  max-height: 1000px;
-  margin-bottom: 1rem;
+/* --- PURE CSS TOOLTIP STYLES --- */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.25rem;
 }
-.translated-view .accordion-header {
-  cursor: default;
+.tooltip-trigger {
+  display: inline-block;
+  background-color: #495057;
+  color: #e9ecef;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color .2s;
 }
-.translated-view .accordion-header::after {
-  display: none;
+.tooltip-container:hover .tooltip-trigger {
+  background-color: #6c757d;
 }
-.translated-view .tooltip-trigger {
-  cursor: default;
+.tooltip-content {
+  display: none; /* Hidden by default */
+  position: absolute;
+  bottom: 150%; /* Position above the trigger */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #2c3034;
+  color: var(--primary-text);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  width: 300px;
+  z-index: 10;
+  font-size: 0.9rem;
 }
+.tooltip-content::after { /* Creates the small arrow */
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #2c3034 transparent transparent transparent;
+}
+.tooltip-container:hover .tooltip-content {
+  display: block; /* Show on hover */
+}
+.tooltip-content ul { padding-left: 1.25rem; margin: 0.5rem 0 0; }
+.tooltip-content li { margin-bottom: 0.25rem; }
 
 /* --- Original Styles --- */
 .sub { color: var(--secondary-text); font-size: .95rem; margin:0 0 1rem 0; }
 .review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid #495057; margin-top: 1.5rem; }
-
-.review-intro, .review-outro {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
+.review-intro, .review-outro { display: flex; flex-direction: column; gap: 0.5rem; }
 .review-intro { margin-bottom: 1.5rem; }
 .review-outro { margin-top: 1.5rem; }
-
 .loading { color: var(--secondary-text); }
 .err { color: var(--error-color); }
 strong { color: white; font-weight: 600; }
-
-.tooltip-trigger { display: inline-block; background-color: #495057; color: #e9ecef; border-radius: 50%; width: 18px; height: 18px; line-height: 18px; text-align: center; font-size: 14px; font-weight: bold; cursor: pointer; user-select: none; transition: background-color .2s; }
-.tooltip-trigger:hover { background-color: #6c757d; }
-
-.modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
-.modal-content { background-color: #343a40; padding: 2rem; border: 1px solid #495057; border-radius: 12px; max-width: 500px; width: 90%; box-sizing: border-box; position: relative; }
-.modal-close { position: absolute; top: 10px; right: 20px; color: #adb5bd; font-size: 28px; font-weight: bold; cursor: pointer; }
-.modal-close:hover { color: #fff; }
-.modal-content h2 { margin-top: 0; }
-.modal-content ul { padding-left: 20px; }
-.modal-content li { margin-bottom: .5rem; }
 
 .accordion { border-top: 1px solid #495057; }
 .accordion-item { border-bottom: 1px solid #495057; }
@@ -117,21 +130,8 @@ strong { color: white; font-weight: 600; }
 .accordion-header::after { content: '+'; font-size: 1.5rem; color: #adb5bd; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
 .accordion-item.active .accordion-header::after { transform: rotate(45deg); }
 .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.25, 1, 0.5, 1); background-color: #2c3034; border-radius: 6px; }
-
-.accordion-content-inner {
-  text-align: justify; 
-  padding: 1rem 1.25rem; 
-}
-
+.accordion-content-inner { text-align: justify; padding: 1rem 1.25rem; }
 .accordion-item.active .accordion-content { margin-bottom: 1rem; }
 
-@media (max-width: 768px) {
-  .title-bar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 600px) {
-  .review-box { padding: 1.5rem; }
-}
+@media (max-width: 768px) { .title-bar { flex-direction: column; align-items: flex-start; } }
+@media (max-width: 600px) { .review-box { padding: 1.5rem; } }
