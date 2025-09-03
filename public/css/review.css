@@ -1,13 +1,13 @@
 /* --- Review Page Styles (/public/review.html) --- */
 
-/* --- NEW: Title Bar and Redesigned Controls --- */
+/* --- Title Bar and Redesigned Controls --- */
 .title-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap; /* Allow controls to wrap below title on small screens */
+  flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 0.5rem; /* Reduced margin */
+  margin-bottom: 0.5rem;
 }
 
 .controls-top {
@@ -27,17 +27,23 @@
   cursor: pointer;
   transition: all .2s ease-in-out;
   white-space: nowrap;
+  /* --- UI FIX: Ensure consistent height --- */
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .control-btn:hover, .control-select:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
-  background-color: rgba(88, 166, 255, 0.1); /* Subtle blue glow */
+  background-color: rgba(88, 166, 255, 0.1);
 }
 
 .control-btn.refresh {
-  padding: 6px 10px; /* Adjust padding for icon */
-  font-size: 1.2rem; /* Make refresh icon a bit larger */
+  padding: 6px 12px;
+  font-size: 1.2rem;
 }
 
 .control-select {
@@ -46,10 +52,10 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.7rem center;
-  padding-right: 2rem; /* Make space for arrow icon */
+  padding-right: 2rem;
 }
 
-/* --- NEW: Google Translate Banner --- */
+/* --- Google Translate Read-Only Mode Styling --- */
 .translated-banner {
   background-color: #30363d;
   border: 1px solid var(--border-color);
@@ -59,6 +65,23 @@
   margin-bottom: 1.5rem;
   text-align: center;
   font-size: 0.95rem;
+}
+.translated-banner a {
+  font-weight: 600;
+}
+
+.translated-view .accordion-content {
+  max-height: 1000px; /* Effectively makes it always open */
+  margin-bottom: 1rem;
+}
+.translated-view .accordion-header {
+  cursor: default;
+}
+.translated-view .accordion-header::after {
+  display: none; /* Hide the + icon */
+}
+.translated-view .tooltip-trigger {
+  cursor: default; /* Make the rating tooltip non-interactive */
 }
 
 /* --- Original Styles --- */
@@ -94,10 +117,13 @@ strong { color: white; font-weight: 600; }
 .accordion-content-inner { white-space: pre-line; text-align: justify; padding: 1rem 1.25rem; }
 .accordion-item.active .accordion-content { margin-bottom: 1rem; }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .title-bar {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+@media (max-width: 600px) {
   .review-box { padding: 1.5rem; }
 }
