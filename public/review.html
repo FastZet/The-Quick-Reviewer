@@ -16,7 +16,14 @@
         <h1>⚡ Quick AI Review</h1>
         <p id="meta" class="sub"></p>
       </div>
-      <div id="controls-top" class="controls-top">
+      <div class="top-controls">
+        <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
+      </div>
+    </div>
+
+    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
+    <div id="review" class="review-box" style="display: block;">
+      <div class="inline-controls">
         <select id="language-select" class="control-select">
           <option value="en">English</option>
           <option value="zh-CN">Chinese (Simplified)</option>
@@ -40,12 +47,9 @@
           <option value="vi">Vietnamese</option>
         </select>
         <button id="translate-btn" class="control-btn">Translate</button>
-        <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
       </div>
+      {{REVIEW_CONTENT}}
     </div>
-
-    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
-    <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
   </div>
 
   <script>
@@ -58,13 +62,14 @@
       const id = (params.get('id') || '').trim();
       
       const metaEl = document.getElementById('meta');
-      const controlsTop = document.getElementById('controls-top');
+      const topControls = document.querySelector('.top-controls');
+      const inlineControls = document.querySelector('.inline-controls');
       const refreshBtn = document.getElementById('refresh-btn');
       const translateBtn = document.getElementById('translate-btn');
-      const languageSelect = document.getElementById('language-select');
 
       if (isTranslated) {
-        controlsTop.style.display = 'none';
+        topControls.style.display = 'none';
+        inlineControls.style.display = 'none';
         const banner = document.createElement('div');
         banner.className = 'translated-banner';
         let originalUrl = '#';
@@ -82,17 +87,14 @@
       if (!isTranslated) setupAccordion();
       
       translateBtn.addEventListener('click', () => {
+        const languageSelect = document.getElementById('language-select');
         const targetLanguage = languageSelect.value;
-        
-        // --- Clean the URL before sending to Google Translate ---
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete('force');
-        
         const translateUrl = new URL('https://translate.google.com/translate');
         translateUrl.searchParams.set('sl', 'auto');
         translateUrl.searchParams.set('tl', targetLanguage);
         translateUrl.searchParams.set('u', cleanUrl.href);
-        
         window.open(translateUrl.href, '_blank');
       });
 
