@@ -2,7 +2,8 @@
 
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
+const { version } = require('../package.json');
 const addonRouter = require('./src/routes/addonRouter.js');
 
 const app = express();
@@ -17,8 +18,8 @@ if (!process.env.OMDB_API_KEY) console.warn('Warning: OMDB_API_KEY not set.');
 if (!process.env.GEMINI_API_KEY) console.warn('Warning: GEMINI_API_KEY not set. Reviews will not be generated.');
 
 // --- Global Middleware ---
-app.set('trust proxy', true); // Trust proxy for correct IP address and protocol
-app.use(express.json());      // Parse JSON bodies
+app.set('trust proxy', true);
+app.use(express.json());
 
 // Basic CORS for all routes
 app.use((req, res, next) => {
@@ -30,12 +31,9 @@ app.use((req, res, next) => {
 });
 
 // --- Dynamic Homepage Route ---
-app.get('/', (req, res) => {
-  fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
-    if (err) {
-      console.error("Could not read index.html file:", err);
-      return res.status(500).send("Could not load landing page.");
-    }
+app.get('/', async (req, res) => {
+  try {
+    let html = await fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8');
     let dynamicContent = '';
     let pageScript = '';
 
@@ -72,10 +70,7 @@ app.get('/', (req, res) => {
               }
               statusEl.className = 'success';
               statusEl.textContent = 'Success! Addon unlocked.';
-              const buttonHtml = \`
-                <a href="\${data.manifestStremioUrl}" class="btn install">Install Addon</a>
-                <a href="\${data.cacheUrl}" class="btn cache">View Cached Reviews</a>
-              \`;
+              const buttonHtml = \`<a href="\${data.manifestStremioUrl}" class="btn install">Install Addon</a><a href="\${data.cacheUrl}" class="btn cache">View Cached Reviews</a>\`;
               document.getElementById('dynamic-content-area').innerHTML = buttonHtml;
             } catch (err) {
               statusEl.className = 'error';
@@ -93,23 +88,28 @@ app.get('/', (req, res) => {
       dynamicContent = `<a href="${manifestUrl.replace(/^https?:\/\//, 'stremio://')}" class="btn install">Install Addon</a>`;
     }
 
-    let renderedHtml = html.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
+    // --- VERSION INJECTION ---
+    let renderedHtml = html.replace('{{VERSION}}', `v${version}`);
+    renderedHtml = renderedHtml.replace('{{DYNAMIC_CONTENT}}', dynamicContent);
     renderedHtml = renderedHtml.replace('{{PAGE_SCRIPT}}', pageScript);
     res.send(renderedHtml);
-  });
+  } catch (err) {
+    console.error("Could not read or process index.html file:", err);
+    res.status(500).send("Could not load landing page.");
+  }
 });
 
-// Serve static public files (style.css, assets etc.)
+// Serve static public files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Mounting Main Router ---
-app.use('/', addonRouter);  // Stremio-facing addon routes
+// Mounting Main Router
+app.use('/', addonRouter);
 
 // --- Health Check and Server Start ---
 app.get('/health', (req, res) => res.send('OK'));
 
 app.listen(PORT, () => {
-  console.log(`Quick Reviewer Addon running on port ${PORT}`);
+  console.log(`Quick Reviewer Addon v${version} running on port ${PORT}`);
   if (process.env.BASE_URL) console.log(`Base URL (env): ${process.env.BASE_URL}`);
 });
 
