@@ -1,11 +1,8 @@
 /* --- Review Page Styles (/public/review.html) --- */
 
-/* --- Title Bar and Controls --- */
-.top-right-controls {
-  position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  z-index: 100;
+/* --- Layout and Controls --- */
+.page-container {
+  padding: 20px 25px;
 }
 .title-bar {
   display: flex;
@@ -13,65 +10,23 @@
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
-.title-group h1 {
-  margin: 0;
-  line-height: 1.2;
-}
-.title-group .sub {
-  margin: 0.25rem 0 0 0;
-}
-.translate-controls {
+.title-group h1 { margin: 0; line-height: 1.2; }
+.title-group .sub { margin: 0.25rem 0 0 0; }
+.translate-controls { display: flex; align-items: center; gap: 0.75rem; padding-top: 4px; }
+.control-btn, .control-select { background-color: transparent; color: var(--secondary-text); border: 1px solid var(--border-color); padding: 6px 14px; font-size: 0.9rem; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all .2s ease-in-out; white-space: nowrap; height: 34px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.control-btn:hover, .control-select:hover { border-color: var(--accent-color); color: var(--accent-color); background-color: rgba(88, 166, 255, 0.1); }
+.control-select { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.7rem center; padding-right: 2rem; background-color: #2c3034; }
+.control-select option { background-color: #2c3034; color: var(--primary-text); }
+.control-btn.refresh { background-color: #495057; border-color: #6c757d; color: #e9ecef; min-width: 140px; }
+.control-btn.refresh:hover { background-color: #6c757d; border-color: #828a91; }
+
+/* --- Bottom Controls Container --- */
+.bottom-controls {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding-top: 4px;
-}
-.control-btn, .control-select {
-  background-color: transparent;
-  color: var(--secondary-text);
-  border: 1px solid var(--border-color);
-  padding: 6px 14px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all .2s ease-in-out;
-  white-space: nowrap;
-  height: 34px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  box-sizing: border-box;
-}
-.control-btn:hover, .control-select:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-  background-color: rgba(88, 166, 255, 0.1);
-}
-.control-select {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.7rem center;
-  padding-right: 2rem;
-  background-color: #2c3034;
-}
-.control-select option {
-  background-color: #2c3034;
-  color: var(--primary-text);
-}
-.control-btn.refresh {
-  background-color: #495057;
-  border-color: #6c757d;
-  color: #e9ecef;
-  min-width: 140px;
-}
-.control-btn.refresh:hover {
-  background-color: #6c757d;
-  border-color: #828a91;
+  margin-top: 1.5rem;
 }
 
 /* --- Google Translate Styles --- */
@@ -116,12 +71,4 @@ strong { color: white; font-weight: 600; }
 }
 @media (max-width: 600px) {
   .review-box { padding: 1.5rem; }
-  .top-right-controls {
-    position: static; /* Let the button flow naturally on mobile */
-    width: 100%;
-    margin-bottom: 1rem;
-  }
-  .control-btn.refresh {
-    width: 100%; /* Make it full width on mobile */
-  }
 }
