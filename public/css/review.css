@@ -1,13 +1,19 @@
 /* --- Review Page Styles (/public/review.html) --- */
 
 /* --- Title Bar and Controls --- */
+.top-right-controls {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+}
 .title-bar {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
 }
 .title-group h1 {
   margin: 0;
@@ -16,19 +22,12 @@
 .title-group .sub {
   margin: 0.25rem 0 0 0;
 }
-.top-controls, .inline-controls {
+.translate-controls {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-}
-.top-controls {
   padding-top: 4px;
 }
-.inline-controls {
-  justify-content: flex-end;
-  margin-bottom: 1.5rem;
-}
-
 .control-btn, .control-select {
   background-color: transparent;
   color: var(--secondary-text);
@@ -117,4 +116,12 @@ strong { color: white; font-weight: 600; }
 }
 @media (max-width: 600px) {
   .review-box { padding: 1.5rem; }
+  .top-right-controls {
+    position: static; /* Let the button flow naturally on mobile */
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+  .control-btn.refresh {
+    width: 100%; /* Make it full width on mobile */
+  }
 }
