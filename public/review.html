@@ -10,20 +10,19 @@
   <link rel="manifest" href="/assets/site.webmanifest">
 </head>
 <body class="review-page">
+
+  <!-- Controls OUTSIDE the main content box -->
+  <div id="top-right-controls" class="top-right-controls">
+    <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
+  </div>
+
   <div class="page-container">
     <div class="title-bar">
       <div class="title-group">
         <h1>⚡ Quick AI Review</h1>
         <p id="meta" class="sub"></p>
       </div>
-      <div class="top-controls">
-        <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
-      </div>
-    </div>
-
-    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
-    <div id="review" class="review-box" style="display: block;">
-      <div class="inline-controls">
+      <div id="translate-controls" class="translate-controls">
         <select id="language-select" class="control-select">
           <option value="en">English</option>
           <option value="zh-CN">Chinese (Simplified)</option>
@@ -48,8 +47,10 @@
         </select>
         <button id="translate-btn" class="control-btn">Translate</button>
       </div>
-      {{REVIEW_CONTENT}}
     </div>
+
+    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
+    <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
   </div>
 
   <script>
@@ -62,14 +63,14 @@
       const id = (params.get('id') || '').trim();
       
       const metaEl = document.getElementById('meta');
-      const topControls = document.querySelector('.top-controls');
-      const inlineControls = document.querySelector('.inline-controls');
+      const topRightControls = document.getElementById('top-right-controls');
+      const translateControls = document.getElementById('translate-controls');
       const refreshBtn = document.getElementById('refresh-btn');
       const translateBtn = document.getElementById('translate-btn');
 
       if (isTranslated) {
-        topControls.style.display = 'none';
-        inlineControls.style.display = 'none';
+        topRightControls.style.display = 'none';
+        translateControls.style.display = 'none';
         const banner = document.createElement('div');
         banner.className = 'translated-banner';
         let originalUrl = '#';
