@@ -1,36 +1,71 @@
 /* --- Review Page Styles (/public/review.html) --- */
 
-/* --- Title Bar and Controls --- */
+/* --- Title Bar and Controls Layout --- */
 .title-bar {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
+
 .title-group h1 {
   margin: 0;
   padding: 0;
   line-height: 1.2;
 }
+
 .title-group .sub {
   margin: 0.25rem 0 0 0;
   padding: 0;
 }
+
 .controls-top {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding-top: 4px;
 }
-/* --- End of Layout Fix --- */
 
-.control-btn, .control-select { background-color: transparent; color: var(--secondary-text); border: 1px solid var(--border-color); padding: 6px 14px; font-size: 0.9rem; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all .2s ease-in-out; white-space: nowrap; height: 34px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
-.control-btn:hover, .control-select:hover { border-color: var(--accent-color); color: var(--accent-color); background-color: rgba(88, 166, 255, 0.1); }
-.control-btn.refresh { padding: 6px 12px; font-size: 1.2rem; min-width: 120px; }
-.control-select { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.7rem center; padding-right: 2rem; background-color: #2c3034; }
-.control-select option { background-color: #2c3034; color: var(--primary-text); }
+.control-btn, .control-select {
+  background-color: transparent;
+  color: var(--secondary-text);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .2s ease-in-out;
+  white-space: nowrap;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.control-btn:hover, .control-select:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background-color: rgba(88, 166, 255, 0.1);
+}
+
+.control-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  padding-right: 2rem;
+  background-color: #2c3034;
+}
+
+.control-select option {
+  background-color: #2c3034;
+  color: var(--primary-text);
+}
 
 /* --- Google Translate Read-Only Mode Styling --- */
 .translated-banner { background-color: #30363d; border: 1px solid var(--border-color); color: var(--primary-text); padding: 0.75rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; font-size: 0.95rem; }
@@ -38,16 +73,40 @@
 .translated-view .accordion-content { max-height: 1000px; margin-bottom: 1rem; }
 .translated-view .accordion-header { cursor: default; }
 .translated-view .accordion-header::after { display: none; }
-.translated-view .tooltip-container { display: none; }
 
 /* --- Base Styles --- */
-.sub { color: var(--secondary-text); font-size: .95rem; } /* Removed margin as it's now handled by .title-group */
-.review-box { background: #343a40; padding: 1.5rem 2rem; border-radius: 12px; border: 1px solid var(--border-color); margin-top: 0; }
+.sub { color: var(--secondary-text); font-size: .95rem; }
+.review-box {
+  position: relative; /* Crucial for positioning the button inside */
+  background: #343a40;
+  padding: 1.5rem 2rem;
+  border-radius: 12px;
+  border: 1px solid #495057;
+  margin-top: 0;
+}
 .review-intro { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
 .review-outro { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem; }
 .loading { color: var(--secondary-text); }
 .err { color: var(--error-color); }
 strong { color: white; font-weight: 600; }
+
+/* --- NEW: Refresh Button Container --- */
+.refresh-button-container {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+  z-index: 5; /* Ensure it's above the content */
+}
+.control-btn.refresh {
+  background-color: #495057;
+  border-color: #6c757d;
+  color: #e9ecef;
+  min-width: 140px; /* Give it a fixed width to prevent layout shift */
+}
+.control-btn.refresh:hover {
+  background-color: #6c757d;
+  border-color: #828a91;
+}
 
 /* --- Outro and Rating Scale Styles --- */
 .outro-line { display: flex; align-items: baseline; }
@@ -76,4 +135,10 @@ strong { color: white; font-weight: 600; }
     align-items: flex-start;
   }
 }
-@media (max-width: 600px) { .review-box { padding: 1.5rem; } }
+@media (max-width: 600px) {
+  .review-box { padding: 1.5rem; }
+  .refresh-button-container {
+    top: 1rem;
+    right: 1rem;
+  }
+}
