@@ -19,8 +19,9 @@ async function getClient() {
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) is not set.');
   }
-  const { Client } = await loadGenAI();
-  _client = new Client({ apiKey: GEMINI_API_KEY, apiVersion: 'v1' });
+  // CORRECTED: The class to import and instantiate is 'GoogleGenAI'.
+  const { GoogleGenAI } = await loadGenAI();
+  _client = new GoogleGenAI(GEMINI_API_KEY);
   return _client;
 }
 
@@ -32,41 +33,37 @@ function shouldRetry(err, attempt) {
 }
 
 async function generateReview(prompt) {
-  const client = await getClient();
-  const { types } = await loadGenAI();
-  const { SafetySetting, Tool, GenerateContentConfig } = types;
+  const ai = await getClient(); // This now correctly returns an instance of GoogleGenAI.
+  const { HarmCategory, HarmBlockThreshold } = await loadGenAI();
 
   const safetySettings = [
-    new SafetySetting({ category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' }),
-    new SafetySetting({ category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' }),
-    new SafetySetting({ category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' }),
-    new SafetySetting({ category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }),
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT,         threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,        threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,  threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,  threshold: HarmBlockThreshold.BLOCK_NONE },
   ];
 
-  const tools = [
-    new Tool({ google_search: {} }),
-  ];
-
-  // CORRECTED: 'config' object should ONLY contain safety settings and other config, not tools.
-  const config = new GenerateContentConfig({
+  // This is the correct flow: get a 'model' instance from the 'ai' client.
+  const model = ai.getGenerativeModel({
+    model: GEMINI_MODEL,
     safetySettings,
+    tools: [{ googleSearch: {} }],
   });
 
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
     try {
       console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES} generating review…`);
-
-      // CORRECTED: 'tools' is now a separate, top-level property alongside 'config'.
-      const response = await client.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: prompt,
-        config,
-        tools,
-      });
+      
+      // Now 'model.startChat()' will work because 'model' is a valid GenerativeModel instance.
+      const chat = model.startChat();
+      const result = await chat.sendMessage(prompt);
+      const response = result.response;
+      const reviewText = response.text();
 
       console.log('[Gemini] Review successfully generated.');
-      return response.text;
+      return reviewText.trim();
+
     } catch (err) {
       if (!shouldRetry(err, attempt)) {
         console.error(`[Gemini] Permanent failure on attempt ${attempt}:`, err);
