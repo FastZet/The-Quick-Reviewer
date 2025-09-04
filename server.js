@@ -3,7 +3,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
-const { version } = require('../package.json');
+const { version } = require('./package.json');
 const addonRouter = require('./src/routes/addonRouter.js');
 
 const app = express();
