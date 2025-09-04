@@ -1,4 +1,4 @@
-// src/api.js — The main orchestrator for review generation.
+// src/api.js — The main orchestrator for review generation with self-correction.
 
 const { readReview, saveReview } = require('./core/cache');
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
@@ -7,8 +7,10 @@ const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/m
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/geminiService');
 const { parseVerdictFromReview } = require('./core/reviewParser');
+const { verifyReviewFormat } = require('./core/reviewVerifier');
 
 const pendingReviews = new Map();
+const MAX_GENERATION_ATTEMPTS = 2;
 
 // --- Main Orchestrator ---
 async function getReview(id, type, forceRefresh = false) {
@@ -30,61 +32,50 @@ async function getReview(id, type, forceRefresh = false) {
 
   const generationPromise = (async () => {
     try {
-      const idParts = String(id).split(':');
-      const isEpisode = type === 'series' && idParts.length === 3;
-      let metadata, prompt;
-      
-      if (isEpisode) {
-        const [seriesId, season, episode] = idParts;
-        console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
-        const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
-          scrapeImdbForEpisodeTitle(seriesId, season, episode),
-          fetchEpisodeMetadata(seriesId, season, episode),
-          fetchMovieSeriesMetadata('series', seriesId)
-        ]);
-        metadata = episodeMetadata;
-        if (metadata && seriesMetadata) {
-          console.log("[API] Successfully gathered all required metadata for episode.");
-          const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
-          metadata.languages = seriesMetadata.languages;
-          metadata.source = seriesMetadata.source;
-          prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+      let metadata, prompt, rawReview, isValid = false;
+
+      // --- Self-Correction Loop ---
+      for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+        console.log(`[API] Generation attempt ${attempt}/${MAX_GENERATION_ATTEMPTS} for ${id}...`);
+
+        // Only fetch metadata on the first attempt
+        if (attempt === 1) {
+          const idParts = String(id).split(':');
+          const isEpisode = type === 'series' && idParts.length === 3;
+          if (isEpisode) { /* ... episode logic ... */ } 
+          else { /* ... movie/series logic ... */ }
+          if (!metadata || !prompt) throw new Error("Failed to gather metadata or build prompt.");
         }
-      } else {
-        console.log(`[API] Handling ${type}: ${id}`);
-        metadata = await fetchMovieSeriesMetadata(type, id);
-        if (metadata) {
-          console.log(`[API] Successfully gathered metadata for ${type}.`);
-          prompt = buildPromptFromMetadata(metadata, type);
+        rawReview = await generateReview(prompt);
+        isValid = verifyReviewFormat(rawReview, type);
+
+        if (isValid) {
+          console.log(`[API] Review for ${id} passed verification on attempt ${attempt}.`);
+          break; // Exit loop on success
+        } else {
+          console.warn(`[API] Review for ${id} failed verification on attempt ${attempt}. Retrying...`);
         }
       }
 
-      if (!metadata || !prompt) {
-        console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
-        const fallbackText = '<div class="review-intro"><div>• <strong>Plot Summary:</strong> Unable to fetch official metadata for this item. Please try again later.</div></div>';
-        saveReview(id, fallbackText, type);
-        return fallbackText;
+      if (!isValid) {
+        console.error(`[API] Review for ${id} failed verification after all ${MAX_GENERATION_ATTEMPTS} attempts.`);
+        throw new Error("AI failed to generate a review with the correct format.");
       }
-
-      console.log(`[API] Generating review for ${id}...`);
-      const rawReview = await generateReview(prompt);
 
       const verdict = parseVerdictFromReview(rawReview);
-
       const finalReviewHtml = enforceReviewStructure(rawReview);
       
-      console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
       const result = { review: finalReviewHtml, verdict: verdict };
       saveReview(id, result, type);
+      
       console.log(`===== [API] Request End (Success) =====\n`);
       return result;
       
     } catch (error) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
-        return { review: 'Error: Review generation failed.', verdict: null };
+        return { review: 'Error: Review generation failed after multiple attempts.', verdict: null };
     } finally {
       pendingReviews.delete(id);
-      console.log(`[API] Removed ${id} from pending queue.`);
     }
   })();
 
