@@ -5,7 +5,7 @@ const { generateText } = require('ai');
 
 const MAX_RETRIES = 2;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-exp";
-const GOOGLE_GENERATIVE_API_KEY = process.env.GOOGLE_GENERATIVE_API_KEY || null;
+const GOOGLE_GENERATIVE_AI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || null;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -25,8 +25,8 @@ function shouldRetry(err, attempt) {
  * @returns {Promise<string>}
  */
 async function generateReview(prompt) {
-  if (!GOOGLE_GENERATIVE_API_KEY) {
-    throw new Error("GOOGLE_GENERATIVE_API_KEY is not set.");
+  if (!GOOGLE_GENERATIVE_AI_API_KEY) {
+    throw new Error("GOOGLE_GENERATIVE_AI_API_KEY is not set.");
   }
 
   let attempt = 0;
