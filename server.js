@@ -15,7 +15,7 @@ const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 // Warn if essential API keys are missing
 if (!process.env.TMDB_API_KEY) console.warn('Warning: TMDB_API_KEY not set. Metadata may fail.');
 if (!process.env.OMDB_API_KEY) console.warn('Warning: OMDB_API_KEY not set.');
-if (!process.env.GEMINI_API_KEY) console.warn('Warning: GEMINI_API_KEY not set. Reviews will not be generated.');
+if (!process.env.GOOGLE_GENERATIVE_API_KEY) console.warn('Warning: GOOGLE_GENERATIVE_API_KEY not set. Reviews will not be generated.');
 
 // --- Global Middleware ---
 app.set('trust proxy', true);
