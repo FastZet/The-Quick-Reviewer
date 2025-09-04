@@ -4,8 +4,9 @@ const { google } = require('@ai-sdk/google');
 const { generateText } = require('ai');
 
 const MAX_RETRIES = 2;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-exp";
-const GOOGLE_GENERATIVE_AI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+const GOOGLE_GENERATIVE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_API_KEY || null;
+// const GOOGLE_GENERATIVE_AI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || null;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
