@@ -1,13 +1,12 @@
-// src/services/geminiService.js — updated for correct tools placement
+// src/services/geminiService.js — using @google/genai (GA SDK)
 
 const MAX_RETRIES = 2;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
 
-let _genaiModule = null;
-let _aiClient = null;
+let _genaiModule, _client;
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function loadGenAI() {
   if (_genaiModule) return _genaiModule;
@@ -16,11 +15,13 @@ async function loadGenAI() {
 }
 
 async function getClient() {
-  if (_aiClient) return _aiClient;
-  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) is not set.');
-  const { GoogleGenAI } = await loadGenAI();
-  _aiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY, apiVersion: 'v1' });
-  return _aiClient;
+  if (_client) return _client;
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) is not set.');
+  }
+  const { Client } = await loadGenAI();
+  _client = new Client({ apiKey: GEMINI_API_KEY, apiVersion: 'v1' });
+  return _client;
 }
 
 function shouldRetry(err, attempt) {
@@ -31,49 +32,60 @@ function shouldRetry(err, attempt) {
 }
 
 async function generateReview(prompt) {
-  const ai = await getClient();
-  const { HarmCategory, HarmBlockThreshold } = await loadGenAI();
+  const client = await getClient();
+  const { types } = await loadGenAI();
+  const { SafetySetting, Tool, GenerateContentConfig } = types;
 
   const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    new SafetySetting({
+      category: 'HARM_CATEGORY_HARASSMENT',
+      threshold: 'BLOCK_NONE',
+    }),
+    new SafetySetting({
+      category: 'HARM_CATEGORY_HATE_SPEECH',
+      threshold: 'BLOCK_NONE',
+    }),
+    new SafetySetting({
+      category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+      threshold: 'BLOCK_NONE',
+    }),
+    new SafetySetting({
+      category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+      threshold: 'BLOCK_NONE',
+    }),
   ];
 
-  // MUST nest tools inside config
-  const generationConfig = {
+  const tools = [
+    new Tool({ google_search: {} }), // Note: This is still snake_case inside Tool
+  ];
+
+  const config = new GenerateContentConfig({
     safetySettings,
-    tools: [
-      { googleSearch: {} } // Only tool for grounding
-    ],
-  };
+    tools,
+  });
 
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
     try {
-      console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES}: generating review...`);
-
-      const chat = await ai.chats.create({
+      console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES} generating review…`);
+      const response = await client.models.generateContent({
         model: GEMINI_MODEL,
-        config: generationConfig
+        contents: prompt,
+        config,
       });
-
-      const response = await chat.sendMessage({ message: prompt });
-      const text = response?.text?.() ?? '';
-
-      console.log('[Gemini] Review generated successfully.');
-      return text.trim();
+      console.log('[Gemini] Review successfully generated.');
+      return response.text;
     } catch (err) {
       if (!shouldRetry(err, attempt)) {
         console.error(`[Gemini] Permanent failure on attempt ${attempt}:`, err);
-        throw new Error('Error generating review after all retries.');
+        throw err;
       }
       const backoff = 250 * Math.pow(2, attempt - 1);
-      console.warn(`[Gemini] Retryable error on attempt ${attempt}, retrying in ${backoff}ms...`);
+      console.warn(`[Gemini] Retryable error on attempt ${attempt}; retry in ${backoff}ms…`);
       await delay(backoff);
     }
   }
+
   throw new Error('Failed generating review after maximum retries.');
 }
 
