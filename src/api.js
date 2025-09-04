@@ -1,4 +1,4 @@
-// src/api.js — The main orchestrator for review generation.
+// src/api.js — The main orchestrator for review generation with self-correction.
 
 const { readReview, saveReview } = require('./core/cache');
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
@@ -6,10 +6,12 @@ const { enforceReviewStructure } = require('./core/formatEnforcer');
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/metadataService');
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/geminiService');
+const { parseVerdictFromReview } = require('./core/reviewParser');
+const { verifyReviewFormat } = require('./core/reviewVerifier');
 
 const pendingReviews = new Map();
+const MAX_GENERATION_ATTEMPTS = 2;
 
-// --- Main Orchestrator ---
 async function getReview(id, type, forceRefresh = false) {
   console.log(`\n===== [API] New Request Start =====`);
   console.log(`[API] Received request for type: ${type}, id: ${id}, forceRefresh: ${forceRefresh}`);
@@ -29,64 +31,73 @@ async function getReview(id, type, forceRefresh = false) {
 
   const generationPromise = (async () => {
     try {
-      const idParts = String(id).split(':');
-      const isEpisode = type === 'series' && idParts.length === 3;
-      let metadata, prompt;
-      
-      if (isEpisode) {
-        const [seriesId, season, episode] = idParts;
-        console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
-        const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
-          scrapeImdbForEpisodeTitle(seriesId, season, episode),
-          fetchEpisodeMetadata(seriesId, season, episode),
-          fetchMovieSeriesMetadata('series', seriesId)
-        ]);
-        metadata = episodeMetadata;
-        if (metadata && seriesMetadata) {
-          console.log("[API] Successfully gathered all required metadata for episode.");
-          const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
-          metadata.languages = seriesMetadata.languages;
-          metadata.source = seriesMetadata.source;
-          prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+      let metadata, prompt, rawReview, isValid = false;
+
+      for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
+        console.log(`[API] Generation attempt ${attempt}/${MAX_GENERATION_ATTEMPTS} for ${id}...`);
+        
+        if (attempt === 1) {
+          const idParts = String(id).split(':');
+          const isEpisode = type === 'series' && idParts.length === 3;
+
+          if (isEpisode) {
+            const [seriesId, season, episode] = idParts;
+            console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
+            const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
+              scrapeImdbForEpisodeTitle(seriesId, season, episode),
+              fetchEpisodeMetadata(seriesId, season, episode),
+              fetchMovieSeriesMetadata('series', seriesId)
+            ]);
+            metadata = episodeMetadata;
+            if (metadata && seriesMetadata) {
+              const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
+              metadata.languages = seriesMetadata.languages;
+              metadata.source = seriesMetadata.source;
+              prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+            }
+          } else {
+            console.log(`[API] Handling ${type}: ${id}`);
+            metadata = await fetchMovieSeriesMetadata(type, id);
+            if (metadata) {
+              prompt = buildPromptFromMetadata(metadata, type);
+            }
+          }
+
+          if (!metadata || !prompt) {
+            throw new Error("Failed to gather metadata or build prompt.");
+          }
         }
-      } else {
-        console.log(`[API] Handling ${type}: ${id}`);
-        metadata = await fetchMovieSeriesMetadata(type, id);
-        if (metadata) {
-          console.log(`[API] Successfully gathered metadata for ${type}.`);
-          prompt = buildPromptFromMetadata(metadata, type);
+
+        rawReview = await generateReview(prompt);
+        isValid = verifyReviewFormat(rawReview, type);
+
+        if (isValid) {
+          console.log(`[API] Review for ${id} passed verification on attempt ${attempt}.`);
+          break;
+        } else {
+          console.warn(`[API] Review for ${id} failed verification on attempt ${attempt}. Retrying...`);
         }
       }
 
-      if (!metadata || !prompt) {
-        console.error(`[API] Failed to get metadata or build prompt for ${id}.`);
-        const fallbackText = '<div class="review-intro"><div>• <strong>Plot Summary:</strong> Unable to fetch official metadata for this item. Please try again later.</div></div>';
-        saveReview(id, fallbackText, type);
-        return fallbackText;
+      if (!isValid) {
+        console.error(`[API] Review for ${id} failed verification after all ${MAX_GENERATION_ATTEMPTS} attempts.`);
+        throw new Error("AI failed to generate a review with the correct format.");
       }
 
-      console.log(`[API] Generating review for ${id}...`);
-      const rawReview = await generateReview(prompt);
-
-      let finalReview = rawReview;
-      if (finalReview && !finalReview.startsWith('Error')) {
-        // Step 1: Reconcile language on the RAW text first.
-        const reconciledText = reconcileLanguage(rawReview, metadata.languages, metadata.source);
-
-        // Step 2: Enforce the HTML structure on the reconciled text.
-        finalReview = enforceReviewStructure(reconciledText);
-      }
+      const verdict = parseVerdictFromReview(rawReview);
+      const finalReviewHtml = enforceReviewStructure(rawReview);
       
-      console.log(`[API] Review generation finished for ${id}. Saving to cache.`);
-      saveReview(id, finalReview, type);
+      const result = { review: finalReviewHtml, verdict: verdict };
+      saveReview(id, result, type);
+      
       console.log(`===== [API] Request End (Success) =====\n`);
-      return finalReview;
+      return result;
+
     } catch (error) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
-        return 'Error: Review generation failed.';
+        return { review: `Error: Review generation failed. ${error.message}`, verdict: null };
     } finally {
       pendingReviews.delete(id);
-      console.log(`[API] Removed ${id} from pending queue.`);
     }
   })();
 
@@ -99,26 +110,17 @@ function reconcileLanguage(reviewText, apiLanguages, sourceName) {
     const match = reviewText.match(langRegex);
     const aiLangs = match ? match[1].trim().split(',').map(l => l.trim()).filter(Boolean) : [];
     const apiLangs = (apiLanguages || []).filter(Boolean);
-
-    if (apiLangs.length === 0 && aiLangs.length === 0) {
-        return match ? reviewText.replace(langRegex, '').replace(/^\s*[\r\n]/gm, '') : reviewText;
-    }
-
+    if (apiLangs.length === 0 && aiLangs.length === 0) return match ? reviewText.replace(langRegex, '').replace(/^\s*[\r\n]/gm, '') : reviewText;
     if (apiLangs.length > 0 && aiLangs.length === 0) {
         const apiLangLine = `• **Language:** ${apiLangs.join(', ')}`;
-        if (match) {
-            return reviewText.replace(langRegex, apiLangLine);
-        } else {
-            const directorRegex = /(• \*\*(?:Directed By|Directed by):\*\*[^\n]*)/;
-            return reviewText.replace(directorRegex, `$1\n${apiLangLine}`);
-        }
+        if (match) return reviewText.replace(langRegex, apiLangLine);
+        const directorRegex = /(• \*\*(?:Directed By|Directed by):\*\*[^\n]*)/;
+        return reviewText.replace(directorRegex, `$1\n${apiLangLine}`);
     }
-
     if (apiLangs.length === 0 && aiLangs.length > 0) {
         const aiLangLine = `• **Language:** ${aiLangs.join(', ')} (Gemini AI)`;
         return reviewText.replace(langRegex, aiLangLine);
     }
-
     const combinedLangs = new Set([...aiLangs, ...apiLangs]);
     const finalLangs = Array.from(combinedLangs).map(lang => {
         const inApi = apiLangs.includes(lang);
@@ -127,9 +129,9 @@ function reconcileLanguage(reviewText, apiLanguages, sourceName) {
         if (inApi) return `${lang} (${sourceName.toUpperCase()})`;
         return `${lang} (Gemini AI)`;
     });
-
     const finalLine = `• **Language:** ${finalLangs.join(', ')}`;
     return reviewText.replace(langRegex, finalLine);
 }
+
 
 module.exports = { getReview };

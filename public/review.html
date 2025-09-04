@@ -11,80 +11,102 @@
 </head>
 <body class="review-page">
   <div class="page-container">
-    <h1>⚡ Quick AI Review</h1>
-    <p id="meta" class="sub"></p>
-    <p id="loading" class="loading">Loading review...</p>
-    <div id="review" class="review-box" style="display:none;"></div>
-    <div class="controls">
-      <button id="refresh-btn" style="display:none;">Force New Review</button>
+    <div class="title-bar">
+      <div class="title-group">
+        <h1>⚡ Quick AI Review</h1>
+        <p id="meta" class="sub"></p>
+      </div>
+      <div id="translate-controls" class="translate-controls">
+        <select id="language-select" class="control-select">
+          <option value="en">English</option>
+          <option value="zh-CN">Chinese (Simplified)</option>
+          <option value="es">Spanish</option>
+          <option value="hi">Hindi</option>
+          <option value="ar">Arabic</option>
+          <option value="pt">Portuguese</option>
+          <option value="bn">Bengali</option>
+          <option value="ru">Russian</option>
+          <option value="ja">Japanese</option>
+          <option value="de">German</option>
+          <option value="fr">French</option>
+          <option value="ko">Korean</option>
+          <option value="tr">Turkish</option>
+          <option value="it">Italian</option>
+          <option value="nl">Dutch</option>
+          <option value="pl">Polish</option>
+          <option value="sv">Swedish</option>
+          <option value="fi">Finnish</option>
+          <option value="id">Indonesian</option>
+          <option value="vi">Vietnamese</option>
+        </select>
+        <button id="translate-btn" class="control-btn">Translate</button>
+      </div>
+    </div>
+
+    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
+    <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
+
+    <div id="bottom-controls" class="bottom-controls">
+      <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
     </div>
   </div>
 
-  <div id="ratingModal" class="modal-overlay">
-    <div class="modal-content">
-      <span class="modal-close" onclick="closeModal()">&times;</span>
-      <h2>Rating Scale</h2>
-      <ul>
-        <li><strong>9–10:</strong> Exceptional, rare masterpiece</li>
-        <li><strong>7–8:</strong> Strong, worth watching despite flaws</li>
-        <li><strong>5–6:</strong> Average, watchable but forgettable</li>
-        <li><strong>3–4:</strong> Weak, major flaws outweigh positives</li>
-        <li><strong>1–2:</strong> Poor, barely redeemable</li>
-        <li><strong>0:</strong> Unwatchable, complete failure</li>
-      </ul>
-    </div>
-  </div>
-  
   <script>
     (function(){
+      const isTranslated = window.location.hostname.endsWith('.translate.goog');
+      if (isTranslated) document.body.classList.add('translated-view');
+      
       const params = new URLSearchParams(window.location.search);
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
-      const isForced = params.has('force');
+      
       const metaEl = document.getElementById('meta');
-      const loadingEl = document.getElementById('loading');
-      const reviewBox = document.getElementById('review');
+      const bottomControls = document.getElementById('bottom-controls');
+      const translateControls = document.getElementById('translate-controls');
       const refreshBtn = document.getElementById('refresh-btn');
-      if (!type || !id) {
-        loadingEl.className = 'err';
-        loadingEl.textContent = 'Missing parameters.';
-        return;
+      const translateBtn = document.getElementById('translate-btn');
+
+      if (isTranslated) {
+        bottomControls.style.display = 'none';
+        translateControls.style.display = 'none';
+        const banner = document.createElement('div');
+        banner.className = 'translated-banner';
+        let originalUrl = '#';
+        try {
+            const translatedUrlParams = new URLSearchParams(window.location.search);
+            const originalUrlParam = translatedUrlParams.get('u');
+            if (originalUrlParam) originalUrl = originalUrlParam;
+        } catch (e) { console.error('Could not parse original URL'); }
+        banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + originalUrl + '">View Original</a>';
+        document.querySelector('.page-container').prepend(banner);
       }
+
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
-      if (isForced) { loadingEl.textContent = 'Forcing a new review from the AI, please wait...'; }
-      const url = `/api/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}${isForced ? '&force=true' : ''}`;
-      fetch(url)
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed to fetch review (HTTP ${res.status})`);
-          return res.json();
-        })
-        .then(data => {
-          loadingEl.style.display = 'none';
-          const reviewHtml = (data && data.review) ? data.review : '<p>No review available.</p>';
-          reviewBox.innerHTML = reviewHtml;
-          reviewBox.style.display = 'block';
-          setupAccordion();
-          setupRatingTooltip();
-          refreshBtn.style.display = 'inline-block';
-        })
-        .catch(err => {
-          loadingEl.className = 'err';
-          loadingEl.textContent = 'Error: ' + (err && err.message ? err.message : 'Unknown error');
-          refreshBtn.style.display = 'inline-block';
-        });
-      function setupRatingTooltip() {
-        const placeholder = reviewBox.querySelector('#rating-context-placeholder');
-        if (!placeholder) return;
-        const button = document.createElement('span');
-        button.className = 'tooltip-trigger';
-        button.textContent = '?';
-        button.addEventListener('click', openModal);
-        const space = document.createTextNode('\u00A0');
-        placeholder.parentNode.replaceChild(button, placeholder);
-        button.parentNode.insertBefore(space, button);
-      }
+      
+      if (!isTranslated) setupAccordion();
+      
+      translateBtn.addEventListener('click', () => {
+        const languageSelect = document.getElementById('language-select');
+        const targetLanguage = languageSelect.value;
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('force');
+        const translateUrl = new URL('https://translate.google.com/translate');
+        translateUrl.searchParams.set('sl', 'auto');
+        translateUrl.searchParams.set('tl', targetLanguage);
+        translateUrl.searchParams.set('u', cleanUrl.href);
+        window.open(translateUrl.href, '_blank');
+      });
+
+      refreshBtn.addEventListener('click', () => {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('force', 'true');
+        window.location.href = newUrl.href;
+      });
+
       function setupAccordion() {
-        const accordion = reviewBox.querySelector('.accordion');
+        const accordion = document.querySelector('#review .accordion');
         if (!accordion) return;
         const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
         if (initiallyActiveItem) {
@@ -109,19 +131,7 @@
           }
         });
       }
-      refreshBtn.addEventListener('click', () => {
-        refreshBtn.disabled = true;
-        refreshBtn.textContent = 'Refreshing...';
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.set('force', 'true');
-        window.location.href = newUrl.href;
-      });
     })();
-
-    const modal = document.getElementById('ratingModal');
-    function openModal() { modal.style.display = 'flex'; }
-    function closeModal() { modal.style.display = 'none'; }
-    window.onclick = function(event) { if (event.target == modal) { closeModal(); } }
   </script>
 </body>
 </html>

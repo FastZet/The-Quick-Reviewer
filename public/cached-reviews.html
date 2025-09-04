@@ -12,16 +12,23 @@
   <link rel="manifest" href="/assets/site.webmanifest">
 </head>
 <body class="cached-page">
-  <h1>Cached Reviews</h1>
-  <div id="status" class="loading">Loading cached reviews...</div>
-  <ul id="review-list"></ul>
+
+  <!-- Wrap the content in a div with the "page-container" class -->
+  <div class="page-container">
+    <h1>Cached Reviews</h1>
+    <div id="status" class="loading">Loading cached reviews...</div>
+    <ul id="review-list"></ul>
+  </div>
 
   <script>
     (function() {
       const statusEl = document.getElementById('status');
       const listEl = document.getElementById('review-list');
 
-      fetch('/api/cached-reviews')
+      const basePath = window.location.pathname.replace('/cached-reviews', '');
+      const apiUrl = `${basePath}/api/cached-reviews`;
+
+      fetch(apiUrl)
         .then(res => {
           if (!res.ok) throw new Error(`Failed to fetch: Server responded with ${res.status}`);
           return res.json();
@@ -40,9 +47,10 @@
             listItem.className = 'review-item';
 
             const reviewDate = new Date(item.ts).toLocaleString();
+            const reviewUrl = `${basePath}/review?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}`;
 
             listItem.innerHTML = `
-              <a href="/review?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}" target="_blank">
+              <a href="${reviewUrl}" target="_blank">
                 Review for: ${item.id} (${item.type})
               </a>
               <div class="review-meta">Cached on: ${reviewDate}</div>

@@ -7,9 +7,7 @@
   <meta name="keywords" content="The Quick Reviewer, Stremio, Stremio Add-on, AI Review, Gemini, Self-Hosted, Open Source, Addon">
   <meta name="author" content="fastzet">
   <meta name="robots" content="index, follow">
-
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <!-- Open Graph / Social Sharing -->
   <meta property="og:type" content="website">
   <meta property="og:title" content="The Quick Reviewer - Self-Hosted AI Stremio Addon">
@@ -19,7 +17,6 @@
   <meta name="twitter:title" content="The Quick Reviewer - Self-Hosted AI Stremio Addon">
   <meta name="twitter:description" content="Generate spoiler-free AI reviews directly in your Stremio interface.">
   <meta name="twitter:image" content="/assets/icon.png">
-
   <link rel="icon" type="image/png" href="/assets/icon.png">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/global.css">
@@ -29,7 +26,7 @@
   <div class="page-container">
     <div class="header">
       <img src="/assets/icon.png" alt="The Quick Reviewer Logo"/>
-      <h1>The Quick Reviewer</h1>
+      <h1>The Quick Reviewer<span class="version">{{VERSION}}</span></h1>
     </div>
     <div class="hero">
       <div class="hero-container">
@@ -38,7 +35,6 @@
           An open-source Stremio addon that generates in-depth, spoiler-free reviews powered by Gemini, delivered directly to your Stremio interface.
         </p>
         <div id="dynamic-content-area" class="install-container">
-          <!-- This content is dynamically inserted by the server -->
           {{DYNAMIC_CONTENT}}
         </div>
       </div>
@@ -47,39 +43,18 @@
   <div class="features">
     <h2>Why Build Your Own?</h2>
     <div class="features-grid">
-      <div class="feature-card">
-        <h3>🤖 Powerful AI Core</h3>
-        <p>Leverages Google Gemini with advanced prompt engineering to deliver structured, critical, and insightful reviews every time.</p>
-      </div>
-      <div class="feature-card">
-        <h3>🔒 Complete Control & Privacy</h3>
-        <p>By self-hosting, your API keys and data never leave your server. No third-party tracking, no ads. Just pure functionality.</p>
-      </div>
-      <div class="feature-card">
-        <h3>⚡ Optimized for Performance</h3>
-        <p>Built with smart in-memory caching and concurrent request handling to ensure fast responses and efficient API usage.</p>
-      </div>
-      <div class="feature-card">
-        <h3>🌐 Robust & Extensible</h3>
-        <p>Reliably fetches metadata from multiple sources and features a clean, modular codebase that's easy to understand and extend.</p>
-      </div>
+      <div class="feature-card"><h3>Powerful AI Core</h3><p>Leverages Google Gemini with advanced prompt engineering to deliver structured, critical, and insightful reviews every time.</p></div>
+      <div class="feature-card"><h3>Complete Control & Privacy</h3><p>By self-hosting, your API keys and data never leave your server. No third-party tracking, no ads. Just pure functionality.</p></div>
+      <div class="feature-card"><h3>Optimized for Performance</h3><p>Built with smart in-memory caching and concurrent request handling to ensure fast responses and efficient API usage.</p></div>
+      <div class="feature-card"><h3>Robust & Extensible</h3><p>Reliably fetches metadata from multiple sources and features a clean, modular codebase that's easy to understand and extend.</p></div>
     </div>
   </div>
 
   <div class="faq">
     <h2>Frequently Asked Questions</h2>
-    <p>
-      <strong>Q: What is this project?</strong><br>
-      A: The Quick Reviewer adds a unique "stream" link to every movie and episode. This special link displays a one-line, AI-generated verdict directly in your Stremio interface. Clicking it opens a dedicated review page with a concise yet comprehensive analysis, covering everything from cinematography and pacing to character development and overall impact—all without spoilers.
-    </p>
-    <p>
-      <strong>Q: Who is this for?</strong><br>
-      A: It's designed for users who are comfortable with self-hosting applications, such as on a home server or a cloud platform like Hugging Face Spaces.
-    </p>
-     <p>
-      <strong>Q: How does the optional password protection work?</strong><br>
-      A: If you set the `ADDON_PASSWORD` environment variable, the addon's endpoints become private. The landing page will prompt for the password to unlock the installation link, and includes IP-based rate limiting to prevent brute-force attacks.
-    </p>
+    <p><strong>Q: What is this project?</strong><br>A: The Quick Reviewer adds a unique "stream" link to every movie and episode. This special link displays a one-line, AI-generated verdict directly in your Stremio interface. Clicking it opens a dedicated review page with a concise yet comprehensive analysis, covering everything from cinematography and pacing to character development and overall impact—all without spoilers.</p>
+    <p><strong>Q: Who is this for?</strong><br>A: It's designed for users who are comfortable with self-hosting applications, such as on a home server or a cloud platform like Hugging Face Spaces.</p>
+    <p><strong>Q: How does the optional password protection work?</strong><br>A: If you set the `ADDON_PASSWORD` environment variable, the addon's endpoints become private. The landing page will prompt for the password to unlock the installation link, and includes IP-based rate limiting to prevent brute-force attacks.</p>
   </div>
 
   <div class="footer">
@@ -88,7 +63,6 @@
   </div>
 </div>
 
-  <!-- This script is also dynamically inserted by the server -->
   {{PAGE_SCRIPT}}
 </body>
 </html>
