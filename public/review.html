@@ -40,16 +40,12 @@
           <option value="vi">Vietnamese</option>
         </select>
         <button id="translate-btn" class="control-btn">Translate</button>
+        <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
       </div>
     </div>
 
     <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
-    <div id="review" class="review-box" style="display: block;">
-      <div class="refresh-button-container">
-        <button id="refresh-btn" class="control-btn refresh">Force New Review</button>
-      </div>
-      {{REVIEW_CONTENT}}
-    </div>
+    <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
   </div>
 
   <script>
