@@ -4,7 +4,7 @@ const MAX_RETRIES = 2;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
 
-let _genaiModule, _client;
+let _genaiModule, _aiClient;
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -15,14 +15,13 @@ async function loadGenAI() {
 }
 
 async function getClient() {
-  if (_client) return _client;
+  if (_aiClient) return _aiClient;
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY (or GOOGLE_API_KEY) is not set.');
   }
-  // CORRECTED: The class to import and instantiate is 'GoogleGenAI'.
   const { GoogleGenAI } = await loadGenAI();
-  _client = new GoogleGenAI(GEMINI_API_KEY);
-  return _client;
+  _aiClient = new GoogleGenAI(GEMINI_API_KEY);
+  return _aiClient;
 }
 
 function shouldRetry(err, attempt) {
@@ -32,8 +31,13 @@ function shouldRetry(err, attempt) {
   return false;
 }
 
+/**
+ * Generates a review by sending a prompt to the Gemini AI model.
+ * @param {string} prompt - The fully constructed prompt for the AI.
+ * @returns {Promise<string>} The generated review text.
+ */
 async function generateReview(prompt) {
-  const ai = await getClient(); // This now correctly returns an instance of GoogleGenAI.
+  const ai = await getClient();
   const { HarmCategory, HarmBlockThreshold } = await loadGenAI();
 
   const safetySettings = [
@@ -43,27 +47,32 @@ async function generateReview(prompt) {
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,  threshold: HarmBlockThreshold.BLOCK_NONE },
   ];
 
-  // This is the correct flow: get a 'model' instance from the 'ai' client.
-  const model = ai.getGenerativeModel({
-    model: GEMINI_MODEL,
-    safetySettings,
-    tools: [{ googleSearch: {} }],
-  });
+  const tools = [{ googleSearch: {} }];
 
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
     try {
       console.log(`[Gemini] Attempt ${attempt}/${MAX_RETRIES} generating review…`);
+
+      // CORRECTED: Use ai.chats.create() to start a new chat session with all configuration.
+      const chat = ai.chats.create({
+        model: GEMINI_MODEL,
+        config: { safetySettings },
+        tools: tools,
+      });
+
+      // CORRECTED: Pass the prompt as a message object.
+      const result = await chat.sendMessage({ message: prompt });
       
-      // Now 'model.startChat()' will work because 'model' is a valid GenerativeModel instance.
-      const chat = model.startChat();
-      const result = await chat.sendMessage(prompt);
-      const response = result.response;
-      const reviewText = response.text();
+      // CORRECTED: Access the response text as a property.
+      const responseText = result.response?.text;
+
+      if (!responseText) {
+          throw new Error("Received an empty or invalid response from the AI.");
+      }
 
       console.log('[Gemini] Review successfully generated.');
-      return reviewText.trim();
-
+      return responseText.trim();
     } catch (err) {
       if (!shouldRetry(err, attempt)) {
         console.error(`[Gemini] Permanent failure on attempt ${attempt}:`, err);
