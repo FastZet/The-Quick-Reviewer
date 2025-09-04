@@ -4,19 +4,19 @@ const { google } = require('@ai-sdk/google');
 const { generateText } = require('ai');
 
 const MAX_RETRIES = 2;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const GOOGLE_GENERATIVE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_API_KEY || null;
-// const GOOGLE_GENERATIVE_AI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash-latest";
+// CORRECTED: The constant name now matches its usage below and is simplified.
+const GOOGLE_GENERATIVE_AI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY || null;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function shouldRetry(err, attempt) {
-  const isRetryableError = 
-    err.name === 'APIError' || 
-    err.name === 'NetworkError' || 
+  const isRetryableError =
+    err.name === 'APIError' ||
+    err.name === 'NetworkError' ||
     err.name === 'TimeoutError' ||
     (err.status && (err.status === 429 || (err.status >= 500 && err.status < 600)));
-  
+
   return isRetryableError && attempt < MAX_RETRIES;
 }
 
@@ -37,13 +37,12 @@ async function generateReview(prompt) {
 
       const result = await generateText({
         model: google(GEMINI_MODEL, {
-          apiKey: GOOGLE_GENERATIVE_API_KEY,
+          apiKey: GOOGLE_GENERATIVE_AI_API_KEY, // This now correctly references the constant
         }),
         prompt: prompt,
         maxRetries: 1,
         temperature: 0.7,
         // Enable Google Search grounding
-        experimental_toolCallMode: 'auto',
         tools: {
           searchWeb: {
             description: 'Search the web for current information about movies, shows, box office data, reviews, and ratings',
@@ -58,7 +57,7 @@ async function generateReview(prompt) {
               required: ['query']
             },
             execute: async ({ query }) => {
-              // This is a placeholder - Vercel AI SDK with Google provider 
+              // This is a placeholder - Vercel AI SDK with Google provider
               // will automatically use Google Search when this tool is defined
               console.log(`[Search] Executing search for: ${query}`);
               return `Search results for "${query}" will be automatically provided by Google.`;
