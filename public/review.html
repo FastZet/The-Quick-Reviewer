@@ -5,16 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The Quick Reviewer</title>
 
-  <!-- Icons & PWA -->
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="manifest" href="/assets/site.webmanifest">
 
-  <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet">
-
-  <!-- Base + Page Styles -->
   <link rel="stylesheet" href="/css/global.css">
   <link rel="stylesheet" href="/css/review.css">
 </head>
@@ -29,19 +25,18 @@
         <p id="meta" class="sub"></p>
       </div>
 
-      <!-- Right-aligned compact controls (stay compact on mobile to reduce vertical space) -->
       <div class="controls-group">
         <div class="controls-row">
-          <!-- Custom language picker with flags + short codes -->
+          <!-- Language picker with emoji flags and short codes -->
           <div id="lang-picker" class="lang-picker" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="lang-menu">
             <button id="lang-button" class="control-btn lang" type="button" aria-label="Language">
-              <span id="lang-flag" class="flag">🇬🇧</span>
+              <span id="lang-flag" class="flag" aria-hidden="true">🇬🇧</span>
               <span id="lang-code" class="code">EN</span>
             </button>
             <div id="lang-menu" class="lang-menu" role="listbox" tabindex="-1" hidden></div>
           </div>
 
-          <!-- Hidden native select for fallback and integration -->
+          <!-- Native select (hidden) for compatibility -->
           <select id="language-select" class="control-select native-select" aria-label="Target language" hidden>
             <option value="en" data-flag="🇬🇧" data-code="EN">English</option>
             <option value="zh-CN" data-flag="🇨🇳" data-code="ZH">Chinese (Simplified)</option>
@@ -73,11 +68,8 @@
           <button id="font-toggle" class="control-btn font" type="button" aria-label="Cycle font size" title="Text size">Aa</button>
         </div>
 
-        <!-- Keep Force New Review at top (right column on desktop, right under the row on mobile) -->
         <div class="controls-row secondary">
-          <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review" type="button">
-            Force New Review
-          </button>
+          <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review" type="button">Force New Review</button>
         </div>
       </div>
     </header>
@@ -98,7 +90,6 @@
     (function () {
       const isTranslated = window.location.hostname.endsWith('.translate.goog');
 
-      // Elements
       const metaEl = document.getElementById('meta');
       const translateBtn = document.getElementById('translate-btn');
       const refreshBtn = document.getElementById('refresh-btn');
@@ -111,13 +102,22 @@
       const flagSpan = document.getElementById('lang-flag');
       const codeSpan = document.getElementById('lang-code');
 
-      // URL params to show meta
       const params = new URLSearchParams(window.location.search);
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
-      metaEl.textContent = `Type: ${type} • ID: ${id}`;
 
-      // Theme management
+      const mqMobile = window.matchMedia('(max-width: 720px)');
+      function setMeta() {
+        if (mqMobile.matches) {
+          metaEl.innerHTML = `Type: ${type}<br>ID: ${id}`;
+        } else {
+          metaEl.textContent = `Type: ${type} • ID: ${id}`;
+        }
+      }
+      setMeta();
+      mqMobile.addEventListener?.('change', setMeta);
+
+      // Theme
       const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
       const storedTheme = localStorage.getItem('tqr_theme');
       function applyTheme(mode) {
@@ -128,13 +128,11 @@
       applyTheme(storedTheme || 'auto');
       themeToggleBtn.addEventListener('click', () => {
         const current = document.body.getAttribute('data-theme') || 'auto';
-        const next = current === 'auto'
-          ? (prefersDark ? 'light' : 'dark')
-          : (current === 'dark' ? 'light' : 'dark');
+        const next = current === 'auto' ? (prefersDark ? 'light' : 'dark') : (current === 'dark' ? 'light' : 'dark');
         applyTheme(next);
       });
 
-      // Font size toggle (xsmall → small → default → large)
+      // Font scale (xsmall → small → default → large)
       const storedFont = localStorage.getItem('tqr_font') || 'default';
       applyFont(storedFont);
       fontToggleBtn.addEventListener('click', () => {
@@ -147,7 +145,7 @@
         localStorage.setItem('tqr_font', size);
       }
 
-      // Build custom language menu from the hidden select
+      // Build custom language menu from hidden select
       const options = Array.from(nativeSelect.options).map(o => ({
         value: o.value,
         label: o.textContent,
@@ -156,17 +154,14 @@
       }));
       function renderMenu() {
         pickerMenu.innerHTML = '';
-        options.forEach((opt, i) => {
+        options.forEach(opt => {
           const item = document.createElement('button');
           item.type = 'button';
           item.role = 'option';
           item.className = 'lang-item';
           item.dataset.value = opt.value;
           item.innerHTML = `<span class="flag">${opt.flag}</span><span class="code">${opt.code}</span><span class="label">${opt.label}</span>`;
-          item.addEventListener('click', () => {
-            setLang(opt.value);
-            closeMenu();
-          }, { passive: true });
+          item.addEventListener('click', () => { setLang(opt.value); closeMenu(); }, { passive: true });
           pickerMenu.appendChild(item);
         });
       }
@@ -187,21 +182,17 @@
         pickerMenu.hidden = true;
         pickerBtn.focus();
       }
-      pickerBtn.addEventListener('click', (e) => {
+      pickerBtn.addEventListener('click', () => {
         const expanded = picker.getAttribute('aria-expanded') === 'true';
         expanded ? closeMenu() : openMenu();
       });
-      document.addEventListener('click', (e) => {
-        if (!picker.contains(e.target)) closeMenu();
-      }, { passive: true });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeMenu();
-      });
+      document.addEventListener('click', (e) => { if (!picker.contains(e.target)) closeMenu(); }, { passive: true });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
 
       renderMenu();
       setLang(localStorage.getItem('tqr_lang') || nativeSelect.value || 'en');
 
-      // Translate action uses the hidden native select value
+      // Translate
       translateBtn.addEventListener('click', () => {
         const targetLanguage = nativeSelect.value;
         const cleanUrl = new URL(window.location.href);
@@ -222,7 +213,7 @@
         window.location.href = newUrl.href;
       });
 
-      // Disable interactivity on translated mirror
+      // Hide interactive controls on translated mirror
       if (isTranslated) {
         document.body.classList.add('translated-view');
         const banner = document.createElement('div');
@@ -238,7 +229,7 @@
         document.querySelector('.controls-group').style.display = 'none';
       }
 
-      // Accordion: ensure Plot Summary opens by default and never needs double-click
+      // Accordion: ensure single-click open, default to Plot Summary (or first), and keep height synced
       if (!isTranslated) setupAccordion();
       function setupAccordion() {
         const accordion = document.querySelector('#review .accordion');
@@ -247,15 +238,11 @@
         const items = Array.from(accordion.querySelectorAll('.accordion-item'));
         const contents = items.map(it => it.querySelector('.accordion-content'));
 
-        // Helper to open/close with consistent state + ARIA
         function openItem(item) {
           const content = item.querySelector('.accordion-content');
           item.classList.add('active');
           item.querySelector('.accordion-header')?.setAttribute('aria-expanded', 'true');
-          // Measure after layout stabilizes
-          requestAnimationFrame(() => {
-            content.style.maxHeight = content.scrollHeight + 'px';
-          });
+          requestAnimationFrame(() => { content.style.maxHeight = content.scrollHeight + 'px'; });
         }
         function closeItem(item) {
           const content = item.querySelector('.accordion-content');
@@ -264,33 +251,33 @@
           content.style.maxHeight = null;
         }
 
-        // Ensure default open: prefer the server-marked active; else open first or “Plot Summary”
         const serverActive = accordion.querySelector('.accordion-item.active');
-        const plotItem = Array.from(items).find(it => it.querySelector('.accordion-header')?.textContent.trim().toLowerCase().startsWith('plot summary'));
-        const toOpen = serverActive || plotItem || items;
-        if (toOpen) openItem(toOpen);
+        const plotItem = items.find(it => (it.querySelector('.accordion-header')?.textContent || '').trim().toLowerCase().startsWith('plot summary'));
+        openItem(serverActive || plotItem || items);
 
-        // Keep height correct if fonts/contents change after load
         const ro = new ResizeObserver(() => {
           const active = accordion.querySelector('.accordion-item.active .accordion-content');
           if (active) active.style.maxHeight = active.scrollHeight + 'px';
         });
         contents.forEach(c => ro.observe(c));
 
-        // Click handling (no double-toggle)
         accordion.addEventListener('click', (e) => {
           const header = e.target.closest('.accordion-header');
           if (!header) return;
           const currentItem = header.parentElement;
-          const openNow = currentItem.classList.contains('active');
-
-          // Close others
+          const wasOpen = currentItem.classList.contains('active');
           items.forEach(it => { if (it !== currentItem) closeItem(it); });
-
-          // Toggle current
-          openNow ? closeItem(currentItem) : openItem(currentItem);
+          wasOpen ? closeItem(currentItem) : openItem(currentItem);
         }, { passive: true });
       }
+
+      // Mobile tweaks: hide ⚡ to save vertical space
+      const logoEl = document.querySelector('.logo');
+      if (mqMobile.matches && logoEl) logoEl.style.display = 'none';
+      mqMobile.addEventListener?.('change', () => {
+        if (!logoEl) return;
+        logoEl.style.display = mqMobile.matches ? 'none' : '';
+      });
     })();
   </script>
 </body>
