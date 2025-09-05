@@ -1,70 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>The Quick Reviewer</title>
-  <link rel="stylesheet" href="/css/global.css">
-  <link rel="stylesheet" href="/css/review.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Quick Reviewer</title>
+
+  <!-- Icons & PWA -->
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="manifest" href="/assets/site.webmanifest">
+
+  <!-- Fonts (2025 trend: geometric sans + system fallback) -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap" rel="stylesheet">
+
+  <!-- Base + Page Styles -->
+  <link rel="stylesheet" href="/css/global.css">
+  <link rel="stylesheet" href="/css/review.css">
 </head>
-<body class="review-page">
-  <div class="page-container">
-    <div class="title-bar">
+<body class="review-page" data-theme="auto">
+  <div class="page-surface">
+    <header class="title-bar">
       <div class="title-group">
-        <h1>⚡ Quick AI Review</h1>
+        <h1 class="app-title">
+          <span class="logo">⚡</span>
+          <span class="gradient-text">Quick AI Review</span>
+        </h1>
         <p id="meta" class="sub"></p>
       </div>
-      <div id="translate-controls" class="translate-controls">
-        <select id="language-select" class="control-select">
-          <option value="en">English</option>
-          <option value="zh-CN">Chinese (Simplified)</option>
-          <option value="es">Spanish</option>
-          <option value="hi">Hindi</option>
-          <option value="ar">Arabic</option>
-          <option value="pt">Portuguese</option>
-          <option value="bn">Bengali</option>
-          <option value="ru">Russian</option>
-          <option value="ja">Japanese</option>
-          <option value="de">German</option>
-          <option value="fr">French</option>
-          <option value="ko">Korean</option>
-          <option value="tr">Turkish</option>
-          <option value="it">Italian</option>
-          <option value="nl">Dutch</option>
-          <option value="pl">Polish</option>
-          <option value="sv">Swedish</option>
-          <option value="fi">Finnish</option>
-          <option value="id">Indonesian</option>
-          <option value="vi">Vietnamese</option>
-        </select>
-        <button id="translate-btn" class="control-btn">Translate</button>
-      </div>
-    </div>
 
-    <p id="loading" class="loading" {{LOADING_STATE}}>Loading review...</p>
-    <div id="review" class="review-box" style="display: block;">{{REVIEW_CONTENT}}</div>
+      <div class="controls-group">
+        <div id="translate-controls" class="translate-controls" role="group" aria-label="Translate controls">
+          <select id="language-select" class="control-select" aria-label="Target language">
+            <option value="en">English</option>
+            <option value="zh-CN">Chinese (Simplified)</option>
+            <option value="es">Spanish</option>
+            <option value="hi">Hindi</option>
+            <option value="ar">Arabic</option>
+            <option value="pt">Portuguese</option>
+            <option value="bn">Bengali</option>
+            <option value="ru">Russian</option>
+            <option value="ja">Japanese</option>
+            <option value="de">German</option>
+            <option value="fr">French</option>
+            <option value="ko">Korean</option>
+            <option value="tr">Turkish</option>
+            <option value="it">Italian</option>
+            <option value="nl">Dutch</option>
+            <option value="pl">Polish</option>
+            <option value="sv">Swedish</option>
+            <option value="fi">Finnish</option>
+            <option value="id">Indonesian</option>
+            <option value="vi">Vietnamese</option>
+          </select>
+          <button id="translate-btn" class="control-btn" type="button">Translate</button>
+        </div>
+
+        <button id="theme-toggle" class="control-btn theme" type="button" aria-label="Toggle theme" title="Toggle Light/Dark">
+          <svg class="icon sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 0l1.8-1.79 1.41 1.41-1.79 1.8-1.42-1.42zM12 4V1h-0v3h0zm0 19v-3h0v3h0zM4 12H1v0h3v0zm19 0h-3v0h3v0zM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM19.16 17.24l1.42-1.42 1.79 1.8-1.41 1.41-1.8-1.79zM12 7a5 5 0 100 10 5 5 0 000-10z"/></svg>
+          <svg class="icon moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="status">
+      <p id="loading" class="loading" {{LOADING_STATE}}>
+        <span class="skeleton-dot"></span>
+        Loading review...
+      </p>
+    </section>
+
+    <main id="review" class="review-box">
+      {{REVIEW_CONTENT}}
+    </main>
 
     <div id="bottom-controls" class="bottom-controls">
-      <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review">Force New Review</button>
+      <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review" type="button">
+        Force New Review
+      </button>
     </div>
   </div>
 
   <script>
-    (function(){
+    (function () {
       const isTranslated = window.location.hostname.endsWith('.translate.goog');
       if (isTranslated) document.body.classList.add('translated-view');
-      
+
       const params = new URLSearchParams(window.location.search);
       const type = (params.get('type') || '').trim();
       const id = (params.get('id') || '').trim();
-      
+
       const metaEl = document.getElementById('meta');
       const bottomControls = document.getElementById('bottom-controls');
       const translateControls = document.getElementById('translate-controls');
       const refreshBtn = document.getElementById('refresh-btn');
       const translateBtn = document.getElementById('translate-btn');
+
+      // Theme management
+      const themeToggleBtn = document.getElementById('theme-toggle');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const storedTheme = localStorage.getItem('tqr_theme');
+
+      function applyTheme(mode) {
+        // mode: 'light' | 'dark' | 'auto'
+        document.body.setAttribute('data-theme', mode);
+        localStorage.setItem('tqr_theme', mode);
+        themeToggleBtn.classList.toggle('is-dark', (mode === 'dark') || (mode === 'auto' && prefersDark));
+      }
+
+      applyTheme(storedTheme || 'auto');
+
+      themeToggleBtn.addEventListener('click', () => {
+        const current = document.body.getAttribute('data-theme') || 'auto';
+        const next = current === 'auto' ? (prefersDark ? 'light' : 'dark') : (current === 'dark' ? 'light' : 'dark');
+        applyTheme(next);
+      });
 
       if (isTranslated) {
         bottomControls.style.display = 'none';
@@ -73,18 +123,18 @@
         banner.className = 'translated-banner';
         let originalUrl = '#';
         try {
-            const translatedUrlParams = new URLSearchParams(window.location.search);
-            const originalUrlParam = translatedUrlParams.get('u');
-            if (originalUrlParam) originalUrl = originalUrlParam;
+          const translatedUrlParams = new URLSearchParams(window.location.search);
+          const originalUrlParam = translatedUrlParams.get('u');
+          if (originalUrlParam) originalUrl = originalUrlParam;
         } catch (e) { console.error('Could not parse original URL'); }
         banner.innerHTML = 'You are viewing a translated version. Interactive features are disabled. <a href="' + originalUrl + '">View Original</a>';
-        document.querySelector('.page-container').prepend(banner);
+        document.querySelector('.page-surface').prepend(banner);
       }
 
       metaEl.textContent = `Type: ${type} • ID: ${id}`;
-      
+
       if (!isTranslated) setupAccordion();
-      
+
       translateBtn.addEventListener('click', () => {
         const languageSelect = document.getElementById('language-select');
         const targetLanguage = languageSelect.value;
@@ -108,21 +158,31 @@
       function setupAccordion() {
         const accordion = document.querySelector('#review .accordion');
         if (!accordion) return;
+
+        // Open the first active block smoothly on first paint
         const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
         if (initiallyActiveItem) {
           const content = initiallyActiveItem.querySelector('.accordion-content');
-          setTimeout(() => { content.style.maxHeight = content.scrollHeight + 'px'; }, 0);
+          requestAnimationFrame(() => {
+            content.style.maxHeight = content.scrollHeight + 'px';
+          });
         }
+
         accordion.addEventListener('click', (e) => {
           const header = e.target.closest('.accordion-header');
           if (!header) return;
+
           const currentItem = header.parentElement;
           const currentContent = header.nextElementSibling;
-          const currentlyActiveItem = accordion.querySelector('.accordion-item.active');
-          if (currentlyActiveItem && currentlyActiveItem !== currentItem) {
-            currentlyActiveItem.classList.remove('active');
-            currentlyActiveItem.querySelector('.accordion-content').style.maxHeight = null;
+
+          // Close any other open item
+          const openItem = accordion.querySelector('.accordion-item.active');
+          if (openItem && openItem !== currentItem) {
+            openItem.classList.remove('active');
+            openItem.querySelector('.accordion-content').style.maxHeight = null;
           }
+
+          // Toggle current
           currentItem.classList.toggle('active');
           if (currentItem.classList.contains('active')) {
             currentContent.style.maxHeight = currentContent.scrollHeight + 'px';
