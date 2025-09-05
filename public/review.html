@@ -27,37 +27,37 @@
 
       <div class="controls-group">
         <div class="controls-row">
-          <!-- Language picker with emoji flags and short codes -->
+          <!-- Language picker: SVG flag + code -->
           <div id="lang-picker" class="lang-picker" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="lang-menu">
             <button id="lang-button" class="control-btn lang" type="button" aria-label="Language">
-              <span id="lang-flag" class="flag" aria-hidden="true">🇬🇧</span>
+              <img id="lang-flag-img" class="flag-img" alt="" aria-hidden="true" src="" />
               <span id="lang-code" class="code">EN</span>
             </button>
             <div id="lang-menu" class="lang-menu" role="listbox" tabindex="-1" hidden></div>
           </div>
 
-          <!-- Native select (hidden) for compatibility -->
+          <!-- Hidden native select (source of truth) -->
           <select id="language-select" class="control-select native-select" aria-label="Target language" hidden>
-            <option value="en" data-flag="🇬🇧" data-code="EN">English</option>
-            <option value="zh-CN" data-flag="🇨🇳" data-code="ZH">Chinese (Simplified)</option>
-            <option value="es" data-flag="🇪🇸" data-code="ES">Spanish</option>
-            <option value="hi" data-flag="🇮🇳" data-code="HI">Hindi</option>
-            <option value="ar" data-flag="🇸🇦" data-code="AR">Arabic</option>
-            <option value="pt" data-flag="🇵🇹" data-code="PT">Portuguese</option>
-            <option value="bn" data-flag="🇧🇩" data-code="BN">Bengali</option>
-            <option value="ru" data-flag="🇷🇺" data-code="RU">Russian</option>
-            <option value="ja" data-flag="🇯🇵" data-code="JA">Japanese</option>
-            <option value="de" data-flag="🇩🇪" data-code="DE">German</option>
-            <option value="fr" data-flag="🇫🇷" data-code="FR">French</option>
-            <option value="ko" data-flag="🇰🇷" data-code="KO">Korean</option>
-            <option value="tr" data-flag="🇹🇷" data-code="TR">Turkish</option>
-            <option value="it" data-flag="🇮🇹" data-code="IT">Italian</option>
-            <option value="nl" data-flag="🇳🇱" data-code="NL">Dutch</option>
-            <option value="pl" data-flag="🇵🇱" data-code="PL">Polish</option>
-            <option value="sv" data-flag="🇸🇪" data-code="SV">Swedish</option>
-            <option value="fi" data-flag="🇫🇮" data-code="FI">Finnish</option>
-            <option value="id" data-flag="🇮🇩" data-code="ID">Indonesian</option>
-            <option value="vi" data-flag="🇻🇳" data-code="VI">Vietnamese</option>
+            <option value="en" data-region="gb" data-code="EN">English</option>
+            <option value="zh-CN" data-region="cn" data-code="ZH">Chinese (Simplified)</option>
+            <option value="es" data-region="es" data-code="ES">Spanish</option>
+            <option value="hi" data-region="in" data-code="HI">Hindi</option>
+            <option value="ar" data-region="sa" data-code="AR">Arabic</option>
+            <option value="pt" data-region="pt" data-code="PT">Portuguese</option>
+            <option value="bn" data-region="bd" data-code="BN">Bengali</option>
+            <option value="ru" data-region="ru" data-code="RU">Russian</option>
+            <option value="ja" data-region="jp" data-code="JA">Japanese</option>
+            <option value="de" data-region="de" data-code="DE">German</option>
+            <option value="fr" data-region="fr" data-code="FR">French</option>
+            <option value="ko" data-region="kr" data-code="KO">Korean</option>
+            <option value="tr" data-region="tr" data-code="TR">Turkish</option>
+            <option value="it" data-region="it" data-code="IT">Italian</option>
+            <option value="nl" data-region="nl" data-code="NL">Dutch</option>
+            <option value="pl" data-region="pl" data-code="PL">Polish</option>
+            <option value="sv" data-region="se" data-code="SV">Swedish</option>
+            <option value="fi" data-region="fi" data-code="FI">Finnish</option>
+            <option value="id" data-region="id" data-code="ID">Indonesian</option>
+            <option value="vi" data-region="vn" data-code="VI">Vietnamese</option>
           </select>
 
           <button id="translate-btn" class="control-btn" type="button" aria-label="Translate">Translate</button>
@@ -65,11 +65,12 @@
             <svg class="icon sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 0l1.8-1.79 1.41 1.41-1.79 1.8-1.42-1.42zM12 4V1h-0v3h0zm0 19v-3h0v3h0zM4 12H1v0h3v0zm19 0h-3v0h3v0zM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM19.16 17.24l1.42-1.42 1.79 1.8-1.41 1.41-1.8-1.79zM12 7a5 5 0 100 10 5 5 0 000-10z"/></svg>
             <svg class="icon moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
           </button>
-          <button id="font-toggle" class="control-btn font" type="button" aria-label="Cycle font size" title="Text size">Aa</button>
         </div>
 
+        <!-- Place size toggle next to Force New Review as requested -->
         <div class="controls-row secondary">
           <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review" type="button">Force New Review</button>
+          <button id="font-toggle" class="control-btn font" type="button" aria-label="Cycle font size" title="Text size">Aa</button>
         </div>
       </div>
     </header>
@@ -90,6 +91,7 @@
     (function () {
       const isTranslated = window.location.hostname.endsWith('.translate.goog');
 
+      // Elements
       const metaEl = document.getElementById('meta');
       const translateBtn = document.getElementById('translate-btn');
       const refreshBtn = document.getElementById('refresh-btn');
@@ -99,23 +101,12 @@
       const picker = document.getElementById('lang-picker');
       const pickerBtn = document.getElementById('lang-button');
       const pickerMenu = document.getElementById('lang-menu');
-      const flagSpan = document.getElementById('lang-flag');
+      const flagImg = document.getElementById('lang-flag-img');
       const codeSpan = document.getElementById('lang-code');
 
+      // Meta always on one line (desktop + mobile)
       const params = new URLSearchParams(window.location.search);
-      const type = (params.get('type') || '').trim();
-      const id = (params.get('id') || '').trim();
-
-      const mqMobile = window.matchMedia('(max-width: 720px)');
-      function setMeta() {
-        if (mqMobile.matches) {
-          metaEl.innerHTML = `Type: ${type}<br>ID: ${id}`;
-        } else {
-          metaEl.textContent = `Type: ${type} • ID: ${id}`;
-        }
-      }
-      setMeta();
-      mqMobile.addEventListener?.('change', setMeta);
+      metaEl.textContent = `Type: ${ (params.get('type') || '').trim() } • ID: ${ (params.get('id') || '').trim() }`;
 
       // Theme
       const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -145,13 +136,17 @@
         localStorage.setItem('tqr_font', size);
       }
 
-      // Build custom language menu from hidden select
+      // Language list (custom dropdown with SVG flags from FlagCDN)
       const options = Array.from(nativeSelect.options).map(o => ({
         value: o.value,
         label: o.textContent,
-        flag: o.getAttribute('data-flag') || '🏳️',
-        code: o.getAttribute('data-code') || (o.value.split('-') || '').toUpperCase()
+        code: o.getAttribute('data-code') || (o.value.split('-') || '').toUpperCase(),
+        region: o.getAttribute('data-region') || 'un'
       }));
+      function flagSrc(region) {
+        // 24x18 PNG gives consistent look across platforms; change to .svg if preferred
+        return `https://flagcdn.com/24x18/${region}.png`;
+      }
       function renderMenu() {
         pickerMenu.innerHTML = '';
         options.forEach(opt => {
@@ -160,7 +155,7 @@
           item.role = 'option';
           item.className = 'lang-item';
           item.dataset.value = opt.value;
-          item.innerHTML = `<span class="flag">${opt.flag}</span><span class="code">${opt.code}</span><span class="label">${opt.label}</span>`;
+          item.innerHTML = `<img class="flag-img" alt="" src="${flagSrc(opt.region)}"/><span class="code">${opt.code}</span><span class="label">${opt.label}</span>`;
           item.addEventListener('click', () => { setLang(opt.value); closeMenu(); }, { passive: true });
           pickerMenu.appendChild(item);
         });
@@ -168,8 +163,8 @@
       function setLang(value) {
         const found = options.find(o => o.value === value) || options;
         nativeSelect.value = found.value;
-        flagSpan.textContent = found.flag;
         codeSpan.textContent = found.code;
+        flagImg.src = flagSrc(found.region);
         localStorage.setItem('tqr_lang', found.value);
       }
       function openMenu() {
@@ -213,7 +208,7 @@
         window.location.href = newUrl.href;
       });
 
-      // Hide interactive controls on translated mirror
+      // Translated mirror behavior
       if (isTranslated) {
         document.body.classList.add('translated-view');
         const banner = document.createElement('div');
@@ -229,7 +224,7 @@
         document.querySelector('.controls-group').style.display = 'none';
       }
 
-      // Accordion: ensure single-click open, default to Plot Summary (or first), and keep height synced
+      // Accordion behavior (single click, default open)
       if (!isTranslated) setupAccordion();
       function setupAccordion() {
         const accordion = document.querySelector('#review .accordion');
@@ -270,14 +265,6 @@
           wasOpen ? closeItem(currentItem) : openItem(currentItem);
         }, { passive: true });
       }
-
-      // Mobile tweaks: hide ⚡ to save vertical space
-      const logoEl = document.querySelector('.logo');
-      if (mqMobile.matches && logoEl) logoEl.style.display = 'none';
-      mqMobile.addEventListener?.('change', () => {
-        if (!logoEl) return;
-        logoEl.style.display = mqMobile.matches ? 'none' : '';
-      });
     })();
   </script>
 </body>
