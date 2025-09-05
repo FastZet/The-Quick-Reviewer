@@ -60,7 +60,8 @@ async function generateReview(prompt) {
       }
 
       // Log whether the response included grounding/citations
-      const grounded = !!response?.candidates?.?.groundingMetadata;
+      const candidate = response && response.candidates && response.candidates;
+      const grounded = !!(candidate && candidate.groundingMetadata);
       console.log(`[Gemini] Generated review. Grounded=${grounded}, Model=${GEMINI_MODEL}`);
 
       return text;
