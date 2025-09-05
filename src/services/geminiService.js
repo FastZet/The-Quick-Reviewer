@@ -1,53 +1,82 @@
-// src/services/geminiService.js — Handles all interactions with the Google Gemini AI.
+// src/services/geminiService.js — @google/genai (Gemini 2.5 only) with Google Search grounding
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
 const MAX_RETRIES = 2;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
 
-let model;
-if (GEMINI_API_KEY) {
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, { apiVersion: 'v1' });
-  const safetySettings = [
-    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-  ];
-  model = genAI.getGenerativeModel({ model: GEMINI_MODEL, safetySettings: safetySettings });
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let _aiClient = null;
+
+/**
+ * Lazily import @google/genai in a CommonJS environment and build a client.
+ * Uses API key from Google AI Studio (server-side only).
+ */
+async function getGenAIClient() {
+  if (!_aiClient) {
+    // Dynamic import to avoid ESM/CommonJS interop issues
+    const { GoogleGenAI } = await import('@google/genai');
+    _aiClient = new GoogleGenAI({
+      apiKey: GEMINI_API_KEY,
+    });
+  }
+  return _aiClient;
+}
+
+function shouldRetry(err, attempt) {
+  const status = err?.status ?? 0;
+  return (status === 429 || (status >= 500 && status < 600)) && attempt < MAX_RETRIES;
 }
 
 /**
- * Generates a review by sending a prompt to the Gemini AI model.
- * @param {string} prompt - The fully constructed prompt for the AI.
- * @returns {Promise<string>} The generated review text.
+ * Generate a review with Gemini 2.5 using Google Search grounding.
+ * Grounding is enabled via the `googleSearch` tool (no legacy fallbacks).
  */
 async function generateReview(prompt) {
-  if (!model) return 'Gemini API key missing — cannot generate review.';
-  
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
+  }
+
+  // Recommended grounding path for Gemini 2.x
+  const tools = [{ googleSearch: {} }];
+
+  let attempt = 0;
+  while (++attempt <= MAX_RETRIES) {
     try {
-      console.log(`[Gemini] Starting review generation, attempt ${attempt}/${MAX_RETRIES}...`);
-      const chat = model.startChat({ tools: [{ googleSearch: {} }] });
-      const result = await chat.sendMessage(prompt);
-      const response = result.response;
-      const reviewText = response.text();
-      if (reviewText) {
-        console.log(`[Gemini] Successfully generated review on attempt ${attempt}.`);
-        return reviewText.trim();
+      const ai = await getGenAIClient();
+
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+        config: {
+          tools,
+          temperature: 0.7,
+        },
+      });
+
+      const text = typeof response?.text === 'string' ? response.text.trim() : '';
+      if (!text) {
+        throw new Error('Empty response from Gemini');
       }
+
+      // Log whether the response included grounding/citations
+      const candidate = response && response.candidates && response.candidates;
+      const grounded = !!(candidate && candidate.groundingMetadata);
+      console.log(`[Gemini] Generated review. Grounded=${grounded}, Model=${GEMINI_MODEL}`);
+
+      return text;
     } catch (err) {
-      if (err.status === 500 && attempt < MAX_RETRIES) {
-        console.warn(`[Gemini] Attempt ${attempt} failed with 500 error. Retrying in 1 second...`);
-        await new Promise(res => setTimeout(res, 1000));
-      } else {
-        console.error(`[Gemini] Review generation failed permanently on attempt ${attempt}:`, err);
-        return 'Error generating review.';
+      if (!shouldRetry(err, attempt)) {
+        console.error(`[Gemini] Permanent failure on attempt ${attempt}:`, err?.message || err);
+        throw new Error("Error generating review after all retries.");
       }
+      const backoff = 250 * Math.pow(2, attempt - 1);
+      console.warn(`[Gemini] Retryable error on attempt ${attempt}; retrying in ${backoff}ms...`);
+      await delay(backoff);
     }
   }
-  return 'Error generating review after all retries.';
+
+  throw new Error("Failed generating review after maximum retries.");
 }
 
 module.exports = { generateReview };
