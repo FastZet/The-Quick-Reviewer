@@ -12,7 +12,7 @@ function getRatingScaleText() {
 function enforceReviewStructure(rawReviewText) {
   if (!rawReviewText || typeof rawReviewText !== 'string') return '';
 
-  const ALL_SECTIONS = [ 'Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season & Episode', 'Casts', 'Directed By', 'Directed by', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country', 'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 'Cinematography', 'Sound Design', 'Music & Score', 'Editing', 'Direction and Vision', 'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 'Audience Reception & Reaction', 'Box Office and Viewership', 'Who would like it', 'Who would not like it', 'Overall Verdict', 'Rating', 'Verdict in One Line' ];
+  const ALL_SECTIONS = [ 'Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season &amp; Episode', 'Casts', 'Directed By', 'Directed by', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country', 'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 'Cinematography', 'Sound Design', 'Music &amp; Score', 'Editing', 'Direction and Vision', 'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 'Audience Reception &amp; Reaction', 'Box Office and Viewership', 'Who would like it', 'Who would not like it', 'Overall Verdict', 'Rating', 'Verdict in One Line' ];
   const contentMap = new Map();
 
   for (const header of ALL_SECTIONS) {
@@ -26,15 +26,19 @@ function enforceReviewStructure(rawReviewText) {
 
   const formatText = (text = '') => text ? text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') : '';
 
+  // Intro block WITHOUT the leading "• " since UI provides a blue dot
   let introHtml = '<div class="review-intro">';
-  const introHeaders = ['Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season & Episode', 'Casts', 'Directed By', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country'];
+  const introHeaders = ['Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season &amp; Episode', 'Casts', 'Directed By', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country'];
   introHeaders.forEach(header => {
-    if (contentMap.has(header)) introHtml += `<div>• <strong>${header}:</strong> ${formatText(contentMap.get(header))}</div>`;
+    if (contentMap.has(header)) {
+      introHtml += `<div><strong>${header}:</strong> ${formatText(contentMap.get(header))}</div>`;
+    }
   });
   introHtml += '</div>';
 
+  // Accordion
   let accordionHtml = '<div class="accordion">';
-  const mainContentHeaders = [ 'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 'Cinematography', 'Sound Design', 'Music & Score', 'Editing', 'Direction and Vision', 'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 'Audience Reception & Reaction', 'Box Office and Viewership', 'Who would like it', 'Who would not like it', 'Overall Verdict', 'Rating', 'Verdict in One Line' ];
+  const mainContentHeaders = [ 'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 'Cinematography', 'Sound Design', 'Music &amp; Score', 'Editing', 'Direction and Vision', 'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 'Audience Reception &amp; Reaction', 'Box Office and Viewership', 'Who would like it', 'Who would not like it', 'Overall Verdict', 'Rating', 'Verdict in One Line' ];
   
   mainContentHeaders.forEach(header => {
     if (contentMap.has(header)) {
@@ -47,7 +51,7 @@ function enforceReviewStructure(rawReviewText) {
         accordionContent = getRatingScaleText();
       }
 
-      accordionHtml += `<div class="accordion-item ${isActive ? 'active' : ''}"><button class="accordion-header">${accordionHeader}</button><div class="accordion-content"><div class="accordion-content-inner">${accordionContent}</div></div></div>`;
+      accordionHtml += `<div class="accordion-item ${isActive ? 'active' : ''}"><button class="accordion-header" aria-expanded="${isActive ? 'true' : 'false'}">${accordionHeader}</button><div class="accordion-content"><div class="accordion-content-inner">${accordionContent}</div></div></div>`;
     }
   });
   accordionHtml += '</div>';
