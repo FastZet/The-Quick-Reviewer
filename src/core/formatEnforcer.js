@@ -25,13 +25,14 @@ function enforceReviewStructure(rawReviewText) {
   }
 
   const formatText = (text = '') => text ? text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') : '';
+  const formatIntro = (text = '') => text ? text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\s+/g, ' ') : '';
 
   // Intro block WITHOUT the leading "• " since UI provides a blue dot
   let introHtml = '<div class="review-intro">';
   const introHeaders = ['Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season &amp; Episode', 'Casts', 'Directed By', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country'];
   introHeaders.forEach(header => {
     if (contentMap.has(header)) {
-      introHtml += `<div><strong>${header}:</strong> ${formatText(contentMap.get(header))}</div>`;
+      introHtml += `<div><strong>${header}:</strong> ${formatIntro(contentMap.get(header))}</div>`;
     }
   });
   introHtml += '</div>';
