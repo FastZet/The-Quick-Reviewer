@@ -29,46 +29,55 @@
         <p id="meta" class="sub"></p>
       </div>
 
+      <!-- Right-aligned compact controls (stay compact on mobile to reduce vertical space) -->
       <div class="controls-group">
-        <div class="controls-stack">
-          <div id="translate-controls" class="translate-controls" role="group" aria-label="Translate controls">
-            <div class="select-shell">
-              <select id="language-select" class="control-select" aria-label="Target language">
-                <option value="en">English</option>
-                <option value="zh-CN">Chinese (Simplified)</option>
-                <option value="es">Spanish</option>
-                <option value="hi">Hindi</option>
-                <option value="ar">Arabic</option>
-                <option value="pt">Portuguese</option>
-                <option value="bn">Bengali</option>
-                <option value="ru">Russian</option>
-                <option value="ja">Japanese</option>
-                <option value="de">German</option>
-                <option value="fr">French</option>
-                <option value="ko">Korean</option>
-                <option value="tr">Turkish</option>
-                <option value="it">Italian</option>
-                <option value="nl">Dutch</option>
-                <option value="pl">Polish</option>
-                <option value="sv">Swedish</option>
-                <option value="fi">Finnish</option>
-                <option value="id">Indonesian</option>
-                <option value="vi">Vietnamese</option>
-              </select>
-            </div>
-            <button id="translate-btn" class="control-btn" type="button">Translate</button>
-            <button id="theme-toggle" class="control-btn theme" type="button" aria-label="Toggle theme" title="Toggle Light/Dark">
-              <svg class="icon sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 0l1.8-1.79 1.41 1.41-1.79 1.8-1.42-1.42zM12 4V1h-0v3h0zm0 19v-3h0v3h0zM4 12H1v0h3v0zm19 0h-3v0h3v0zM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM19.16 17.24l1.42-1.42 1.79 1.8-1.41 1.41-1.8-1.79zM12 7a5 5 0 100 10 5 5 0 000-10z"/></svg>
-              <svg class="icon moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+        <div class="controls-row">
+          <!-- Custom language picker with flags + short codes -->
+          <div id="lang-picker" class="lang-picker" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="lang-menu">
+            <button id="lang-button" class="control-btn lang" type="button" aria-label="Language">
+              <span id="lang-flag" class="flag">🇬🇧</span>
+              <span id="lang-code" class="code">EN</span>
             </button>
-            <button id="font-toggle" class="control-btn font" type="button" aria-label="Cycle font size" title="Text size">Aa</button>
+            <div id="lang-menu" class="lang-menu" role="listbox" tabindex="-1" hidden></div>
           </div>
 
-          <div class="secondary-controls">
-            <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review" type="button">
-              Force New Review
-            </button>
-          </div>
+          <!-- Hidden native select for fallback and integration -->
+          <select id="language-select" class="control-select native-select" aria-label="Target language" hidden>
+            <option value="en" data-flag="🇬🇧" data-code="EN">English</option>
+            <option value="zh-CN" data-flag="🇨🇳" data-code="ZH">Chinese (Simplified)</option>
+            <option value="es" data-flag="🇪🇸" data-code="ES">Spanish</option>
+            <option value="hi" data-flag="🇮🇳" data-code="HI">Hindi</option>
+            <option value="ar" data-flag="🇸🇦" data-code="AR">Arabic</option>
+            <option value="pt" data-flag="🇵🇹" data-code="PT">Portuguese</option>
+            <option value="bn" data-flag="🇧🇩" data-code="BN">Bengali</option>
+            <option value="ru" data-flag="🇷🇺" data-code="RU">Russian</option>
+            <option value="ja" data-flag="🇯🇵" data-code="JA">Japanese</option>
+            <option value="de" data-flag="🇩🇪" data-code="DE">German</option>
+            <option value="fr" data-flag="🇫🇷" data-code="FR">French</option>
+            <option value="ko" data-flag="🇰🇷" data-code="KO">Korean</option>
+            <option value="tr" data-flag="🇹🇷" data-code="TR">Turkish</option>
+            <option value="it" data-flag="🇮🇹" data-code="IT">Italian</option>
+            <option value="nl" data-flag="🇳🇱" data-code="NL">Dutch</option>
+            <option value="pl" data-flag="🇵🇱" data-code="PL">Polish</option>
+            <option value="sv" data-flag="🇸🇪" data-code="SV">Swedish</option>
+            <option value="fi" data-flag="🇫🇮" data-code="FI">Finnish</option>
+            <option value="id" data-flag="🇮🇩" data-code="ID">Indonesian</option>
+            <option value="vi" data-flag="🇻🇳" data-code="VI">Vietnamese</option>
+          </select>
+
+          <button id="translate-btn" class="control-btn" type="button" aria-label="Translate">Translate</button>
+          <button id="theme-toggle" class="control-btn theme" type="button" aria-label="Toggle theme" title="Toggle Light/Dark">
+            <svg class="icon sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42zm10.48 0l1.8-1.79 1.41 1.41-1.79 1.8-1.42-1.42zM12 4V1h-0v3h0zm0 19v-3h0v3h0zM4 12H1v0h3v0zm19 0h-3v0h3v0zM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79zM19.16 17.24l1.42-1.42 1.79 1.8-1.41 1.41-1.8-1.79zM12 7a5 5 0 100 10 5 5 0 000-10z"/></svg>
+            <svg class="icon moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+          </button>
+          <button id="font-toggle" class="control-btn font" type="button" aria-label="Cycle font size" title="Text size">Aa</button>
+        </div>
+
+        <!-- Keep Force New Review at top (right column on desktop, right under the row on mobile) -->
+        <div class="controls-row secondary">
+          <button id="refresh-btn" class="control-btn refresh" title="Generate new AI review" type="button">
+            Force New Review
+          </button>
         </div>
       </div>
     </header>
@@ -91,11 +100,16 @@
 
       // Elements
       const metaEl = document.getElementById('meta');
-      const translateControls = document.getElementById('translate-controls');
       const translateBtn = document.getElementById('translate-btn');
       const refreshBtn = document.getElementById('refresh-btn');
       const themeToggleBtn = document.getElementById('theme-toggle');
       const fontToggleBtn = document.getElementById('font-toggle');
+      const nativeSelect = document.getElementById('language-select');
+      const picker = document.getElementById('lang-picker');
+      const pickerBtn = document.getElementById('lang-button');
+      const pickerMenu = document.getElementById('lang-menu');
+      const flagSpan = document.getElementById('lang-flag');
+      const codeSpan = document.getElementById('lang-code');
 
       // URL params to show meta
       const params = new URLSearchParams(window.location.search);
@@ -120,12 +134,12 @@
         applyTheme(next);
       });
 
-      // Font size toggle (small → default → large)
+      // Font size toggle (xsmall → small → default → large)
       const storedFont = localStorage.getItem('tqr_font') || 'default';
       applyFont(storedFont);
       fontToggleBtn.addEventListener('click', () => {
         const current = document.body.getAttribute('data-font') || 'default';
-        const next = current === 'small' ? 'default' : (current === 'default' ? 'large' : 'small');
+        const next = current === 'xsmall' ? 'small' : (current === 'small' ? 'default' : (current === 'default' ? 'large' : 'xsmall'));
         applyFont(next);
       });
       function applyFont(size) {
@@ -133,10 +147,63 @@
         localStorage.setItem('tqr_font', size);
       }
 
-      // Translate action
+      // Build custom language menu from the hidden select
+      const options = Array.from(nativeSelect.options).map(o => ({
+        value: o.value,
+        label: o.textContent,
+        flag: o.getAttribute('data-flag') || '🏳️',
+        code: o.getAttribute('data-code') || (o.value.split('-') || '').toUpperCase()
+      }));
+      function renderMenu() {
+        pickerMenu.innerHTML = '';
+        options.forEach((opt, i) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.role = 'option';
+          item.className = 'lang-item';
+          item.dataset.value = opt.value;
+          item.innerHTML = `<span class="flag">${opt.flag}</span><span class="code">${opt.code}</span><span class="label">${opt.label}</span>`;
+          item.addEventListener('click', () => {
+            setLang(opt.value);
+            closeMenu();
+          }, { passive: true });
+          pickerMenu.appendChild(item);
+        });
+      }
+      function setLang(value) {
+        const found = options.find(o => o.value === value) || options;
+        nativeSelect.value = found.value;
+        flagSpan.textContent = found.flag;
+        codeSpan.textContent = found.code;
+        localStorage.setItem('tqr_lang', found.value);
+      }
+      function openMenu() {
+        picker.setAttribute('aria-expanded', 'true');
+        pickerMenu.hidden = false;
+        pickerMenu.focus();
+      }
+      function closeMenu() {
+        picker.setAttribute('aria-expanded', 'false');
+        pickerMenu.hidden = true;
+        pickerBtn.focus();
+      }
+      pickerBtn.addEventListener('click', (e) => {
+        const expanded = picker.getAttribute('aria-expanded') === 'true';
+        expanded ? closeMenu() : openMenu();
+      });
+      document.addEventListener('click', (e) => {
+        if (!picker.contains(e.target)) closeMenu();
+      }, { passive: true });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
+      });
+
+      renderMenu();
+      setLang(localStorage.getItem('tqr_lang') || nativeSelect.value || 'en');
+
+      // Translate action uses the hidden native select value
       translateBtn.addEventListener('click', () => {
-        const languageSelect = document.getElementById('language-select');
-        const targetLanguage = languageSelect.value;
+        const targetLanguage = nativeSelect.value;
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete('force');
         const translateUrl = new URL('https://translate.google.com/translate');
@@ -171,39 +238,57 @@
         document.querySelector('.controls-group').style.display = 'none';
       }
 
-      // Accordion setup with lighter work per frame
+      // Accordion: ensure Plot Summary opens by default and never needs double-click
       if (!isTranslated) setupAccordion();
       function setupAccordion() {
         const accordion = document.querySelector('#review .accordion');
         if (!accordion) return;
 
-        const initiallyActiveItem = accordion.querySelector('.accordion-item.active');
-        if (initiallyActiveItem) {
-          const content = initiallyActiveItem.querySelector('.accordion-content');
+        const items = Array.from(accordion.querySelectorAll('.accordion-item'));
+        const contents = items.map(it => it.querySelector('.accordion-content'));
+
+        // Helper to open/close with consistent state + ARIA
+        function openItem(item) {
+          const content = item.querySelector('.accordion-content');
+          item.classList.add('active');
+          item.querySelector('.accordion-header')?.setAttribute('aria-expanded', 'true');
+          // Measure after layout stabilizes
           requestAnimationFrame(() => {
             content.style.maxHeight = content.scrollHeight + 'px';
           });
         }
+        function closeItem(item) {
+          const content = item.querySelector('.accordion-content');
+          item.classList.remove('active');
+          item.querySelector('.accordion-header')?.setAttribute('aria-expanded', 'false');
+          content.style.maxHeight = null;
+        }
 
+        // Ensure default open: prefer the server-marked active; else open first or “Plot Summary”
+        const serverActive = accordion.querySelector('.accordion-item.active');
+        const plotItem = Array.from(items).find(it => it.querySelector('.accordion-header')?.textContent.trim().toLowerCase().startsWith('plot summary'));
+        const toOpen = serverActive || plotItem || items;
+        if (toOpen) openItem(toOpen);
+
+        // Keep height correct if fonts/contents change after load
+        const ro = new ResizeObserver(() => {
+          const active = accordion.querySelector('.accordion-item.active .accordion-content');
+          if (active) active.style.maxHeight = active.scrollHeight + 'px';
+        });
+        contents.forEach(c => ro.observe(c));
+
+        // Click handling (no double-toggle)
         accordion.addEventListener('click', (e) => {
           const header = e.target.closest('.accordion-header');
           if (!header) return;
-
           const currentItem = header.parentElement;
-          const currentContent = header.nextElementSibling;
+          const openNow = currentItem.classList.contains('active');
 
-          const openItem = accordion.querySelector('.accordion-item.active');
-          if (openItem && openItem !== currentItem) {
-            openItem.classList.remove('active');
-            openItem.querySelector('.accordion-content').style.maxHeight = null;
-          }
+          // Close others
+          items.forEach(it => { if (it !== currentItem) closeItem(it); });
 
-          currentItem.classList.toggle('active');
-          if (currentItem.classList.contains('active')) {
-            currentContent.style.maxHeight = currentContent.scrollHeight + 'px';
-          } else {
-            currentContent.style.maxHeight = null;
-          }
+          // Toggle current
+          openNow ? closeItem(currentItem) : openItem(currentItem);
         }, { passive: true });
       }
     })();
