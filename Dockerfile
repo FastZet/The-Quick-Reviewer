@@ -1,33 +1,27 @@
-# Use a lightweight official Node.js runtime
-FROM node:24-slim
+# syntax=docker/dockerfile:1
+FROM node:24-alpine
 
 ENV NODE_ENV=production
-
-# System dependencies for cloning the repository
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory
 WORKDIR /app
 
-# Clone your application's source code from GitHub
-ARG REPO_URL=https://github.com/USERNAME/The-Quick-Reviewer.git
+# Optional: install curl for healthcheck
+RUN apk add --no-cache curl
 
-# Add an argument for the branch name, defaulting to 'devel' for this testing instance
-ARG GIT_BRANCH=devel
+# Install only production deps using layer caching
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Use the -b flag to specify the branch to clone
-RUN git clone --depth 1 -b ${GIT_BRANCH} ${REPO_URL} .
+# Copy the rest of the source and drop privileges
+COPY --chown=node:node . .
+USER node
 
-# Remove any old lockfiles to ensure a clean install based on the new package.json
-RUN rm -f package-lock.json yarn.lock pnpm-lock.yaml
-
-# Install production dependencies defined in your repository's package.json
-RUN npm install --omit=dev && npm cache clean --force
-
-# Set the port environment variable for Hugging Face Spaces
+# Match your server defaults
 ENV PORT=7860
 EXPOSE 7860
 
-# Define the command to run your app using the script from your package.json
+# Healthcheck hits your existing /health route
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -fsS http://localhost:7860/health || exit 1
+
+# Start the server (server.js via "npm start")
 CMD ["npm", "start"]
