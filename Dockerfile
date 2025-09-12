@@ -9,7 +9,8 @@ RUN apk add --no-cache curl
 
 # Install only production deps using layer caching
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm config set fund false && npm config set audit false \
+ && if [ -f package-lock.json ] ; then npm ci --omit=dev ; else npm install --omit=dev ; fi
 
 # Copy the rest of the source and drop privileges
 COPY --chown=node:node . .
