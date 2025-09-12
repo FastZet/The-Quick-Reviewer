@@ -29,16 +29,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Lowercase owner/repo for GHCR image path
+      - name: Set lowercase image name
+        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          # Build for common CPU archs; safe for this Node app
           platforms: linux/amd64,linux/arm64
-          # Use GitHub Actions cache to speed up subsequent builds
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ env.REPO_LC }}:latest
+            ghcr.io/${{ env.REPO_LC }}:${{ github.sha }}
