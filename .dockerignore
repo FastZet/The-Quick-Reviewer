@@ -1,0 +1,38 @@
+# Node and package managers
+node_modules
+npm-debug.log
+yarn-error.log
+.pnpm-store
+
+# Env and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# VCS and CI metadata
+.git
+.gitignore
+.github
+.gitattributes
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs, caches, and coverage
+logs
+*.log
+tmp
+.cache
+coverage
+
+# Build artifacts (none used now, kept for future)
+dist
+build
+
+# Local tooling and misc
+.vscode
+.idea
