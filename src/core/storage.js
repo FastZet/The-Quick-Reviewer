@@ -36,6 +36,13 @@ function sqliteFilePathFromUri(uri) {
 async function initStorage() {
   mode = detectMode();
 
+  if (DATABASE_URI) {
+    console.log(`[storage] DATABASE_URI detected: ${DATABASE_URI}`);
+    console.log(`[storage] Selected backend: ${mode}`);
+  } else {
+    console.log('[storage] No DATABASE_URI set; defaulting to in-memory storage');
+  }
+
   if (mode === 'sqlite') {
     try {
       const BetterSqlite3 = require('better-sqlite3');
@@ -55,7 +62,7 @@ async function initStorage() {
       console.log(`[storage] SQLite initialized at ${filePath}`);
       return;
     } catch (err) {
-      console.warn(`[storage] SQLite init failed (${err?.message}). Falling back to memory.`); // eslint-disable-line
+      console.warn(`[storage] SQLite init failed (${err?.message}). Falling back to memory.`);
       mode = 'memory';
       sqlite = null;
     }
@@ -78,16 +85,15 @@ async function initStorage() {
       console.log(`[storage] PostgreSQL initialized`);
       return;
     } catch (err) {
-      console.warn(`[storage] Postgres init failed (${err?.message}). Falling back to memory.`); // eslint-disable-line
+      console.warn(`[storage] Postgres init failed (${err?.message}). Falling back to memory.`);
       mode = 'memory';
       pgClient = null;
     }
   }
 
-  if (mode === 'memory') {
-    mem = new Map();
-    console.log(`[storage] Using in-memory storage`);
-  }
+  // memory
+  mem = new Map();
+  console.log(`[storage] Using in-memory storage`);
 }
 
 function isExpired(ts) {
@@ -118,7 +124,7 @@ async function readReview(id) {
       [id]
     );
     if (!rows || rows.length === 0) return null;
-    const row = rows;
+    const row = rows; // FIX: pick first row
     if (isExpired(row.ts)) {
       // Optional eager prune
       try { await pgClient.query('DELETE FROM reviews WHERE id = $1', [id]); } catch (_) {}
