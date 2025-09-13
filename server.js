@@ -6,6 +6,13 @@ const fs = require('fs').promises;
 const { version } = require('./package.json');
 const addonRouter = require('./src/routes/addonRouter.js');
 
+// NEW: unified storage (DB or in-memory fallback)
+const {
+  initStorage,
+  cleanupExpired,
+  isDbEnabled
+} = require('./src/core/storage.js');
+
 const app = express();
 
 // --- Environment Config ---
@@ -106,12 +113,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Mounting Main Router
 app.use('/', addonRouter);
 
-// --- Health Check and Server Start ---
+// --- Health Check ---
 app.get('/health', (req, res) => res.send('OK'));
 
-app.listen(PORT, () => {
-  console.log(`Quick Reviewer Addon v${version} running on port ${PORT}`);
-  if (process.env.BASE_URL) console.log(`Base URL (env): ${process.env.BASE_URL}`);
-});
+// --- Bootstrap & Start ---
+async function start() {
+  try {
+    await initStorage();
+    console.log(`[Storage] Initialized. Using ${isDbEnabled() ? 'database-backed' : 'in-memory'} storage mode.`);
+  } catch (e) {
+    console.error('[Storage] Initialization failed. Falling back to in-memory cache:', e);
+  }
+
+  // Periodic TTL cleanup (DB or memory)
+  setInterval(() => {
+    cleanupExpired().catch(() => {});
+  }, 6 * 60 * 60 * 1000); // every 6 hours
+
+  app.listen(PORT, () => {
+    console.log(`Quick Reviewer Addon v${version} running on port ${PORT}`);
+    if (process.env.BASE_URL) console.log(`Base URL (env): ${process.env.BASE_URL}`);
+  });
+}
+
+start();
 
 module.exports = app;
