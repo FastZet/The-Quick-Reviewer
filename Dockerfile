@@ -16,13 +16,16 @@ RUN npm config set fund false && npm config set audit false \
 COPY --chown=node:node . .
 USER node
 
-# Match your server defaults
-ENV PORT=7860
-EXPOSE 7860
+# Parameterize the app port and EXPOSE at build time
+ARG EXPOSE_PORT=7860
+ENV PORT=${EXPOSE_PORT}
 
-# Healthcheck hits your existing /health route
+# Expose the chosen port (metadata only)
+EXPOSE ${EXPOSE_PORT}
+
+# Healthcheck hits your existing /health route on the configured port
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -fsS http://localhost:7860/health || exit 1
+  CMD curl -fsS "http://localhost:${PORT}/health" || exit 1
 
 # Start the server (server.js via "npm start")
 CMD ["npm", "start"]
