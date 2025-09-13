@@ -1,4 +1,4 @@
-name: Publish Docker image (devel nightly)
+name: Publish Docker image (devel nightly release)
 
 on:
   workflow_dispatch:
@@ -44,4 +44,5 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
+            ghcr.io/${{ env.REPO_LC }}:nightly
             ghcr.io/${{ env.REPO_LC }}:${{ env.VER_TAG }}
