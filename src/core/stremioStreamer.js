@@ -14,6 +14,8 @@ async function buildStreamResponse(req) {
   const host = req.get('x-forwarded-host') || req.get('host');
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
   const secretPath = ADDON_PASSWORD ? `/${ADDON_PASSWORD}` : '';
+
+  // FIX: use "&" between query params (not "&amp;")
   const reviewUrl = `${base}${secretPath}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
 
   const streamPayload = {
@@ -22,7 +24,7 @@ async function buildStreamResponse(req) {
     name: 'The Quick Reviewer',
     externalUrl: reviewUrl,
     poster: manifest.icon || undefined,
-    behaviorHints: { "notWebReady": true }
+    behaviorHints: { notWebReady: true }
   };
 
   try {

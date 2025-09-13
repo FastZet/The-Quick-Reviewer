@@ -2,7 +2,8 @@
 
 const express = require('express');
 const { getReview } = require('../api');
-const { getAllCachedReviews } = require('../core/cache');
+// CHANGED: use unified storage instead of in-memory cache
+const { getAllCachedReviews } = require('../core/storage');
 
 const router = express.Router();
 
@@ -61,9 +62,10 @@ router.post('/validate-password', (req, res) => {
 });
 
 // --- API for frontend to get cached reviews ---
-router.get('/cached-reviews', (req, res) => {
+// CHANGED: make async and await storage
+router.get('/cached-reviews', async (req, res) => {
   try {
-    const cachedItems = getAllCachedReviews();
+    const cachedItems = await getAllCachedReviews();
     res.json(cachedItems);
   } catch (err) {
     console.error('Error in /api/cached-reviews route:', err);
