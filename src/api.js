@@ -1,7 +1,7 @@
 // src/api.js — The main orchestrator for review generation with self-correction.
 
 // CHANGED: use unified storage (DB or in-memory fallback)
-const { readReview, saveReview } = require('./src/core/storage'); // NOTE: path depends on server working dir; adjust to './core/storage' if module path differs
+const { readReview, saveReview } = require('./core/storage'); // NOTE: path depends on server working dir; adjust to './core/storage' if module path differs
 
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
 const { enforceReviewStructure } = require('./core/formatEnforcer');
