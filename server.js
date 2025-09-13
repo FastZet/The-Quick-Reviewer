@@ -6,6 +6,14 @@ const fs = require('fs').promises;
 const { version } = require('./package.json');
 const addonRouter = require('./src/routes/addonRouter.js');
 
+// Unified storage (DB or in-memory fallback)
+const {
+  initStorage,
+  cleanupExpired,
+  isDbEnabled,
+  closeStorage
+} = require('./src/core/storage.js');
+
 const app = express();
 
 // --- Environment Config ---
@@ -106,12 +114,65 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Mounting Main Router
 app.use('/', addonRouter);
 
-// --- Health Check and Server Start ---
+// --- Health Check ---
 app.get('/health', (req, res) => res.send('OK'));
 
-app.listen(PORT, () => {
-  console.log(`Quick Reviewer Addon v${version} running on port ${PORT}`);
-  if (process.env.BASE_URL) console.log(`Base URL (env): ${process.env.BASE_URL}`);
+// --- Bootstrap, Scheduler & Graceful Shutdown ---
+let server;
+let cleanupTimer;
+
+async function start() {
+  try {
+    await initStorage();
+    console.log(`[Storage] Initialized. Using ${isDbEnabled() ? 'database-backed' : 'in-memory'} storage mode.`);
+  } catch (e) {
+    console.error('[Storage] Initialization failed. Falling back to in-memory cache:', e);
+  }
+
+  // Periodic TTL cleanup (DB or memory)
+  cleanupTimer = setInterval(() => {
+    cleanupExpired().catch(() => {});
+  }, 6 * 60 * 60 * 1000); // every 6 hours
+  if (cleanupTimer.unref) cleanupTimer.unref();
+
+  server = app.listen(PORT, () => {
+    console.log(`Quick Reviewer Addon v${version} running on port ${PORT}`);
+    if (process.env.BASE_URL) console.log(`Base URL (env): ${process.env.BASE_URL}`);
+  });
+}
+
+async function shutdown(kind = 'shutdown') {
+  try {
+    console.log(`[Server] Received ${kind}. Shutting down gracefully...`);
+    if (cleanupTimer) clearInterval(cleanupTimer);
+    if (typeof closeStorage === 'function') {
+      await closeStorage().catch((e) => console.warn('[Storage] close failed:', e));
+    }
+  } finally {
+    if (server) {
+      server.close(() => {
+        console.log('[Server] HTTP server closed.');
+        process.exit(0);
+      });
+      // Fallback hard-exit if close hangs
+      setTimeout(() => process.exit(1), 5000).unref();
+    } else {
+      process.exit(0);
+    }
+  }
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught exception:', err);
+  shutdown('uncaughtException');
 });
+process.on('unhandledRejection', (reason, p) => {
+  console.error('Error in /api/review route:', reason);
+  // Not forcing shutdown here; continue running but logged
+});
+
+start();
 
 module.exports = app;

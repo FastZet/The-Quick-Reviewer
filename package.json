@@ -7,10 +7,12 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@google/genai": "*",
     "axios": "^1.11.0",
-    "express": "^5.1.0",
     "cheerio": "^1.1.2",
-    "@google/genai": "*"
+    "express": "^5.1.0",
+    "better-sqlite3": "^12.2.0",
+    "pg": "^8.16.3"
   },
   "engines": {
     "node": "24.x"
