@@ -13,14 +13,14 @@ COPY package*.json ./
 RUN npm config set fund false && npm config set audit false \
  && if [ -f package-lock.json ] ; then npm ci --omit=dev ; else npm install --omit=dev ; fi
 
-# Copy source
-COPY --chown=node:node . .
+# Copy source as root (no chown needed when running as root)
+COPY . .
 
-# Ensure SQLite directory exists and is owned by node BEFORE switching user
-RUN install -d -o node -g node /app/addon/data
+# Optional: create /data in image; bind mount may overlay this at runtime
+RUN mkdir -p /data
 
-# Drop privileges
-USER node
+# No USER instruction → default runtime user is root
+# USER root  # (implicit)
 
 ARG EXPOSE_PORT=7860
 ENV PORT=${EXPOSE_PORT}
