@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine
+FROM node:24-slim
 
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Optional: install curl for healthcheck
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install only production deps using layer caching
 COPY package*.json ./
@@ -16,7 +16,9 @@ RUN npm config set fund false && npm config set audit false \
 COPY --chown=node:node . .
 USER node
 
-# Parameterize the app port and EXPOSE at build time
+# Ensure the SQLite directory exists and is writable
+RUN mkdir -p /app/addon/data
+
 ARG EXPOSE_PORT=7860
 ENV PORT=${EXPOSE_PORT}
 
