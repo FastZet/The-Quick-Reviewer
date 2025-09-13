@@ -1,6 +1,8 @@
 // src/api.js — The main orchestrator for review generation with self-correction.
 
-const { readReview, saveReview } = require('./core/cache');
+// CHANGED: use unified storage (DB or in-memory fallback)
+const { readReview, saveReview } = require('./src/core/storage'); // NOTE: path depends on server working dir; adjust to './core/storage' if module path differs
+
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
 const { enforceReviewStructure } = require('./core/formatEnforcer');
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/metadataService');
@@ -17,7 +19,8 @@ async function getReview(id, type, forceRefresh = false) {
   console.log(`[API] Received request for type: ${type}, id: ${id}, forceRefresh: ${forceRefresh}`);
   
   if (!forceRefresh) {
-    const cached = readReview(id);
+    // CHANGED: await storage read (works for DB or memory)
+    const cached = await readReview(id);
     if (cached) {
       console.log(`[Cache] Cache hit for ${id}. Returning cached review.`);
       return cached;
@@ -88,7 +91,8 @@ async function getReview(id, type, forceRefresh = false) {
       const finalReviewHtml = enforceReviewStructure(rawReview);
       
       const result = { review: finalReviewHtml, verdict: verdict };
-      saveReview(id, result, type);
+      // CHANGED: await storage save (works for DB or memory)
+      await saveReview(id, result, type);
       
       console.log(`===== [API] Request End (Success) =====\n`);
       return result;
@@ -132,6 +136,5 @@ function reconcileLanguage(reviewText, apiLanguages, sourceName) {
     const finalLine = `• **Language:** ${finalLangs.join(', ')}`;
     return reviewText.replace(langRegex, finalLine);
 }
-
 
 module.exports = { getReview };
