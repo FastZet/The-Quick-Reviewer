@@ -4,8 +4,8 @@ FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Optional: install curl for healthcheck
-RUN apk add --no-cache curl
+# Optional: install curl for healthcheck + build tools for native modules (SQLite)
+RUN apk add --no-cache curl python3 make g++
 
 # Install only production deps using layer caching
 COPY package*.json ./
