@@ -169,7 +169,7 @@ process.on('uncaughtException', (err) => {
   shutdown('uncaughtException');
 });
 process.on('unhandledRejection', (reason, p) => {
-  console.error('[Process] Unhandled rejection at:', p, 'reason:', reason);
+  console.error('Error in /api/review route:', reason);
   // Not forcing shutdown here; continue running but logged
 });
 
