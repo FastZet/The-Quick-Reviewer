@@ -6,7 +6,8 @@ const fs = require('fs').promises;
 const manifest = require('../../manifest.json');
 const { buildStreamResponse } = require('../core/stremioStreamer.js');
 const { getReview } = require('../api');
-const { getAllCachedReviews } = require('../core/cache');
+// CHANGED: use unified storage instead of in-memory cache
+const { getAllCachedReviews } = require('../core/storage');
 
 const router = express.Router();
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
@@ -25,9 +26,10 @@ const handleReviewApiRequest = async (req, res) => {
   }
 };
 
-const handleCachedReviewsApiRequest = (req, res) => {
+// CHANGED: make async and await storage
+const handleCachedReviewsApiRequest = async (req, res) => {
   try {
-    const cachedItems = getAllCachedReviews();
+    const cachedItems = await getAllCachedReviews();
     res.json(cachedItems);
   } catch (err) {
     console.error('Error in /api/cached-reviews route:', err);
@@ -44,7 +46,9 @@ const handleReviewPageRequest = async (req, res) => {
     const reviewHtml = reviewData ? reviewData.review : null;
     const templatePath = path.join(__dirname, '..', '..', 'public', 'review.html');
     let htmlTemplate = await fs.readFile(templatePath, 'utf-8');
-    htmlTemplate = htmlTemplate.replace('{{LOADING_STATE}}', 'style="display: none;"').replace('{{REVIEW_CONTENT}}', reviewHtml || '<p>Review could not be loaded.</p>');
+    htmlTemplate = htmlTemplate
+      .replace('{{LOADING_STATE}}', 'style="display: none;"')
+      .replace('{{REVIEW_CONTENT}}', reviewHtml || '<p>Review could not be loaded.</p>');
     res.send(htmlTemplate);
   } catch (error) {
     console.error('SSR Error for review page:', error);
@@ -58,31 +62,32 @@ const handleCachedReviewsPageRequest = (req, res) => {
 
 const loginAttempts = new Map();
 router.post('/api/validate-password', (req, res) => {
-    if (!ADDON_PASSWORD) return res.status(403).json({ error: 'Password protection is not enabled.' });
-    const ip = req.ip;
-    const { password } = req.body;
-    const now = Date.now();
-    const MAX_ATTEMPTS = 5;
-    const LOCKOUT_MS = 10 * 60 * 1000;
-    let attempts = loginAttempts.get(ip) || { count: 0, lockoutUntil: null };
-    if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
-        const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
-        return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
-    }
-    if (password === ADDON_PASSWORD) {
-        loginAttempts.delete(ip);
-        const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-        const host = req.get('x-forwarded-host') || req.get('host');
-        const base = process.env.BASE_URL || (host ? `${proto}://${host}` : '');
-        const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${ADDON_PASSWORD}/manifest.json`;
-        const cacheUrl = `/${ADDON_PASSWORD}/cached-reviews`;
-        return res.json({ manifestStremioUrl, cacheUrl });
-    }
-    attempts.count++;
-    if (attempts.count >= MAX_ATTEMPTS) attempts.lockoutUntil = now + LOCKOUT_MS;
-    loginAttempts.set(ip, attempts);
-    const remaining = MAX_ATTEMPTS - attempts.count;
-    return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
+  const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
+  if (!ADDON_PASSWORD) return res.status(403).json({ error: 'Password protection is not enabled.' });
+  const ip = req.ip;
+  const { password } = req.body;
+  const now = Date.now();
+  const MAX_ATTEMPTS = 5;
+  const LOCKOUT_MS = 10 * 60 * 1000;
+  let attempts = loginAttempts.get(ip) || { count: 0, lockoutUntil: null };
+  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
+    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
+    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
+  }
+  if (password === ADDON_PASSWORD) {
+    loginAttempts.delete(ip);
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const base = process.env.BASE_URL || (host ? `${proto}://${host}` : '');
+    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${ADDON_PASSWORD}/manifest.json`;
+    const cacheUrl = `/${ADDON_PASSWORD}/cached-reviews`;
+    return res.json({ manifestStremioUrl, cacheUrl });
+  }
+  attempts.count++;
+  if (attempts.count >= MAX_ATTEMPTS) attempts.lockoutUntil = now + LOCKOUT_MS;
+  loginAttempts.set(ip, attempts);
+  const remaining = MAX_ATTEMPTS - attempts.count;
+  return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
 });
 
 if (ADDON_PASSWORD) {
