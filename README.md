@@ -1,20 +1,22 @@
+
 # The Quick Reviewer — Stremio Addon
 Provides spoiler-free, bullet-point AI reviews for movies and series episodes as a single stream link, powered by Google Gemini via the official @google/genai SDK and grounded with Google Search when needed.
 
 ## Key Features
-*   🌐 Multi-Language Translation: Seamlessly translate reviews into 20 of the world's most spoken languages using a direct integration with Google Translate.
-*   🤖 AI Self-Correction & Verification: An internal verifier automatically validates the format of every AI-generated review and triggers retries if the structure is incorrect.
-*   ✨ Modern & Responsive UI: The review page is designed for a clean, professional experience on both desktop and mobile devices.
-*   🔒 Optional Password Protection: Secure the addon endpoint with a single password and IP-based rate-limiting to deter brute-force attacks.
-*   ⚡ Smart Performance:
+*   🗄️ **Persistent Caching**: Caches generated reviews to a persistent database (SQLite or PostgreSQL) to survive restarts, with a fallback to in-memory caching for simple deployments.
+*   📈 **Enhanced Stability**: Features graceful shutdown and periodic cache cleanup to ensure long-term reliability and efficient resource management.
+*   🌐 **Multi-Language Translation**: Seamlessly translate reviews into 20 of the world's most spoken languages using a direct integration with Google Translate.
+*   🤖 **AI Self-Correction & Verification**: An internal verifier automatically validates the format of every AI-generated review and triggers retries if the structure is incorrect.
+*   ✨ **Modern & Responsive UI**: The review page is designed for a clean, professional experience on both desktop and mobile devices.
+*   🔒 **Optional Password Protection**: Secure the addon endpoint with a single password and IP-based rate-limiting to deter brute-force attacks.
+*   ⚡ **Smart Performance**:
     *   Concurrent Request Handling: Prevents duplicate API calls when multiple users request the same review simultaneously.
     *   Server-Side Rendering (SSR): The review page is rendered on the server for fast load times and better compatibility with translation flows.
-    *   In-memory Caching: Caches generated reviews to reduce API usage and speed up subsequent loads.
-*   🌐 Reliable Metadata: Fetches media details primarily from TMDB, with OMDB as a robust fallback.
-*   🕷️ Web Scraping: Scrapes IMDb for supplementary episode data (like specific episode titles) to improve AI context.
-*   ⚙️ Admin & Debugging: When password-protected, includes an admin page to list all cached reviews and metadata.
-*   🧠 Official @google/genai + Grounding: Uses @google/genai with the googleSearch tool to enable real-time web grounding and citations for more accurate, up-to-date responses.
-*   🚀 Gemini 2.5 Default Model: Defaults to gemini‑2.5‑flash‑lite for cost-efficient, low-latency usage and supports Google Search grounding.
+*   🌐 **Reliable Metadata**: Fetches media details primarily from TMDB, with OMDB as a robust fallback.
+*   🕷️ **Web Scraping**: Scrapes IMDb for supplementary episode data (like specific episode titles) to improve AI context.
+*   ⚙️ **Admin & Debugging**: When password-protected, includes an admin page to list all cached reviews and metadata.
+*   🧠 **Official @google/genai + Grounding**: Uses @google/genai with the `googleSearch` tool to enable real-time web grounding and citations for more accurate, up-to-date responses.
+*   🚀 **Gemini 2.5 Default Model**: Defaults to `gemini‑2.5‑flash‑lite` for cost-efficient, low-latency usage and supports Google Search grounding.
 
 ## Architecture Flowchart
 This diagram illustrates the request lifecycle, from Stremio to the final review, including the self-correction loop.
@@ -88,19 +90,23 @@ To run the addon, set the following environment variables, especially when self-
 
 | Variable | Description | Required |
 | :--- | :--- | :---: |
-| TMDB_API_KEY | API key from The Movie Database (TMDB) for metadata.  | Yes |
-| OMDB_API_KEY | API key from the OMDb API for metadata fallback.  | Yes |
-| GEMINI_API_KEY | Google AI Studio Gemini API key used by @google/genai.  | Yes |
-| GEMINI_MODEL | Optional override for the Gemini model; defaults to gemini‑2.5‑flash‑lite.  | No |
-| BASE_URL | Public URL of the deployed addon (e.g., Space or server base).  | Yes |
-| ADDON_PASSWORD | Optional password to secure the addon’s endpoints.  | No |
-| ADDON_TIMEOUT_MS | Optional milliseconds to wait for pre-generation; defaults to 13000.  | No |
+| `TMDB_API_KEY` | API key from The Movie Database (TMDB) for metadata.  | Yes |
+| `OMDB_API_KEY` | API key from the OMDb API for metadata fallback.  | Yes |
+| `GEMINI_API_KEY` | Google AI Studio Gemini API key used by @google/genai.  | Yes |
+| `BASE_URL` | Public URL of the deployed addon (e.g., Space or server base).  | Yes |
+| `DATABASE_URI` | Optional connection URI for a persistent database cache. If not set, reviews are cached in-memory. Examples: `sqlite:///data/reviews.db` or `postgres://user:pass@host:port/dbname`. | No |
+| `GEMINI_MODEL` | Optional override for the Gemini model; defaults to `gemini‑2.5‑flash‑lite`.  | No |
+| `ADDON_PASSWORD` | Optional password to secure the addon’s endpoints.  | No |
+| `ADDON_TIMEOUT_MS` | Optional milliseconds to wait for pre-generation; defaults to `13000`.  | No |
 
 ## Deployment on Hugging Face Spaces
 1.  Create a Space using the Docker template and set it to public.
-2.  Add environment variables under Settings → Variables and Secrets as listed above.
+2.  Add environment variables under **Settings → Variables and Secrets** as listed above.
 3.  Push the repository to the Space; the Dockerfile will install and run the service.
 4.  Wait for the Space to build and start; the addon will be live when the container is healthy.
+
+#### A Note on Persistent Storage
+To take advantage of persistent caching on platforms with ephemeral filesystems (like Hugging Face Spaces), you must configure a persistent storage volume and point your `DATABASE_URI` to a file within that volume (e.g., `sqlite:///persistent-storage/reviews.db`). Otherwise, the SQLite database will be reset with every application restart.
 
 ## Usage in Stremio
 The installation method depends on whether a password is set.
@@ -111,7 +117,7 @@ The installation method depends on whether a password is set.
 
 #### If a Password is Set (Secured):
 1.  Open the root URL: `https://<your-space-url>/`
-2.  Enter the password set in ADDON_PASSWORD to unlock the install link.
+2.  Enter the password set in `ADDON_PASSWORD` to unlock the install link.
 3.  After validation, use the provided buttons to install the addon or view cached reviews.
 
 Once installed, a “⚡ Quick AI Review” stream appears for movies and series episodes, and opening it renders the review page with structured, spoiler-free analysis.
@@ -137,11 +143,11 @@ The-Quick-Reviewer/
     ├── config/
     │   └── promptBuilder.js   # Constructs the AI prompt
     ├── core/
-    │   ├── cache.js           # In-memory cache management
     │   ├── formatEnforcer.js  # Cleans and structures the final HTML
     │   ├── reviewParser.js    # Extracts the one-line verdict from raw AI text
     │   ├── reviewVerifier.js  # Validates AI output to trigger self-correction
     │   ├── scraper.js         # Handles IMDb web scraping
+    │   ├── storage.js         # Unified storage layer (SQLite, PG, or in-memory)
     │   └── stremioStreamer.js # Builds the Stremio stream response
     ├── routes/
     │   └── addonRouter.js     # Handles ALL Stremio and internal API routes
