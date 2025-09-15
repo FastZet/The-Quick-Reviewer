@@ -5,13 +5,15 @@ const path = require('path');
 const fs = require('fs').promises;
 const { version } = require('./package.json');
 const addonRouter = require('./src/routes/addonRouter.js');
+const { getReview } = require('./src/api.js'); // Import getReview for regeneration
 
 // Unified storage (DB or in-memory fallback)
 const {
   initStorage,
-  cleanupExpired,
   isDbEnabled,
-  closeStorage
+  closeStorage,
+  getExpiredReviewIds, // Import new functions for regeneration
+  deleteReview,
 } = require('./src/core/storage.js');
 
 const app = express();
@@ -119,7 +121,13 @@ app.get('/health', (req, res) => res.send('OK'));
 
 // --- Bootstrap, Scheduler & Graceful Shutdown ---
 let server;
-let cleanupTimer;
+const regenerationQueue = [];
+const REGEN_PER_HOUR = 20;
+const REGEN_INTERVAL_MS = (60 * 60 * 1000) / REGEN_PER_HOUR; // Approx. every 3 minutes
+
+// Timers need to be accessible for shutdown
+let workerTimer = null;
+let populatorTimer = null;
 
 async function start() {
   try {
@@ -129,11 +137,54 @@ async function start() {
     console.error('[Storage] Initialization failed. Falling back to in-memory cache:', e);
   }
 
-  // Periodic TTL cleanup (DB or memory)
-  cleanupTimer = setInterval(() => {
-    cleanupExpired().catch(() => {});
-  }, 6 * 60 * 60 * 1000); // every 6 hours
-  if (cleanupTimer.unref) cleanupTimer.unref();
+  // --- Background Regeneration Scheduler ---
+
+  // 1. Worker: Processes one review from the queue at a set interval
+  const processQueue = async () => {
+    if (regenerationQueue.length === 0) return;
+
+    const { id, type } = regenerationQueue.shift();
+    console.log(`[Regen Worker] Processing expired review for ${id}. Queue size: ${regenerationQueue.length}`);
+    try {
+      // Regenerate the review. This will automatically update it in storage.
+      await getReview(id, type, true);
+      console.log(`[Regen Worker] Successfully regenerated review for ${id}.`);
+    } catch (err) {
+      console.error(`[Regen Worker] Failed to regenerate review for ${id}:`, err.message);
+      // Delete the failed review so it doesn't get stuck in a loop
+      await deleteReview(id).catch(delErr => console.error(`[Regen Worker] Failed to delete review ${id} after error:`, delErr));
+    }
+  };
+
+  // 2. Populator: Periodically finds expired reviews and adds them to the queue
+  const populateQueue = async () => {
+    console.log('[Regen Scheduler] Checking for expired reviews to regenerate...');
+    try {
+        const expiredItems = await getExpiredReviewIds();
+        if (expiredItems.length > 0) {
+            expiredItems.forEach(item => {
+                if (!regenerationQueue.some(q => q.id === item.id)) {
+                    regenerationQueue.push(item);
+                }
+            });
+            console.log(`[Regen Scheduler] Found ${expiredItems.length} expired reviews. Queue size is now ${regenerationQueue.length}.`);
+        } else {
+            console.log('[Regen Scheduler] No expired reviews found.');
+        }
+    } catch (err) {
+        console.error('[Regen Scheduler] Error populating regeneration queue:', err);
+    }
+  };
+
+  // Set intervals and store their IDs
+  workerTimer = setInterval(processQueue, REGEN_INTERVAL_MS);
+  populatorTimer = setInterval(populateQueue, 6 * 60 * 60 * 1000); // Every 6 hours
+  
+  // Unref timers to allow graceful shutdown without waiting for them
+  if (workerTimer.unref) workerTimer.unref();
+  if (populatorTimer.unref) populatorTimer.unref();
+  
+  populateQueue(); // Initial run on start
 
   server = app.listen(PORT, () => {
     console.log(`Quick Reviewer Addon v${version} running on port ${PORT}`);
@@ -144,7 +195,9 @@ async function start() {
 async function shutdown(kind = 'shutdown') {
   try {
     console.log(`[Server] Received ${kind}. Shutting down gracefully...`);
-    if (cleanupTimer) clearInterval(cleanupTimer);
+    if (workerTimer) clearInterval(workerTimer);
+    if (populatorTimer) clearInterval(populatorTimer);
+
     if (typeof closeStorage === 'function') {
       await closeStorage().catch((e) => console.warn('[Storage] close failed:', e));
     }
@@ -169,7 +222,7 @@ process.on('uncaughtException', (err) => {
   shutdown('uncaughtException');
 });
 process.on('unhandledRejection', (reason, p) => {
-  console.error('Error in /api/review route:', reason);
+  console.error('[Process] Unhandled Rejection at Promise:', p, 'reason:', reason);
   // Not forcing shutdown here; continue running but logged
 });
 
