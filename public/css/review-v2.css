@@ -1,0 +1,164 @@
+/* --- V2 Review Page Styles --- */
+
+:root {
+    --brand-primary: #6366f1;
+    --brand-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --card-bg-hover: #1a1a1e;
+}
+
+/* --- Hero Section --- */
+.hero {
+    position: relative;
+    padding: 3rem 0;
+    background: linear-gradient(45deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+    border-bottom: 1px solid var(--border-color);
+}
+.hero-content {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 2.5rem;
+    align-items: center;
+}
+.movie-poster {
+    width: 100%;
+    height: 375px;
+    background: var(--content-background);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
+    text-align: center;
+    padding: 1rem;
+}
+.movie-info h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+.movie-meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    color: var(--secondary-text);
+}
+.meta-item { display: flex; align-items: center; gap: 0.5rem; }
+.rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--content-background);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+}
+.rating-score {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--accent-color);
+}
+.verdict-text { font-size: 1rem; color: var(--secondary-text); max-width: 40ch; }
+
+/* --- Review Section --- */
+.review-section { padding: 4rem 0; }
+.review-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 3rem;
+}
+.review-main-content { display: flex; flex-direction: column; gap: 1.5rem; }
+.review-card {
+    background: var(--content-background);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    transition: all 0.2s ease;
+}
+.review-card:hover {
+    background: var(--card-bg-hover);
+    transform: translateY(-2px);
+    border-color: rgba(88, 166, 255, 0.5);
+}
+.review-card h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.review-text { color: var(--secondary-text); line-height: 1.7; }
+.sidebar { display: flex; flex-direction: column; gap: 1.5rem; }
+.sidebar-card {
+    background: var(--content-background);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+.sidebar-card h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+}
+.stat-item:last-child { border: none; }
+.stat-label { color: var(--secondary-text); }
+.stat-value { font-weight: 600; }
+.recommendation-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.recommendation-tag {
+    display: inline-block;
+    background: rgba(48, 54, 61, 0.7);
+    border: 1px solid var(--border-color);
+    color: var(--secondary-text);
+    padding: 0.25rem 0.75rem;
+    border-radius: 16px;
+    font-size: 0.85rem;
+}
+.recommendation-tag.positive {
+    background: rgba(63, 185, 80, 0.1);
+    border-color: var(--success-color);
+    color: var(--success-color);
+}
+.recommendation-tag.negative {
+    background: rgba(248, 81, 73, 0.1);
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+.similar-films-list {
+    color: var(--secondary-text);
+    font-size: 0.9rem;
+    line-height: 1.8;
+    padding-left: 1rem;
+}
+.timestamp {
+    text-align: center;
+    color: var(--secondary-text);
+    font-size: 0.85rem;
+    margin-top: 2rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 992px) {
+    .review-grid { grid-template-columns: 1fr; }
+    .sidebar { order: -1; /* Move sidebar to top on mobile */ }
+}
+@media (max-width: 768px) {
+    .hero-content { grid-template-columns: 1fr; text-align: center; }
+    .movie-poster { width: 200px; height: 300px; margin: 0 auto 1rem; }
+    .movie-info h1 { font-size: 2rem; }
+    .movie-meta { justify-content: center; }
+}
