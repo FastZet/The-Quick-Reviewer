@@ -1,10 +1,7 @@
 // src/api.js — The main orchestrator for review generation with self-correction.
 
-// CHANGED: use unified storage (DB or in-memory fallback)
-const { readReview, saveReview } = require('./core/storage'); // NOTE: path depends on server working dir; adjust to './core/storage' if module path differs
-
+const { readReview, saveReview } = require('./core/storage');
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
-const { enforceReviewStructure } = require('./core/formatEnforcer');
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/metadataService');
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/geminiService');
@@ -19,11 +16,12 @@ async function getReview(id, type, forceRefresh = false) {
   console.log(`[API] Received request for type: ${type}, id: ${id}, forceRefresh: ${forceRefresh}`);
   
   if (!forceRefresh) {
-    // CHANGED: await storage read (works for DB or memory)
     const cached = await readReview(id);
-    if (cached) {
+    if (cached && cached.review) { // Ensure the review object exists
       console.log(`[Cache] Cache hit for ${id}. Returning cached review.`);
-      return cached;
+      // The cached object structure is { review: { raw, verdict }, ts }
+      // We return a flattened object { raw, verdict, ts }
+      return { ...cached.review, ts: cached.ts };
     }
     if (pendingReviews.has(id)) {
       console.log(`[API] Generation for ${id} is already in progress. Awaiting result...`);
@@ -88,18 +86,24 @@ async function getReview(id, type, forceRefresh = false) {
       }
 
       const verdict = parseVerdictFromReview(rawReview);
-      const finalReviewHtml = enforceReviewStructure(rawReview);
       
-      const result = { review: finalReviewHtml, verdict: verdict };
-      // CHANGED: await storage save (works for DB or memory)
+      // The result object to be saved contains the essential data.
+      // The HTML formatting is now handled by the router.
+      const result = { raw: rawReview, verdict: verdict };
       await saveReview(id, result, type);
       
       console.log(`===== [API] Request End (Success) =====\n`);
-      return result;
+      // Return the result along with the current timestamp for the router.
+      return { ...result, ts: Date.now() };
 
     } catch (error) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
-        return { review: `Error: Review generation failed. ${error.message}`, verdict: null };
+        // Return a consistent structure on error
+        return { 
+          raw: `Error: Review generation failed. ${error.message}`, 
+          verdict: null,
+          ts: Date.now()
+        };
     } finally {
       pendingReviews.delete(id);
     }
@@ -107,34 +111,6 @@ async function getReview(id, type, forceRefresh = false) {
 
   pendingReviews.set(id, generationPromise);
   return await generationPromise;
-}
-
-function reconcileLanguage(reviewText, apiLanguages, sourceName) {
-    const langRegex = /• \*\*Language:\*\*([^\n]*)/;
-    const match = reviewText.match(langRegex);
-    const aiLangs = match ? match[1].trim().split(',').map(l => l.trim()).filter(Boolean) : [];
-    const apiLangs = (apiLanguages || []).filter(Boolean);
-    if (apiLangs.length === 0 && aiLangs.length === 0) return match ? reviewText.replace(langRegex, '').replace(/^\s*[\r\n]/gm, '') : reviewText;
-    if (apiLangs.length > 0 && aiLangs.length === 0) {
-        const apiLangLine = `• **Language:** ${apiLangs.join(', ')}`;
-        if (match) return reviewText.replace(langRegex, apiLangLine);
-        const directorRegex = /(• \*\*(?:Directed By|Directed by):\*\*[^\n]*)/;
-        return reviewText.replace(directorRegex, `$1\n${apiLangLine}`);
-    }
-    if (apiLangs.length === 0 && aiLangs.length > 0) {
-        const aiLangLine = `• **Language:** ${aiLangs.join(', ')} (Gemini AI)`;
-        return reviewText.replace(langRegex, aiLangLine);
-    }
-    const combinedLangs = new Set([...aiLangs, ...apiLangs]);
-    const finalLangs = Array.from(combinedLangs).map(lang => {
-        const inApi = apiLangs.includes(lang);
-        const inAi = aiLangs.includes(lang);
-        if (inApi && inAi) return lang;
-        if (inApi) return `${lang} (${sourceName.toUpperCase()})`;
-        return `${lang} (Gemini AI)`;
-    });
-    const finalLine = `• **Language:** ${finalLangs.join(', ')}`;
-    return reviewText.replace(langRegex, finalLine);
 }
 
 module.exports = { getReview };
