@@ -7,10 +7,18 @@ const manifest = require('../../manifest.json');
 const { buildStreamResponse } = require('../core/stremioStreamer.js');
 const { getReview } = require('../api');
 const { getAllCachedReviews } = require('../core/storage');
-const { buildReviewContent } = require('../core/formatEnforcerV2');
+const { buildReviewContent } = require('../core/formatEnforcerV2'); // Import the new V2 enforcer
 
 const router = express.Router();
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
+
+// Constant for favicon links to keep HTML templates clean
+const FAVICON_LINKS = `
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="manifest" href="/assets/site.webmanifest">
+`;
 
 const handleReviewApiRequest = async (req, res) => {
   try {
@@ -26,7 +34,6 @@ const handleReviewApiRequest = async (req, res) => {
   }
 };
 
-// CHANGED: make async and await storage
 const handleCachedReviewsApiRequest = async (req, res) => {
   try {
     const cachedItems = await getAllCachedReviews();
@@ -37,21 +44,16 @@ const handleCachedReviewsApiRequest = async (req, res) => {
   }
 };
 
-const FAVICON_LINKS = `
-  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
-  <link rel="manifest" href="/assets/site.webmanifest">
-`;
-
 const handleQuickReviewPage = async (req, res) => {
     try {
         const { type, id } = req.query;
         const forceRefresh = req.query.force === 'true';
-        if (!type || !id) return res.status(400).send('Missing "type" or "id".');
+        if (!type || !id) return res.status(400).send('Missing "type" or "id" in URL query.');
 
         const reviewData = await getReview(String(id).trim(), type, forceRefresh);
-        if (!reviewData || !reviewData.raw) return res.status(500).send('Failed to generate review content.');
+        if (!reviewData || !reviewData.raw) {
+            return res.status(500).send('Failed to generate or retrieve review content.');
+        }
 
         const content = buildReviewContent(reviewData.raw);
         const templatePath = path.join(__dirname, '..', '..', 'public', 'review-quick.html');
@@ -77,10 +79,12 @@ const handleFullReviewPage = async (req, res) => {
     try {
         const { type, id } = req.query;
         const forceRefresh = req.query.force === 'true';
-        if (!type || !id) return res.status(400).send('Missing "type" or "id".');
+        if (!type || !id) return res.status(400).send('Missing "type" or "id" in URL query.');
 
         const reviewData = await getReview(String(id).trim(), type, forceRefresh);
-        if (!reviewData || !reviewData.raw) return res.status(500).send('Failed to generate review content.');
+        if (!reviewData || !reviewData.raw) {
+            return res.status(500).send('Failed to generate or retrieve review content.');
+        }
 
         const content = buildReviewContent(reviewData.raw);
         const templatePath = path.join(__dirname, '..', '..', 'public', 'review-full.html');
@@ -140,16 +144,22 @@ if (ADDON_PASSWORD) {
   console.log('Addon is SECURED. All functional routes are password-protected.');
   router.get(`${secretPath}/manifest.json`, (req, res) => res.json(manifest));
   router.get(`${secretPath}/stream/:type/:id.json`, (req, res) => buildStreamResponse(req).then(data => res.json(data)));
+  
+  // New review page routes
   router.get(`${secretPath}/review`, (req, res) => res.redirect(301, req.originalUrl.replace('/review', '/review-quick')));
   router.get(`${secretPath}/review-quick`, handleQuickReviewPage);
   router.get(`${secretPath}/review-full`, handleFullReviewPage);
+  
   router.get(`${secretPath}/cached-reviews`, handleCachedReviewsPageRequest);
   router.get(`${secretPath}/api/review`, handleReviewApiRequest);
   router.get(`${secretPath}/api/cached-reviews`, handleCachedReviewsApiRequest);
+  
   const forbiddenHandler = (req, res) => res.status(403).send('You are not authorized. Contact the administrator.');
   router.get('/manifest.json', forbiddenHandler);
   router.get('/stream/:type/:id.json', forbiddenHandler);
   router.get('/review', forbiddenHandler);
+  router.get('/review-quick', forbiddenHandler);
+  router.get('/review-full', forbiddenHandler);
   router.get('/cached-reviews', forbiddenHandler);
   router.get('/api/review', forbiddenHandler);
   router.get('/api/cached-reviews', forbiddenHandler);
@@ -157,7 +167,12 @@ if (ADDON_PASSWORD) {
   console.log('Addon is UNSECURED.');
   router.get('/manifest.json', (req, res) => res.json(manifest));
   router.get('/stream/:type/:id.json', (req, res) => buildStreamResponse(req).then(data => res.json(data)));
-  router.get('/review', handleReviewPageRequest);
+  
+  // New review page routes
+  router.get('/review', (req, res) => res.redirect(301, req.originalUrl.replace('/review', '/review-quick')));
+  router.get('/review-quick`, handleQuickReviewPage);
+  router.get('/review-full`, handleFullReviewPage);
+
   router.get('/cached-reviews', handleCachedReviewsPageRequest);
   router.get('/api/review', handleReviewApiRequest);
   router.get('/api/cached-reviews', handleCachedReviewsApiRequest);
