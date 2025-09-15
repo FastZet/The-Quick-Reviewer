@@ -15,8 +15,8 @@ async function buildStreamResponse(req) {
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
   const secretPath = ADDON_PASSWORD ? `/${ADDON_PASSWORD}` : '';
 
-  // FIX: use "&" between query params (not "&amp;")
-  const reviewUrl = `${base}${secretPath}/review?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  // UPDATED: Point directly to the new /review-quick page.
+  const reviewUrl = `${base}${secretPath}/review-quick?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
 
   const streamPayload = {
     id: `quick-reviewer-${type}-${id}`,
