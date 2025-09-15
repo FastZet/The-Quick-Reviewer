@@ -170,8 +170,8 @@ if (ADDON_PASSWORD) {
   
   // New review page routes
   router.get('/review', (req, res) => res.redirect(301, req.originalUrl.replace('/review', '/review-quick')));
-  router.get('/review-quick`, handleQuickReviewPage);
-  router.get('/review-full`, handleFullReviewPage);
+  router.get('/review-quick', handleQuickReviewPage);
+  router.get('/review-full', handleFullReviewPage);
 
   router.get('/cached-reviews', handleCachedReviewsPageRequest);
   router.get('/api/review', handleReviewApiRequest);
