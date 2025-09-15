@@ -8,7 +8,7 @@ const DATABASE_URI = process.env.DATABASE_URI || null;
 const CACHE_EXPIRY_MS = 30 * 86400000; // 30 days
 
 let mode = 'memory';            // 'memory' | 'sqlite' | 'postgres'
-let mem = new Map();            // id -> { review: {review, verdict}, ts, type }
+let mem = new Map();            // id -> { review: { raw, verdict }, ts, type }
 let sqlite = null;              // better-sqlite3 db handle
 let pgClient = null;            // pg Client
 
@@ -101,55 +101,43 @@ function isExpired(ts) {
 }
 
 async function readReview(id) {
+  let row;
   if (mode === 'sqlite') {
-    const row = sqlite.prepare(
-      'SELECT review_json, ts, type FROM reviews WHERE id = ?'
+    row = sqlite.prepare(
+      'SELECT review_json, ts FROM reviews WHERE id = ?'
     ).get(id);
-    if (!row) return null;
-    if (isExpired(row.ts)) {
-      // Optional eager prune
-      try { sqlite.prepare('DELETE FROM reviews WHERE id = ?').run(id); } catch (_) {}
-      return null;
-    }
-    try {
-      return JSON.parse(row.review_json);
-    } catch {
-      return null;
-    }
-  }
-
-  if (mode === 'postgres') {
+  } else if (mode === 'postgres') {
     const { rows } = await pgClient.query(
-      'SELECT review_json, ts, type FROM reviews WHERE id = $1',
+      'SELECT review_json, ts FROM reviews WHERE id = $1',
       [id]
     );
-    if (!rows || rows.length === 0) return null;
-    const row = rows; // FIX: pick first row
-    if (isExpired(row.ts)) {
-      // Optional eager prune
-      try { await pgClient.query('DELETE FROM reviews WHERE id = $1', [id]); } catch (_) {}
+    if (rows && rows.length > 0) row = rows[0];
+  } else { // memory
+    const entry = mem.get(id);
+    if (!entry) return null;
+    if (isExpired(entry.ts)) {
+      mem.delete(id);
       return null;
     }
-    try {
-      return JSON.parse(row.review_json);
-    } catch {
-      return null;
-    }
+    return { review: entry.review, ts: entry.ts };
   }
 
-  // memory
-  const entry = mem.get(id);
-  if (!entry) return null;
-  if (isExpired(entry.ts)) {
-    mem.delete(id);
+  if (!row) return null;
+  if (isExpired(row.ts)) {
+    // Eager prune for DBs; the background job will handle most cases
+    try { await deleteReview(id); } catch (_) {}
     return null;
   }
-  return entry.review || null;
+  try {
+    return { review: JSON.parse(row.review_json), ts: Number(row.ts) };
+  } catch {
+    return null;
+  }
 }
 
 async function saveReview(id, result, type) {
   const ts = Date.now();
-  const reviewJson = JSON.stringify(result);
+  const reviewJson = JSON.stringify(result); // result is now { raw, verdict }
 
   if (mode === 'sqlite') {
     sqlite.prepare(`
@@ -181,14 +169,12 @@ async function saveReview(id, result, type) {
 
 async function getAllCachedReviews() {
   const cutoff = Date.now() - CACHE_EXPIRY_MS;
-
   if (mode === 'sqlite') {
     const rows = sqlite.prepare(
       'SELECT id, type, ts FROM reviews WHERE ts >= ? ORDER BY ts DESC'
     ).all(cutoff);
     return rows.map(r => ({ id: r.id, ts: Number(r.ts), type: r.type }));
   }
-
   if (mode === 'postgres') {
     const { rows } = await pgClient.query(
       'SELECT id, type, ts FROM reviews WHERE ts >= $1 ORDER BY ts DESC',
@@ -196,7 +182,6 @@ async function getAllCachedReviews() {
     );
     return rows.map(r => ({ id: r.id, ts: Number(r.ts), type: r.type }));
   }
-
   // memory
   const out = [];
   for (const [key, entry] of mem.entries()) {
@@ -206,22 +191,36 @@ async function getAllCachedReviews() {
   return out;
 }
 
-async function cleanupExpired() {
+async function getExpiredReviewIds() {
   const cutoff = Date.now() - CACHE_EXPIRY_MS;
-
   if (mode === 'sqlite') {
-    sqlite.prepare('DELETE FROM reviews WHERE ts < ?').run(cutoff);
-    return;
+    return sqlite.prepare('SELECT id, type FROM reviews WHERE ts < ?').all(cutoff);
   }
-
   if (mode === 'postgres') {
-    await pgClient.query('DELETE FROM reviews WHERE ts < $1', [cutoff]);
+    const { rows } = await pgClient.query('SELECT id, type FROM reviews WHERE ts < $1', [cutoff]);
+    return rows;
+  }
+  // memory
+  const expired = [];
+  for (const [key, entry] of mem.entries()) {
+    if (isExpired(entry.ts)) {
+      expired.push({ id: key, type: entry.type });
+    }
+  }
+  return expired;
+}
+
+async function deleteReview(id) {
+  if (mode === 'sqlite') {
+    sqlite.prepare('DELETE FROM reviews WHERE id = ?').run(id);
     return;
   }
-
-  for (const [key, entry] of mem.entries()) {
-    if (isExpired(entry.ts)) mem.delete(key);
+  if (mode === 'postgres') {
+    await pgClient.query('DELETE FROM reviews WHERE id = $1', [id]);
+    return;
   }
+  // memory
+  mem.delete(id);
 }
 
 function isDbEnabled() {
@@ -238,7 +237,7 @@ async function closeStorage() {
       pgClient = null;
     }
   } catch (err) {
-    console.warn(`[storage] closeStorage warning: ${err?.message}`); // eslint-disable-line
+    console.warn(`[storage] closeStorage warning: ${err?.message}`);
   }
 }
 
@@ -247,7 +246,8 @@ module.exports = {
   readReview,
   saveReview,
   getAllCachedReviews,
-  cleanupExpired,
+  getExpiredReviewIds,
+  deleteReview,
   isDbEnabled,
   closeStorage,
 };
