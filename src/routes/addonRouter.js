@@ -6,8 +6,8 @@ const fs = require('fs').promises;
 const manifest = require('../../manifest.json');
 const { buildStreamResponse } = require('../core/stremioStreamer.js');
 const { getReview } = require('../api');
-// CHANGED: use unified storage instead of in-memory cache
 const { getAllCachedReviews } = require('../core/storage');
+const { buildReviewContent } = require('../core/formatEnforcerV2');
 
 const router = express.Router();
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
@@ -37,23 +37,68 @@ const handleCachedReviewsApiRequest = async (req, res) => {
   }
 };
 
-const handleReviewPageRequest = async (req, res) => {
-  try {
-    const { type, id } = req.query;
-    const forceRefresh = req.query.force === 'true';
-    if (!type || !id) return res.status(400).send('Missing "type" or "id" in URL query.');
-    const reviewData = await getReview(String(id).trim(), type, forceRefresh);
-    const reviewHtml = reviewData ? reviewData.review : null;
-    const templatePath = path.join(__dirname, '..', '..', 'public', 'review.html');
-    let htmlTemplate = await fs.readFile(templatePath, 'utf-8');
-    htmlTemplate = htmlTemplate
-      .replace('{{LOADING_STATE}}', 'style="display: none;"')
-      .replace('{{REVIEW_CONTENT}}', reviewHtml || '<p>Review could not be loaded.</p>');
-    res.send(htmlTemplate);
-  } catch (error) {
-    console.error('SSR Error for review page:', error);
-    res.status(500).send('Error generating review page.');
-  }
+const FAVICON_LINKS = `
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="manifest" href="/assets/site.webmanifest">
+`;
+
+const handleQuickReviewPage = async (req, res) => {
+    try {
+        const { type, id } = req.query;
+        const forceRefresh = req.query.force === 'true';
+        if (!type || !id) return res.status(400).send('Missing "type" or "id".');
+
+        const reviewData = await getReview(String(id).trim(), type, forceRefresh);
+        if (!reviewData || !reviewData.raw) return res.status(500).send('Failed to generate review content.');
+
+        const content = buildReviewContent(reviewData.raw);
+        const templatePath = path.join(__dirname, '..', '..', 'public', 'review-quick.html');
+        let html = await fs.readFile(templatePath, 'utf-8');
+
+        const fullReviewUrl = req.originalUrl.replace('/review-quick', '/review-full');
+        
+        html = html.replace('{{FAVICON_LINKS}}', FAVICON_LINKS)
+                   .replace('{{POSTER_CONTENT}}', content.posterContent)
+                   .replace('{{HERO_CONTENT}}', content.heroContent.replace('{{TOGGLE_URL}}', fullReviewUrl).replace('{{TOGGLE_MODE}}', 'Full'))
+                   .replace('{{SIDEBAR_CONTENT}}', content.sidebarContent)
+                   .replace('{{PLOT_SUMMARY}}', content.plotSummary)
+                   .replace('{{OVERALL_VERDICT}}', content.overallVerdict)
+                   .replace('{{TIMESTAMP}}', reviewData.ts);
+        res.send(html);
+    } catch (error) {
+        console.error('SSR Error for quick review page:', error);
+        res.status(500).send('Error generating quick review page.');
+    }
+};
+
+const handleFullReviewPage = async (req, res) => {
+    try {
+        const { type, id } = req.query;
+        const forceRefresh = req.query.force === 'true';
+        if (!type || !id) return res.status(400).send('Missing "type" or "id".');
+
+        const reviewData = await getReview(String(id).trim(), type, forceRefresh);
+        if (!reviewData || !reviewData.raw) return res.status(500).send('Failed to generate review content.');
+
+        const content = buildReviewContent(reviewData.raw);
+        const templatePath = path.join(__dirname, '..', '..', 'public', 'review-full.html');
+        let html = await fs.readFile(templatePath, 'utf-8');
+
+        const quickReviewUrl = req.originalUrl.replace('/review-full', '/review-quick');
+
+        html = html.replace('{{FAVICON_LINKS}}', FAVICON_LINKS)
+                   .replace('{{POSTER_CONTENT}}', content.posterContent)
+                   .replace('{{HERO_CONTENT}}', content.heroContent.replace('{{TOGGLE_URL}}', quickReviewUrl).replace('{{TOGGLE_MODE}}', 'Quick'))
+                   .replace('{{SIDEBAR_CONTENT}}', content.sidebarContent)
+                   .replace('{{MAIN_REVIEW_CARDS}}', content.mainReviewCards)
+                   .replace('{{TIMESTAMP}}', reviewData.ts);
+        res.send(html);
+    } catch (error) {
+        console.error('SSR Error for full review page:', error);
+        res.status(500).send('Error generating full review page.');
+    }
 };
 
 const handleCachedReviewsPageRequest = (req, res) => {
@@ -95,7 +140,9 @@ if (ADDON_PASSWORD) {
   console.log('Addon is SECURED. All functional routes are password-protected.');
   router.get(`${secretPath}/manifest.json`, (req, res) => res.json(manifest));
   router.get(`${secretPath}/stream/:type/:id.json`, (req, res) => buildStreamResponse(req).then(data => res.json(data)));
-  router.get(`${secretPath}/review`, handleReviewPageRequest);
+  router.get(`${secretPath}/review`, (req, res) => res.redirect(301, req.originalUrl.replace('/review', '/review-quick')));
+  router.get(`${secretPath}/review-quick`, handleQuickReviewPage);
+  router.get(`${secretPath}/review-full`, handleFullReviewPage);
   router.get(`${secretPath}/cached-reviews`, handleCachedReviewsPageRequest);
   router.get(`${secretPath}/api/review`, handleReviewApiRequest);
   router.get(`${secretPath}/api/cached-reviews`, handleCachedReviewsApiRequest);
