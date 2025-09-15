@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Quick Reviewer - Full Review</title>
+    <link rel="stylesheet" href="/css/global.css">
+    <link rel="stylesheet" href="/css/review-v2.css">
+    {{FAVICON_LINKS}}
+</head>
+<body>
+    <header class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="movie-poster">{{POSTER_CONTENT}}</div>
+                <div class="movie-info">
+                    {{HERO_CONTENT}}
+                </div>
+            </div>
+        </div>
+    </header>
+    <section class="review-section">
+        <div class="container">
+            <div class="review-grid">
+                <main class="review-main-content">
+                    {{MAIN_REVIEW_CARDS}}
+                </main>
+                <aside class="sidebar">
+                    {{SIDEBAR_CONTENT}}
+                </aside>
+            </div>
+            <p class="timestamp">Review generated on: <span id="utc-timestamp" data-ts="{{TIMESTAMP}}">...</span></p>
+        </div>
+    </section>
+    <script>
+      (function() {
+        const tsEl = document.getElementById('utc-timestamp');
+        if (tsEl && tsEl.dataset.ts) {
+            tsEl.textContent = new Date(parseInt(tsEl.dataset.ts, 10)).toLocaleString();
+        }
+      })();
+    </script>
+</body>
+</html>
