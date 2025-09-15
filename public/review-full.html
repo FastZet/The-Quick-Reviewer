@@ -1,13 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Quick Reviewer - Full Review</title>
-    <link rel="stylesheet" href="/css/global.css">
     <link rel="stylesheet" href="/css/review-v2.css">
     {{FAVICON_LINKS}}
 </head>
 <body>
+    <!-- Navigation Header -->
+    <nav class="nav-header">
+        <div class="container">
+            <div class="nav-content">
+                <div class="nav-logo">⚡ The Quick Reviewer</div>
+                <div class="nav-controls">
+                    <a href="{{TOGGLE_URL}}" class="control-btn">📖 Quick View</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
     <header class="hero">
         <div class="container">
             <div class="hero-content">
@@ -18,6 +31,8 @@
             </div>
         </div>
     </header>
+
+    <!-- Review Content Section -->
     <section class="review-section">
         <div class="container">
             <div class="review-grid">
@@ -31,13 +46,21 @@
             <p class="timestamp">Review generated on: <span id="utc-timestamp" data-ts="{{TIMESTAMP}}">...</span></p>
         </div>
     </section>
+
+    <!-- Floating Background Elements -->
+    <div class="floating-elements">
+        <div class="floating-dot"></div>
+        <div class="floating-dot"></div>
+        <div class="floating-dot"></div>
+    </div>
+
     <script>
-      (function() {
-        const tsEl = document.getElementById('utc-timestamp');
-        if (tsEl && tsEl.dataset.ts) {
-            tsEl.textContent = new Date(parseInt(tsEl.dataset.ts, 10)).toLocaleString();
-        }
-      })();
+        (function() {
+            const tsEl = document.getElementById('utc-timestamp');
+            if (tsEl && tsEl.dataset.ts) {
+                tsEl.textContent = new Date(parseInt(tsEl.dataset.ts, 10)).toLocaleString();
+            }
+        })();
     </script>
 </body>
 </html>
