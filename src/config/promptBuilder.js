@@ -101,9 +101,10 @@ Only start spacing from "Plot Summary" onwards.
 - Box Office and Viewership: Mention domestic & worldwide earnings and viewership statistics in case of streaming platform(s) if available and relevant.
 - Who would like it: In a single sentence of no longer than twenty words tell what kind of viewer would like it.
 - Who would not like it: In a single sentence of no longer than twenty words tell what kind of viewer would not like it.
+- Similar Films: List up to five critically acclaimed movies or series that are similar in tone, theme, or genre.
 
 Final Requirement:
-Provide a "Overall Verdict" in more than 50 words but less than 300 words, highlighting the overall verdict in a concise, professional manner and tone.
+Provide a "Overall Verdict" in more than 50 words but less than 200 words, highlighting the overall verdict in a concise, professional manner and tone.
 
 Conclude with:
 A strict rating. You can also use "0.5" ratings like 4.5/10. 8.5/10 etc. if you feel rounding off to nearest whole number is too harsh or gracious.
