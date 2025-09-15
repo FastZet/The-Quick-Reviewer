@@ -59,15 +59,18 @@ const handleQuickReviewPage = async (req, res) => {
         const templatePath = path.join(__dirname, '..', '..', 'public', 'review-quick.html');
         let html = await fs.readFile(templatePath, 'utf-8');
 
+        // Build the full review URL for toggle
         const fullReviewUrl = req.originalUrl.replace('/review-quick', '/review-full');
         
         html = html.replace('{{FAVICON_LINKS}}', FAVICON_LINKS)
                    .replace('{{POSTER_CONTENT}}', content.posterContent)
-                   .replace('{{HERO_CONTENT}}', content.heroContent.replace('{{TOGGLE_URL}}', fullReviewUrl).replace('{{TOGGLE_MODE}}', 'Full'))
+                   .replace('{{HERO_CONTENT}}', content.heroContent)
                    .replace('{{SIDEBAR_CONTENT}}', content.sidebarContent)
                    .replace('{{PLOT_SUMMARY}}', content.plotSummary)
                    .replace('{{OVERALL_VERDICT}}', content.overallVerdict)
-                   .replace('{{TIMESTAMP}}', reviewData.ts);
+                   .replace('{{TIMESTAMP}}', reviewData.ts)
+                   .replace('{{TOGGLE_URL}}', fullReviewUrl);
+        
         res.send(html);
     } catch (error) {
         console.error('SSR Error for quick review page:', error);
@@ -90,14 +93,17 @@ const handleFullReviewPage = async (req, res) => {
         const templatePath = path.join(__dirname, '..', '..', 'public', 'review-full.html');
         let html = await fs.readFile(templatePath, 'utf-8');
 
+        // Build the quick review URL for toggle
         const quickReviewUrl = req.originalUrl.replace('/review-full', '/review-quick');
 
         html = html.replace('{{FAVICON_LINKS}}', FAVICON_LINKS)
                    .replace('{{POSTER_CONTENT}}', content.posterContent)
-                   .replace('{{HERO_CONTENT}}', content.heroContent.replace('{{TOGGLE_URL}}', quickReviewUrl).replace('{{TOGGLE_MODE}}', 'Quick'))
+                   .replace('{{HERO_CONTENT}}', content.heroContent)
                    .replace('{{SIDEBAR_CONTENT}}', content.sidebarContent)
                    .replace('{{MAIN_REVIEW_CARDS}}', content.mainReviewCards)
-                   .replace('{{TIMESTAMP}}', reviewData.ts);
+                   .replace('{{TIMESTAMP}}', reviewData.ts)
+                   .replace('{{TOGGLE_URL}}', quickReviewUrl);
+        
         res.send(html);
     } catch (error) {
         console.error('SSR Error for full review page:', error);
