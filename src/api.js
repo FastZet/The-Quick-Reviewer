@@ -17,17 +17,20 @@ async function getReview(id, type, forceRefresh = false) {
   
   if (!forceRefresh) {
     const cached = await readReview(id);
-    if (cached && cached.review) { // Ensure the review object exists
-      console.log(`[Cache] Cache hit for ${id}. Returning cached review.`);
-      // The cached object structure is { review: { raw, verdict }, ts }
-      // We return a flattened object { raw, verdict, ts }
+
+    // CORRECTED & HARDENED CACHE CHECK:
+    // We now verify that `cached.review` is an object and has a `raw` property.
+    // This prevents errors from stale cache entries that might be strings or other types.
+    if (cached && typeof cached.review === 'object' && cached.review !== null && 'raw' in cached.review) {
+      console.log(`[Cache] Cache hit for ${id}. Returning valid cached review.`);
       return { ...cached.review, ts: cached.ts };
     }
+
     if (pendingReviews.has(id)) {
       console.log(`[API] Generation for ${id} is already in progress. Awaiting result...`);
       return await pendingReviews.get(id);
     }
-    console.log(`[Cache] Cache miss for ${id}. Proceeding to generate new review.`);
+    console.log(`[Cache] Cache miss or invalid cache structure for ${id}. Proceeding to generate new review.`);
   }
 
   const generationPromise = (async () => {
@@ -87,18 +90,14 @@ async function getReview(id, type, forceRefresh = false) {
 
       const verdict = parseVerdictFromReview(rawReview);
       
-      // The result object to be saved contains the essential data.
-      // The HTML formatting is now handled by the router.
       const result = { raw: rawReview, verdict: verdict };
       await saveReview(id, result, type);
       
       console.log(`===== [API] Request End (Success) =====\n`);
-      // Return the result along with the current timestamp for the router.
       return { ...result, ts: Date.now() };
 
     } catch (error) {
         console.error(`[API] An error occurred during review generation for ${id}:`, error);
-        // Return a consistent structure on error
         return { 
           raw: `Error: Review generation failed. ${error.message}`, 
           verdict: null,
