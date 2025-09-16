@@ -56,6 +56,25 @@ function getRatingLabel(score) {
     return 'Poor';
 }
 
+function buildPosterContent(posterUrl, stillUrl, title) {
+    // Prioritize episode still for TV episodes, then series poster, then fallback
+    const imageUrl = stillUrl || posterUrl;
+    
+    if (imageUrl) {
+        return `<img src="${imageUrl}" alt="${title || 'Movie Poster'}" class="poster-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="poster-fallback" style="display:none;">
+                    <span class="poster-icon">🎬</span>
+                    <div class="poster-title">${title || 'Review'}</div>
+                </div>`;
+    } else {
+        // Fallback when no poster is available
+        return `<div class="poster-fallback">
+                    <span class="poster-icon">🎬</span>
+                    <div class="poster-title">${title || 'Review'}</div>
+                </div>`;
+    }
+}
+
 function formatMetaItems(data) {
     const items = [];
     
@@ -145,9 +164,9 @@ function buildRecommendationTags(text, isPositive = true) {
     ).join('');
 }
 
-function buildReviewContent(rawReviewText) {
+function buildReviewContent(rawReviewText, reviewMetadata = {}) {
     const data = parseRawReview(rawReviewText);
-    const title = data.get('Name Of The Movie') || data.get('Name Of The Series') || 'Review';
+    const title = reviewMetadata.title || data.get('Name Of The Movie') || data.get('Name Of The Series') || 'Review';
     const episodeName = data.get('Name Of The Episode');
     const seasonEpisode = data.get('Season & Episode');
     
@@ -252,7 +271,7 @@ function buildReviewContent(rawReviewText) {
         `).join('');
 
     return {
-        posterContent: `🎬<br><small>${title}</small>`,
+        posterContent: buildPosterContent(reviewMetadata.posterUrl, reviewMetadata.stillUrl, title),
         heroContent: heroHtml,
         sidebarContent: sidebarHtml,
         plotSummary: data.get('Plot Summary') || 'Plot summary not available.',
