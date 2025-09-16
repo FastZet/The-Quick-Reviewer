@@ -55,7 +55,17 @@ const handleQuickReviewPage = async (req, res) => {
             return res.status(500).send('Failed to generate or retrieve review content.');
         }
 
-        const content = buildReviewContent(reviewData.raw);
+        // Pass both raw review text and metadata (including poster URLs) to buildReviewContent
+        const reviewMetadata = {
+            posterUrl: reviewData.posterUrl,
+            stillUrl: reviewData.stillUrl,
+            backdropUrl: reviewData.backdropUrl,
+            title: reviewData.title,
+            year: reviewData.year,
+            imdbId: reviewData.imdbId
+        };
+
+        const content = buildReviewContent(reviewData.raw, reviewMetadata);
         const templatePath = path.join(__dirname, '..', '..', 'public', 'review-quick.html');
         let html = await fs.readFile(templatePath, 'utf-8');
 
@@ -113,7 +123,17 @@ const handleFullReviewPage = async (req, res) => {
             return res.status(500).send('Failed to generate or retrieve review content.');
         }
 
-        const content = buildReviewContent(reviewData.raw);
+        // Pass both raw review text and metadata (including poster URLs) to buildReviewContent
+        const reviewMetadata = {
+            posterUrl: reviewData.posterUrl,
+            stillUrl: reviewData.stillUrl,
+            backdropUrl: reviewData.backdropUrl,
+            title: reviewData.title,
+            year: reviewData.year,
+            imdbId: reviewData.imdbId
+        };
+
+        const content = buildReviewContent(reviewData.raw, reviewMetadata);
         const templatePath = path.join(__dirname, '..', '..', 'public', 'review-full.html');
         let html = await fs.readFile(templatePath, 'utf-8');
 
