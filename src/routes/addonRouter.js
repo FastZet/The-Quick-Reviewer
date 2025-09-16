@@ -62,15 +62,39 @@ const handleQuickReviewPage = async (req, res) => {
         // Build the full review URL for toggle
         const fullReviewUrl = req.originalUrl.replace('/review-quick', '/review-full');
         
+        // Build the force refresh URL
+        const currentUrl = new URL(req.originalUrl, `${req.protocol}://${req.get('host')}`);
+        currentUrl.searchParams.set('force', 'true');
+        const forceRefreshUrl = currentUrl.pathname + currentUrl.search;
+        
         html = html.replace('{{FAVICON_LINKS}}', FAVICON_LINKS)
                    .replace('{{POSTER_CONTENT}}', content.posterContent)
-                   .replace('{{HERO_CONTENT}}', content.heroContent)
+                   .replace('{{HERO_CONTENT}}', content.heroContent
+                       .replace('{{TOGGLE_URL}}', fullReviewUrl)
+                       .replace('{{TOGGLE_TEXT}}', 'Click for Full Review'))
                    .replace('{{SIDEBAR_CONTENT}}', content.sidebarContent)
                    .replace('{{PLOT_SUMMARY}}', content.plotSummary)
                    .replace('{{OVERALL_VERDICT}}', content.overallVerdict)
                    .replace('{{TIMESTAMP}}', reviewData.ts)
-                   .replace('{{TOGGLE_URL}}', fullReviewUrl);
+                   .replace('{{FORCE_REFRESH_URL}}', forceRefreshUrl);
         
+        // Add force refresh JavaScript functionality
+        const forceRefreshScript = `
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const forceBtn = document.getElementById('force-refresh');
+                if (forceBtn) {
+                    forceBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        forceBtn.disabled = true;
+                        forceBtn.innerHTML = '⏳ Generating...';
+                        window.location.href = '${forceRefreshUrl}';
+                    });
+                }
+            });
+        </script>`;
+        
+        html = html.replace('</body>', forceRefreshScript + '</body>');
         res.send(html);
     } catch (error) {
         console.error('SSR Error for quick review page:', error);
@@ -95,15 +119,39 @@ const handleFullReviewPage = async (req, res) => {
 
         // Build the quick review URL for toggle
         const quickReviewUrl = req.originalUrl.replace('/review-full', '/review-quick');
+        
+        // Build the force refresh URL
+        const currentUrl = new URL(req.originalUrl, `${req.protocol}://${req.get('host')}`);
+        currentUrl.searchParams.set('force', 'true');
+        const forceRefreshUrl = currentUrl.pathname + currentUrl.search;
 
         html = html.replace('{{FAVICON_LINKS}}', FAVICON_LINKS)
                    .replace('{{POSTER_CONTENT}}', content.posterContent)
-                   .replace('{{HERO_CONTENT}}', content.heroContent)
+                   .replace('{{HERO_CONTENT}}', content.heroContent
+                       .replace('{{TOGGLE_URL}}', quickReviewUrl)
+                       .replace('{{TOGGLE_TEXT}}', 'Click for Quick View'))
                    .replace('{{SIDEBAR_CONTENT}}', content.sidebarContent)
                    .replace('{{MAIN_REVIEW_CARDS}}', content.mainReviewCards)
                    .replace('{{TIMESTAMP}}', reviewData.ts)
-                   .replace('{{TOGGLE_URL}}', quickReviewUrl);
+                   .replace('{{FORCE_REFRESH_URL}}', forceRefreshUrl);
         
+        // Add force refresh JavaScript functionality
+        const forceRefreshScript = `
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const forceBtn = document.getElementById('force-refresh');
+                if (forceBtn) {
+                    forceBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        forceBtn.disabled = true;
+                        forceBtn.innerHTML = '⏳ Generating...';
+                        window.location.href = '${forceRefreshUrl}';
+                    });
+                }
+            });
+        </script>`;
+        
+        html = html.replace('</body>', forceRefreshScript + '</body>');
         res.send(html);
     } catch (error) {
         console.error('SSR Error for full review page:', error);
