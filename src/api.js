@@ -35,7 +35,10 @@ async function getReview(id, type, forceRefresh = false) {
 
   const generationPromise = (async () => {
     try {
-      let metadata, prompt, rawReview, isValid = false;
+      let metadata, seriesMetadata, prompt, rawReview, isValid = false;
+      let posterUrl = null;
+      let stillUrl = null;
+      let backdropUrl = null;
 
       for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
         console.log(`[API] Generation attempt ${attempt}/${MAX_GENERATION_ATTEMPTS} for ${id}...`);
@@ -47,23 +50,38 @@ async function getReview(id, type, forceRefresh = false) {
           if (isEpisode) {
             const [seriesId, season, episode] = idParts;
             console.log(`[API] Handling episode: ${seriesId} S${season}E${episode}`);
-            const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
+            const [scrapedEpisodeTitle, episodeMetadata, seriesMetadataResult] = await Promise.all([
               scrapeImdbForEpisodeTitle(seriesId, season, episode),
               fetchEpisodeMetadata(seriesId, season, episode),
               fetchMovieSeriesMetadata('series', seriesId)
             ]);
+            
             metadata = episodeMetadata;
+            seriesMetadata = seriesMetadataResult;
+            
             if (metadata && seriesMetadata) {
               const seriesInfo = { title: seriesMetadata.data.title || seriesMetadata.data.name || seriesMetadata.data.Title };
               metadata.languages = seriesMetadata.languages;
               metadata.source = seriesMetadata.source;
+              
+              // Extract image URLs for episodes
+              posterUrl = seriesMetadata.posterUrl; // Use series poster as primary
+              stillUrl = metadata.stillUrl; // Episode-specific image
+              backdropUrl = seriesMetadata.backdropUrl;
+              
               prompt = buildPromptFromMetadata(metadata, type, seriesInfo, scrapedEpisodeTitle);
+              console.log(`[API] Episode images - Poster: ${posterUrl}, Still: ${stillUrl}, Backdrop: ${backdropUrl}`);
             }
           } else {
             console.log(`[API] Handling ${type}: ${id}`);
             metadata = await fetchMovieSeriesMetadata(type, id);
             if (metadata) {
+              // Extract image URLs for movies/series
+              posterUrl = metadata.posterUrl;
+              backdropUrl = metadata.backdropUrl;
+              
               prompt = buildPromptFromMetadata(metadata, type);
+              console.log(`[API] ${type} images - Poster: ${posterUrl}, Backdrop: ${backdropUrl}`);
             }
           }
 
@@ -90,7 +108,18 @@ async function getReview(id, type, forceRefresh = false) {
 
       const verdict = parseVerdictFromReview(rawReview);
       
-      const result = { raw: rawReview, verdict: verdict };
+      // Enhanced result object with image metadata
+      const result = { 
+        raw: rawReview, 
+        verdict: verdict,
+        posterUrl: posterUrl,
+        stillUrl: stillUrl,
+        backdropUrl: backdropUrl,
+        title: metadata?.data?.title || metadata?.data?.name || metadata?.data?.Title || 'Unknown',
+        year: extractYear(metadata),
+        imdbId: id.split(':')[0] // Extract base IMDb ID
+      };
+      
       await saveReview(id, result, type);
       
       console.log(`===== [API] Request End (Success) =====\n`);
@@ -101,6 +130,12 @@ async function getReview(id, type, forceRefresh = false) {
         return { 
           raw: `Error: Review generation failed. ${error.message}`, 
           verdict: null,
+          posterUrl: null,
+          stillUrl: null,
+          backdropUrl: null,
+          title: 'Error',
+          year: null,
+          imdbId: id.split(':')[0],
           ts: Date.now()
         };
     } finally {
@@ -110,6 +145,20 @@ async function getReview(id, type, forceRefresh = false) {
 
   pendingReviews.set(id, generationPromise);
   return await generationPromise;
+}
+
+function extractYear(metadata) {
+  if (!metadata || !metadata.data) return null;
+  
+  const releaseDate = metadata.data.release_date || metadata.data.first_air_date || metadata.data.Released || '';
+  
+  // Extract year from various date formats
+  if (releaseDate) {
+    const yearMatch = releaseDate.match(/\d{4}/);
+    if (yearMatch) return yearMatch[0];
+  }
+  
+  return null;
 }
 
 module.exports = { getReview };
