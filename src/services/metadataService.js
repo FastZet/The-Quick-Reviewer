@@ -4,6 +4,7 @@ const axios = require('axios');
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || null;
 const OMDB_API_KEY = process.env.OMDB_API_KEY || null;
+const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 
 async function resolveImdbToTmdbId(imdbId, type) {
   if (!TMDB_API_KEY) return null;
@@ -28,6 +29,8 @@ async function resolveImdbToTmdbId(imdbId, type) {
 async function fetchMovieSeriesMetadata(type, imdbId) {
   const tmdbId = await resolveImdbToTmdbId(imdbId, type);
   let apiLanguages = [];
+  let posterUrl = null;
+  let backdropUrl = null;
   
   // TMDB (Primary)
   if (tmdbId) {
@@ -38,10 +41,30 @@ async function fetchMovieSeriesMetadata(type, imdbId) {
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data) {
         console.log(`[TMDB] Successfully fetched metadata for ${type} (TMDB ID: ${tmdbId}).`);
+        
+        // Extract poster and backdrop URLs
+        if (res.data.poster_path) {
+          posterUrl = `${TMDB_IMAGE_BASE_URL}${res.data.poster_path}`;
+          console.log(`[TMDB] Found poster: ${posterUrl}`);
+        }
+        
+        if (res.data.backdrop_path) {
+          backdropUrl = `${TMDB_IMAGE_BASE_URL}${res.data.backdrop_path}`;
+          console.log(`[TMDB] Found backdrop: ${backdropUrl}`);
+        }
+        
+        // Extract spoken languages
         if (res.data.spoken_languages && res.data.spoken_languages.length > 0) {
           apiLanguages = res.data.spoken_languages.map(lang => lang.english_name);
         }
-        return { source: 'tmdb', data: res.data, languages: apiLanguages };
+        
+        return { 
+          source: 'tmdb', 
+          data: res.data, 
+          languages: apiLanguages,
+          posterUrl: posterUrl,
+          backdropUrl: backdropUrl
+        };
       }
     } catch (error) {
       console.warn(`[TMDB] Failed to fetch from TMDB for ${imdbId} (TMDB ID: ${tmdbId}): ${error.message}`);
@@ -56,10 +79,23 @@ async function fetchMovieSeriesMetadata(type, imdbId) {
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data && res.data.Response === 'True') {
         console.log(`[OMDB] Successfully fetched metadata for ${imdbId} from OMDB.`);
+        
+        // OMDB provides poster URL directly
+        if (res.data.Poster && res.data.Poster !== 'N/A') {
+          posterUrl = res.data.Poster;
+          console.log(`[OMDB] Found poster: ${posterUrl}`);
+        }
+        
         if (res.data.Language) {
           apiLanguages = res.data.Language.split(',').map(lang => lang.trim());
         }
-        return { source: 'omdb', data: res.data, languages: apiLanguages };
+        return { 
+          source: 'omdb', 
+          data: res.data, 
+          languages: apiLanguages,
+          posterUrl: posterUrl,
+          backdropUrl: null // OMDB doesn't provide backdrop
+        };
       }
     } catch (error) {
       console.warn(`[OMDB] Failed to fetch from OMDB for ${imdbId}: ${error.message}`);
@@ -71,6 +107,8 @@ async function fetchMovieSeriesMetadata(type, imdbId) {
 
 async function fetchEpisodeMetadata(seriesImdbId, season, episode) {
   const seriesTmdbId = await resolveImdbToTmdbId(seriesImdbId, 'series');
+  let stillUrl = null; // Episode-specific image
+  
   // TMDB (Primary)
   if (seriesTmdbId) {
     try {
@@ -79,7 +117,18 @@ async function fetchEpisodeMetadata(seriesImdbId, season, episode) {
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data) {
         console.log(`[TMDB] Successfully fetched metadata for episode S${season}E${episode}.`);
-        return { source: 'tmdb', data: res.data };
+        
+        // Extract episode still image
+        if (res.data.still_path) {
+          stillUrl = `${TMDB_IMAGE_BASE_URL}${res.data.still_path}`;
+          console.log(`[TMDB] Found episode still: ${stillUrl}`);
+        }
+        
+        return { 
+          source: 'tmdb', 
+          data: res.data,
+          stillUrl: stillUrl
+        };
       }
     } catch (error) {
       console.warn(`[TMDB] Failed for episode S${season}E${episode} (Series TMDB ID: ${seriesTmdbId}): ${error.message}`);
@@ -94,7 +143,18 @@ async function fetchEpisodeMetadata(seriesImdbId, season, episode) {
       const res = await axios.get(url, { timeout: 8000 });
       if (res.data && res.data.Response === 'True') {
         console.log(`[OMDB] Successfully fetched episode metadata for S${season}E${episode} from OMDB.`);
-        return { source: 'omdb', data: res.data };
+        
+        // OMDB provides poster for episodes too
+        if (res.data.Poster && res.data.Poster !== 'N/A') {
+          stillUrl = res.data.Poster;
+          console.log(`[OMDB] Found episode poster: ${stillUrl}`);
+        }
+        
+        return { 
+          source: 'omdb', 
+          data: res.data,
+          stillUrl: stillUrl
+        };
       }
     } catch (error) {
       console.warn(`[OMDB] Failed for episode S${season}E${episode}: ${error.message}`);
