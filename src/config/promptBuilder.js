@@ -35,7 +35,7 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
   • **Casts:** Name top five lead actors and actresses...
   • **Directed By:** Name of the director...
   • **Language:** The language(s) in which the movie was first released...
-  • **Genre:** Specify the movie’s primary genre(s)...
+  • **Genre:** Specify the movie's primary genre(s)...
   • **Released On:** The full release date (day, month, year)...
   • **Release Medium:** Original distribution platform.
   • **Release Country:** The country where it was first released...
@@ -43,10 +43,26 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
   • **Plot Summary:** Provide a brief overview of the story...
   • **Storytelling, Writing, and Pacing:** Assess narrative coherence, structure, dialogue, and rhythm...
 
+***IMPORTANT: 8-Point Summary Section***
+Before starting the detailed review, you MUST provide an "8-Point Summary" section with exactly 8 bullet points. Each bullet point must be a maximum of 20 characters (including spaces). This section should appear immediately after the basic information (Name, Cast, Director, etc.) and before the Plot Summary.
+
+Format example:
+• **8-Point Summary:**
+• Great acting
+• Stunning visuals  
+• Slow pacing
+• Weak plot twists
+• Strong soundtrack
+• Good cinematography
+• Mixed reception
+• Worth watching
+
 ***Data Grounding and Recency (Crucial):***
 
-– You MUST use your Google Search tool to find real-time, up-to-date information for the "Audience Reception" and "Box Office Performance" sections.
+– You MUST use your Google Search tool to find real-time, up-to-date information for the "Audience Reception", "Box Office Performance", and "Critical Reception" sections.
 - DO NOT use placeholder text like "(data is unavailable)". Your function is to find and report this data using search tool if it is not available in your training data.
+- For "Box Office and Viewership" section, provide specific monetary figures (Budget: $X million, Domestic: $Y million, Worldwide: $Z million) when available.
+- For "Critical Reception" and "Audience Reception & Reaction", provide specific percentage scores from Rotten Tomatoes, IMDb ratings, and Metacritic when available.
 - If specific box office numbers are not public, report the general critical consensus, audience scores (like from Rotten Tomatoes or IMDb), and social media trends from popular sites like Reddit, X(formerly Twitter), Facebook etc. Don't limit yourself to these three websites only.
 - For details like cast and crews, director(s), writer(s) etc., scrape IMDB pages of their respective episode or movies for accurate details in addition to using Google Search tool.
 - This is a strict requirement. Your response MUST be grounded in real-world data from your search tool. Don't make up stuff by yourself.
@@ -59,7 +75,7 @@ For movies, start with the following in separate lines. Each section MUST begin 
 - Casts: Name top five lead actors and actresses in the movie. Use Google Search tool and IMDB. If IMDB page for the movie returns unsatisfactory results, fallback to other websites.
 - Directed By: Name of the director.
 - Language: The language(s) in which the movie was first released officially. If officially more languages were added later then mention it.
-- Genre: Specify the movie’s primary genre(s).
+- Genre: Specify the movie's primary genre(s).
 - Released On: The full release date (day, month, year). when it was first released.
 - Release Medium: Original distribution platform. Choose from: Theatrical Release (released in cinemas), Streaming Release (released directly on platforms like Netflix, Amazon Prime, Disney+, etc.), Television Broadcast (premiered on TV channels), Direct-to-Video (released physically without theaters), Film Festival Premiere (first shown at a festival before wider release), Digital Release (available on platforms like iTunes, Google Play, etc.), Hybrid Release (simultaneous release;e.g., theaters + streaming) or others (if the release medium does not fit any of these categories, use Others and specify what it is in parentheses; e.g., 'Others – Radio Broadcast').
 - Release Country: The country where it was first released.
@@ -70,10 +86,13 @@ For series' episodes, start with the following in separate lines. Each section M
 - Season & Episode: Mention the Season and Episode number in the format "Season X, Episode Y".
 - Casts: Name top five lead actors and actresses in the Episode. Use Google Search tool and IMDB. If IMDB page for the episode returns unsatisfactory results, fallback to other websites.
 - Directed by: Name of the director of the episode, not the series.
-- Genre: Specify the series’ primary genre(s). Usually, series genre should suffice. If by any chance, the episode has a ifferent genre, mention both.
+- Genre: Specify the series' primary genre(s). Usually, series genre should suffice. If by any chance, the episode has a different genre, mention both.
 - Released On: The full release date (day, month, year) when the episode was first aired or released as per official sources.
 - Release Medium: Original distribution platform (e.g., theaters, streaming platforms, television, direct-to-video).
 - Release Country: The country where it was first released.
+
+***CRITICAL: 8-Point Summary Section (REQUIRED)***
+After the above basic information, you MUST include the 8-Point Summary section as described above.
 
 In the generated reviews, apart from the headings if you have to mention the name of anything significant and you feel the need to use bold characters, use double quotes instead.
 Use the below mentioned points and bullet headings and don't use sub bullet headings.
@@ -88,19 +107,19 @@ Only start spacing from "Plot Summary" onwards.
 - Pacing: Assess the rhythm of the movie/series and how smoothly the story progresses.
 - Performances: Evaluate the overall acting quality, highlighting the strengths and weaknesses of the cast. Assess how individual lead actors performed in their roles.
 - Character Development: Evaluate whether the characters felt authentic, layered, or underdeveloped.
-- Cinematography: Assess visual framing, lighting, color palette, and camera work that shape the film’s visual identity.
+- Cinematography: Assess visual framing, lighting, color palette, and camera work that shape the film's visual identity.
 - Sound Design: Evaluate clarity, mixing, ambient effects, and how sound enhances immersion.
 - Music & Score: Critique the soundtrack or background score in terms of mood, originality, and emotional impact.
 - Editing: Judge pacing, scene transitions, continuity, and how smoothly the narrative flows.
-- Direction and Vision: Examine how the director’s choices shaped the tone, style, and impact of the production.
+- Direction and Vision: Examine how the director's choices shaped the tone, style, and impact of the production.
 - Originality and Creativity: Judge whether the work feels fresh or derivative.
 - Strengths: Clearly mention what works well and major strong points about the movie/episode.
 - Weaknesses: Clearly mention what falls short and the major painpoints about the movie/episode.
-- Critical Reception: Summarize how professional critics and reviewers are rating and interpreting the work.
-- Audience Reception & Reaction: Capture how the wider audience is responding, including word-of-mouth, trends, social media buzz, ratings etc.
-- Box Office and Viewership: Mention domestic & worldwide earnings and viewership statistics in case of streaming platform(s) if available and relevant.
-- Who would like it: In a single sentence of no longer than twenty words tell what kind of viewer would like it.
-- Who would not like it: In a single sentence of no longer than twenty words tell what kind of viewer would not like it.
+- Critical Reception: Summarize how professional critics and reviewers are rating and interpreting the work. Include specific scores from Rotten Tomatoes, Metacritic, etc.
+- Audience Reception & Reaction: Capture how the wider audience is responding, including word-of-mouth, trends, social media buzz, ratings etc. Include specific IMDb ratings, audience scores.
+- Box Office and Viewership: Mention specific figures - Budget: $X million, Domestic box office: $Y million, Worldwide: $Z million. For streaming, mention viewership statistics if available and relevant.
+- Who would like it: Provide 2-3 short tags (maximum 3 words each) separated by commas. Examples: "Mystery fans, Cozy crime lovers, Ensemble cast admirers"
+- Who would not like it: Provide 2-3 short tags (maximum 3 words each) separated by commas. Examples: "Action seekers, Fast-paced thriller fans, Complex plot lovers"
 - Similar Films: List up to five critically acclaimed movies or series that are similar in tone, theme, or genre.
 
 Final Requirement:
@@ -119,7 +138,7 @@ The scale is:
 1–2 = Poor, barely redeemable
 0 = Unwatchable, complete failure
 
-A “Verdict in One Line” – a headline-style takeaway summarizing the critic’s stance in under 30 words.
+A "Verdict in One Line" – a headline-style takeaway summarizing the critic's stance in under 30 words.
   `.trim();
 
   let finalInstruction;
