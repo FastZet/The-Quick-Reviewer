@@ -17,12 +17,26 @@ function parseRawReview(rawReviewText) {
     const contentMap = new Map();
 
     for (const header of sections) {
-        const regex = new RegExp(`[•*\\s]*\\*\\*${header}[*\\s]*:[*\\s]*([\\s\\S]*?)(?=\\s*•\\s*\\*\\*|Rating:|Verdict in One Line:|$)`, 'i');
+        // Enhanced regex pattern to better capture content after bullet points and headers
+        const regex = new RegExp(`[•*\\s]*\\*\\*${header}[*\\s]*:[*\\s]*([\\s\\S]*?)(?=\\s*•\\s*\\*\\*|\\n\\s*Rating:|\\n\\s*Verdict in One Line:|$)`, 'i');
         const match = rawReviewText.match(regex);
         if (match && match[1]) {
             contentMap.set(header.replace('Directed by', 'Directed By'), clean(match[1]));
         }
     }
+
+    // Special handling for Rating extraction with improved pattern
+    const ratingMatch = rawReviewText.match(/Rating:\s*(\d+(?:\.\d+)?\/10)/i);
+    if (ratingMatch) {
+        contentMap.set('Rating', ratingMatch[1]);
+    }
+
+    // Special handling for Verdict in One Line
+    const verdictMatch = rawReviewText.match(/Verdict in One Line[:\s]*([^\n]+)/i);
+    if (verdictMatch) {
+        contentMap.set('Verdict in One Line', clean(verdictMatch[1]));
+    }
+
     return contentMap;
 }
 
@@ -122,6 +136,7 @@ function buildSidebarStats(data) {
 function buildRecommendationTags(text, isPositive = true) {
     if (!text) return '';
     
+    // Split by common separators and filter out empty items
     const tags = text.split(/[,.]/).filter(tag => tag.trim().length > 0);
     const className = isPositive ? 'positive' : 'negative';
     
@@ -146,7 +161,7 @@ function buildReviewContent(rawReviewText) {
     const ratingScore = extractRatingScore(ratingText);
     const ratingLabel = getRatingLabel(ratingScore);
     
-    // HERO CONTENT
+    // HERO CONTENT with enhanced metadata
     const heroHtml = `
         <h1>${fullTitle}</h1>
         ${seasonEpisode ? `<div class="episode-info">${seasonEpisode}</div>` : ''}
@@ -160,9 +175,13 @@ function buildReviewContent(rawReviewText) {
                 <div class="rating-label">${ratingLabel}</div>
             </div>
         </div>
+        <div class="hero-actions">
+            <a href="{{TOGGLE_URL}}" class="control-btn">{{TOGGLE_TEXT}}</a>
+            <button id="force-refresh" class="control-btn secondary">🔄 Force New Review</button>
+        </div>
     `;
 
-    // SIDEBAR CONTENT
+    // SIDEBAR CONTENT with enhanced stats
     const statsHtml = buildSidebarStats(data);
     const positiveTagsHtml = buildRecommendationTags(data.get('Who would like it'), true);
     const negativeTagsHtml = buildRecommendationTags(data.get('Who would not like it'), false);
@@ -198,7 +217,7 @@ function buildReviewContent(rawReviewText) {
         </div>` : ''}
     `;
 
-    // MAIN REVIEW CARDS (for full review page)
+    // MAIN REVIEW CARDS (for full review page) with icons
     const mainContentSections = [
         { key: 'Plot Summary', icon: '📖' },
         { key: 'Storytelling', icon: '✍️' },
