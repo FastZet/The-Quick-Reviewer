@@ -122,30 +122,102 @@ function formatMetaItems(data) {
 function buildSidebarStats(data) {
     const stats = [];
     
-    // Box Office
+    // Enhanced Box Office parsing
     const boxOffice = data.get('Box Office and Viewership');
     if (boxOffice) {
-        const boxOfficeMatch = boxOffice.match(/\$[\d.,]+[MBK]?/i);
-        if (boxOfficeMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">Box Office</span><span class="stat-value">${boxOfficeMatch[0]}</span></div>`);
+        // Look for Budget information
+        const budgetMatch = boxOffice.match(/Budget:\s*\$?([\d.,]+)\s*(?:million|M|billion|B)?/i);
+        if (budgetMatch) {
+            let budgetValue = budgetMatch[1];
+            if (boxOffice.toLowerCase().includes('million') || boxOffice.toLowerCase().includes('m')) {
+                budgetValue += 'M';
+            } else if (boxOffice.toLowerCase().includes('billion') || boxOffice.toLowerCase().includes('b')) {
+                budgetValue += 'B';
+            }
+            stats.push(`<div class="stat-item"><span class="stat-label">Budget</span><span class="stat-value">$${budgetValue}</span></div>`);
+        }
+        
+        // Look for Domestic Box Office
+        const domesticMatch = boxOffice.match(/Domestic[:\s]*\$?([\d.,]+)\s*(?:million|M|billion|B)?/i);
+        if (domesticMatch) {
+            let domesticValue = domesticMatch[1];
+            if (boxOffice.toLowerCase().includes('million') || boxOffice.toLowerCase().includes('m')) {
+                domesticValue += 'M';
+            } else if (boxOffice.toLowerCase().includes('billion') || boxOffice.toLowerCase().includes('b')) {
+                domesticValue += 'B';
+            }
+            stats.push(`<div class="stat-item"><span class="stat-label">Domestic</span><span class="stat-value">$${domesticValue}</span></div>`);
+        }
+        
+        // Look for Worldwide Box Office
+        const worldwideMatch = boxOffice.match(/Worldwide[:\s]*\$?([\d.,]+)\s*(?:million|M|billion|B)?/i);
+        if (worldwideMatch) {
+            let worldwideValue = worldwideMatch[1];
+            if (boxOffice.toLowerCase().includes('million') || boxOffice.toLowerCase().includes('m')) {
+                worldwideValue += 'M';
+            } else if (boxOffice.toLowerCase().includes('billion') || boxOffice.toLowerCase().includes('b')) {
+                worldwideValue += 'B';
+            }
+            stats.push(`<div class="stat-item"><span class="stat-label">Worldwide</span><span class="stat-value">$${worldwideValue}</span></div>`);
+        }
+        
+        // Fallback: Look for any dollar amount if specific categories not found
+        if (!budgetMatch && !domesticMatch && !worldwideMatch) {
+            const generalBoxOfficeMatch = boxOffice.match(/\$?([\d.,]+)\s*(?:million|M|billion|B)/i);
+            if (generalBoxOfficeMatch) {
+                let value = generalBoxOfficeMatch[0];
+                if (!value.startsWith('$')) value = '$' + value;
+                stats.push(`<div class="stat-item"><span class="stat-label">Box Office</span><span class="stat-value">${value}</span></div>`);
+            }
         }
     }
     
-    // Critical Reception
+    // Enhanced Critical Reception parsing
     const criticalReception = data.get('Critical Reception');
     if (criticalReception) {
-        const criticsMatch = criticalReception.match(/(\d+)%/);
-        if (criticsMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">Critics Score</span><span class="stat-value">${criticsMatch[0]}</span></div>`);
+        // Look for Rotten Tomatoes score
+        const rtMatch = criticalReception.match(/(?:Rotten Tomatoes?|RT)[:\s]*(\d+)%/i);
+        if (rtMatch) {
+            stats.push(`<div class="stat-item"><span class="stat-label">Critics (RT)</span><span class="stat-value">${rtMatch[1]}%</span></div>`);
+        }
+        
+        // Look for Metacritic score
+        const metacriticMatch = criticalReception.match(/(?:Metacritic|MC)[:\s]*(\d+)/i);
+        if (metacriticMatch) {
+            stats.push(`<div class="stat-item"><span class="stat-label">Metacritic</span><span class="stat-value">${metacriticMatch[1]}/100</span></div>`);
+        }
+        
+        // Fallback: Look for any percentage if specific sources not found
+        if (!rtMatch && !metacriticMatch) {
+            const generalCriticsMatch = criticalReception.match(/(\d+)%/);
+            if (generalCriticsMatch) {
+                stats.push(`<div class="stat-item"><span class="stat-label">Critics Score</span><span class="stat-value">${generalCriticsMatch[1]}%</span></div>`);
+            }
         }
     }
     
-    // Audience Reception
+    // Enhanced Audience Reception parsing
     const audienceReception = data.get('Audience Reception & Reaction');
     if (audienceReception) {
-        const audienceMatch = audienceReception.match(/(\d+)%/);
-        if (audienceMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">Audience Score</span><span class="stat-value">${audienceMatch[0]}</span></div>`);
+        // Look for IMDb rating
+        const imdbMatch = audienceReception.match(/(?:IMDb|IMDB)[:\s]*(\d+(?:\.\d+)?)/i);
+        if (imdbMatch) {
+            stats.push(`<div class="stat-item"><span class="stat-label">IMDb</span><span class="stat-value">${imdbMatch[1]}/10</span></div>`);
+        }
+        
+        // Look for Rotten Tomatoes audience score
+        const rtAudienceMatch = audienceReception.match(/(?:Audience|RT Audience)[:\s]*(\d+)%/i);
+        if (rtAudienceMatch) {
+            stats.push(`<div class="stat-item"><span class="stat-label">Audience (RT)</span><span class="stat-value">${rtAudienceMatch[1]}%</span></div>`);
+        }
+        
+        // Fallback: Look for any percentage or rating
+        if (!imdbMatch && !rtAudienceMatch) {
+            const generalAudienceMatch = audienceReception.match(/(\d+)%|(\d+(?:\.\d+)?)\s*\/\s*10/);
+            if (generalAudienceMatch) {
+                const score = generalAudienceMatch[1] ? `${generalAudienceMatch[1]}%` : `${generalAudienceMatch[2]}/10`;
+                stats.push(`<div class="stat-item"><span class="stat-label">Audience Score</span><span class="stat-value">${score}</span></div>`);
+            }
         }
     }
     
