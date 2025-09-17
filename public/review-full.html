@@ -62,11 +62,21 @@
 
     <script>
         (function() {
-            // UTC timestamp formatting
+            // Clean UTC timestamp formatting
             const tsEl = document.getElementById('utc-timestamp');
             if (tsEl && tsEl.dataset.ts) {
-                const date = new Date(parseInt(tsEl.dataset.ts, 10));
-                tsEl.textContent = date.toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+                const timestamp = parseInt(tsEl.dataset.ts, 10);
+                const date = new Date(timestamp);
+                
+                // Format as YYYY-MM-DD HH:mm:ss UTC (no milliseconds)
+                const year = date.getUTCFullYear();
+                const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(date.getUTCDate()).padStart(2, '0');
+                const hours = String(date.getUTCHours()).padStart(2, '0');
+                const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+                
+                tsEl.textContent = `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
             }
 
             // Google Translate Integration
@@ -282,18 +292,18 @@
         /* Mobile Responsive */
         @media (max-width: 768px) {
             .hero.compact .hero-content {
-                grid-template-columns: 100px 1fr;
-                gap: 1rem;
+                grid-template-columns: 70px 1fr;
+                gap: 0.75rem;
             }
             
             .movie-poster.compact {
-                width: 100px;
-                height: 150px;
-                font-size: 1.5rem;
+                width: 70px;
+                height: 105px;
+                font-size: 1.2rem;
             }
             
             .movie-info h1 {
-                font-size: 1.5rem;
+                font-size: 1.1rem;
             }
             
             .translation-controls {
