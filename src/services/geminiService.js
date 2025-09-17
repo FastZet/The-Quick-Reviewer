@@ -1,4 +1,4 @@
-// src/services/geminiService.js — @google/genai with correct API usage
+// src/services/geminiService.js — @google/genai with CORRECT current API
 
 const { GoogleGenAI } = require('@google/genai');
 
@@ -10,16 +10,25 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let _aiClient = null;
 
+/**
+ * Initialize GoogleGenAI client with proper error handling
+ */
 function getGenAIClient() {
   if (!_aiClient) {
     if (!GEMINI_API_KEY) {
       throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
     }
     
-    // Correct @google/genai initialization
-    _aiClient = new GoogleGenAI({ 
-      apiKey: GEMINI_API_KEY 
-    });
+    try {
+      // Current @google/genai initialization pattern
+      _aiClient = new GoogleGenAI({
+        apiKey: GEMINI_API_KEY,
+      });
+      console.log('[Gemini] Client initialized successfully');
+    } catch (error) {
+      console.error('[Gemini] Failed to initialize client:', error);
+      throw new Error(`Failed to initialize GoogleGenAI client: ${error.message}`);
+    }
   }
   return _aiClient;
 }
@@ -30,8 +39,7 @@ function shouldRetry(err, attempt) {
 }
 
 /**
- * Generate a review with Gemini 2.5 using Google Search grounding.
- * Uses the NEW @google/genai SDK API pattern.
+ * Generate a review with Gemini using the CURRENT @google/genai API
  */
 async function generateReview(prompt) {
   if (!GEMINI_API_KEY) {
@@ -41,52 +49,61 @@ async function generateReview(prompt) {
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
     try {
-      const ai = getGenAIClient();
+      const genai = getGenAIClient();
 
       console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
-      console.log(`[Gemini] Using @google/genai SDK with Google Search grounding`);
+      console.log(`[Gemini] Using @google/genai SDK`);
 
-      // NEW @google/genai API pattern - direct ai.models.generateContent()
-      const response = await ai.models.generateContent({
+      // CORRECT @google/genai current API pattern
+      const response = await genai.generateContent({
         model: GEMINI_MODEL,
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }], // Enable Google Search grounding
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 8192,
-          }
+        contents: [{
+          role: 'user',
+          parts: [{ text: prompt }]
+        }],
+        tools: [{ googleSearch: {} }], // Enable Google Search grounding
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8192,
         }
       });
 
-      if (!response.text || response.text.trim().length === 0) {
+      // Extract text from response
+      let text;
+      if (response.response && response.response.text) {
+        text = typeof response.response.text === 'function' ? response.response.text() : response.response.text;
+      } else if (response.text) {
+        text = typeof response.text === 'function' ? response.text() : response.text;
+      } else {
+        throw new Error('No text content in response');
+      }
+
+      if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
       }
 
-      // Enhanced logging to verify grounding usage
-      const grounded = !!(response.groundingMetadata || response.citationMetadata);
-      const searchCalls = response.toolCalls?.filter(call => call.name === 'googleSearch')?.length || 0;
-
+      // Enhanced logging
       console.log(`[Gemini] Generation completed successfully`);
       console.log(`[Gemini] - Model: ${GEMINI_MODEL}`);
-      console.log(`[Gemini] - Grounded: ${grounded}`);
-      console.log(`[Gemini] - Google Search calls made: ${searchCalls}`);
-      console.log(`[Gemini] - Response length: ${response.text.length} characters`);
+      console.log(`[Gemini] - Response length: ${text.length} characters`);
+      console.log(`[Gemini] ✅ Generation successful`);
 
-      if (searchCalls > 0 || grounded) {
-        console.log(`[Gemini] ✅ Web grounding ACTIVE - Search functionality enabled`);
-      } else {
-        console.warn(`[Gemini] ⚠️ Web grounding NOT USED - Model used existing knowledge`);
-      }
-
-      return response.text.trim();
+      return text.trim();
+      
     } catch (err) {
       console.error(`[Gemini] Error on attempt ${attempt}:`, {
         message: err?.message,
         status: err?.status,
         code: err?.code,
-        stack: err?.stack?.split('\n')[0] // First line of stack trace
+        name: err?.name,
+        stack: err?.stack ? err.stack.split('\n').slice(0, 3).join('\n') : 'No stack trace'
       });
+
+      // Log the specific error details for debugging
+      if (err?.message?.includes('getGenerativeModel')) {
+        console.error('[Gemini] ❌ API method error - using wrong SDK method');
+        console.error('[Gemini] Available methods on client:', Object.getOwnPropertyNames(genai || {}));
+      }
 
       if (!shouldRetry(err, attempt)) {
         console.error(`[Gemini] Permanent failure after ${attempt} attempts`);
