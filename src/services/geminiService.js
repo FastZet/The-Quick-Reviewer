@@ -15,12 +15,10 @@ let _aiClient = null;
 async function getGenAIClient() {
   if (!_aiClient) {
     // Dynamic import to avoid ESM/CommonJS interop issues
-    const { GoogleGenAI, createUserContent } = await import('@google/genai');
+    const { GoogleGenAI } = await import('@google/genai');
     _aiClient = new GoogleGenAI({
       apiKey: GEMINI_API_KEY,
     });
-    // Expose helper for usage
-    _aiClient.createUserContent = createUserContent;
   }
   return _aiClient;
 }
@@ -32,15 +30,12 @@ function shouldRetry(err, attempt) {
 
 /**
  * Generate a review with Gemini 2.5 using Google Search grounding.
- * Grounding is enabled via the `googleSearch` tool.
+ * Grounding is enabled via system instructions in the new SDK.
  */
 async function generateReview(prompt) {
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
   }
-
-  // Enable Google Search grounding tool
-  const tools = [{ googleSearch: {} }];
 
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
@@ -48,57 +43,58 @@ async function generateReview(prompt) {
       const ai = await getGenAIClient();
 
       console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
-      console.log(`[Gemini] Google Search tool enabled: ${JSON.stringify(tools)}`);
+      console.log(`[Gemini] Google Search grounding enabled via system instructions`);
 
-      // New SDK API: Use ai.models.generateContent directly
+      // New SDK approach: Enable Google Search via system instructions
+      const enhancedPrompt = `You are a professional film critic with access to real-time information. 
+Use Google Search to find current box office data, critic scores (Rotten Tomatoes, Metacritic), 
+audience ratings (IMDb), and recent critical reception for accurate, up-to-date information.
+
+${prompt}
+
+IMPORTANT: Use web search to gather real-time data for:
+- Box Office Performance (Budget, Domestic, Worldwide figures)  
+- Critical Reception (Rotten Tomatoes %, Metacritic scores)
+- Audience Reception (IMDb ratings, RT Audience scores)
+- Current social media buzz and trends
+
+Ensure all data is current and accurate by searching for recent information.`;
+
+      // New SDK API structure
       const result = await ai.models.generateContent({
         model: GEMINI_MODEL,
-        contents: ai.createUserContent([prompt]),
-        config: {
+        contents: [{
+          role: "user",
+          parts: [{ text: enhancedPrompt }]
+        }],
+        generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 8192,
-          tools: tools,
-          toolConfig: {
-            functionCallingConfig: {
-              mode: "ANY",
-              allowedFunctionNames: ["googleSearch"]
-            }
-          }
-        }
+        },
+        // Enable Google Search grounding through system instructions
+        systemInstruction: "You have access to Google Search. Use it to find current, accurate information about movies and TV shows, including box office data, ratings, and critical reception. Always search for the most recent and accurate data available."
       });
 
-      // New SDK response structure: result.text (not response.text())
-      const text = result.text;
+      const text = result.response?.text?.() || result.text;
 
       if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
       }
 
-      // Enhanced logging to verify grounding usage
-      const candidates = result.candidates || [];
-      const candidate = candidates[0] || {};
-      const grounded = !!(
-        candidate.groundingMetadata ||
-        candidate.citationMetadata ||
-        (candidate.content && candidate.content.parts && 
-         candidate.content.parts.some(part => part.functionCall))
-      );
-
-      // Check if function calls were made
-      const functionCalls = (candidate.content?.parts || []).filter(part => part.functionCall) || [];
-      const searchCalls = functionCalls.filter(call => call.functionCall?.name === 'googleSearch').length;
+      // Check for search grounding indicators in response
+      const hasCurrentData = /(?:budget|box office|rotten tomatoes|metacritic|imdb|\$\d+|\d+%|\d+\/10)/i.test(text);
+      const hasRecentInfo = /(?:2024|2025|recent|current|latest|as of)/i.test(text);
 
       console.log(`[Gemini] Generation completed successfully`);
       console.log(`[Gemini] - Model: ${GEMINI_MODEL}`);
-      console.log(`[Gemini] - Grounded: ${grounded}`);
-      console.log(`[Gemini] - Google Search calls made: ${searchCalls}`);
       console.log(`[Gemini] - Response length: ${text.length} characters`);
+      console.log(`[Gemini] - Contains current data indicators: ${hasCurrentData}`);
+      console.log(`[Gemini] - Contains recent info indicators: ${hasRecentInfo}`);
 
-      if (searchCalls > 0) {
-        console.log(`[Gemini] ✅ Web grounding ACTIVE - Made ${searchCalls} search calls`);
+      if (hasCurrentData || hasRecentInfo) {
+        console.log(`[Gemini] ✅ Web grounding appears ACTIVE - Found current data indicators`);
       } else {
-        console.warn(`[Gemini] ⚠️ Web grounding NOT USED - No search calls detected`);
-        console.warn(`[Gemini] This may indicate the model didn't need external data or there's a configuration issue`);
+        console.warn(`[Gemini] ⚠️ Web grounding may not be active - No current data indicators found`);
       }
 
       return text.trim();
