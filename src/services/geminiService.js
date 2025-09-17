@@ -15,10 +15,12 @@ let _aiClient = null;
 async function getGenAIClient() {
   if (!_aiClient) {
     // Dynamic import to avoid ESM/CommonJS interop issues
-    const { GoogleGenAI } = await import('@google/genai');
+    const { GoogleGenAI, createUserContent } = await import('@google/genai');
     _aiClient = new GoogleGenAI({
       apiKey: GEMINI_API_KEY,
     });
+    // Expose helper for usage
+    _aiClient.createUserContent = createUserContent;
   }
   return _aiClient;
 }
@@ -44,49 +46,46 @@ async function generateReview(prompt) {
   while (++attempt <= MAX_RETRIES) {
     try {
       const ai = await getGenAIClient();
-      const model = ai.getGenerativeModel({ 
-        model: GEMINI_MODEL,
-        tools: tools, // Enable tools at model level
-        toolConfig: {
-          functionCallingConfig: {
-            mode: "ANY", // Allow function calling
-            allowedFunctionNames: ["googleSearch"]
-          }
-        }
-      });
 
       console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
       console.log(`[Gemini] Google Search tool enabled: ${JSON.stringify(tools)}`);
 
-      const result = await model.generateContent({
-        contents: [{
-          role: "user",
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
+      // New SDK API: Use ai.models.generateContent directly
+      const result = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: ai.createUserContent([prompt]),
+        config: {
           temperature: 0.7,
           maxOutputTokens: 8192,
+          tools: tools,
+          toolConfig: {
+            functionCallingConfig: {
+              mode: "ANY",
+              allowedFunctionNames: ["googleSearch"]
+            }
+          }
         }
       });
 
-      const response = await result.response;
-      const text = response.text();
+      // New SDK response structure: result.text (not response.text())
+      const text = result.text;
 
       if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
       }
 
       // Enhanced logging to verify grounding usage
-      const candidate = response.candidates?.[0];
-      const grounded = !!(candidate && (
-        candidate.groundingMetadata || 
+      const candidates = result.candidates || [];
+      const candidate = candidates[0] || {};
+      const grounded = !!(
+        candidate.groundingMetadata ||
         candidate.citationMetadata ||
         (candidate.content && candidate.content.parts && 
          candidate.content.parts.some(part => part.functionCall))
-      ));
+      );
 
       // Check if function calls were made
-      const functionCalls = candidate?.content?.parts?.filter(part => part.functionCall) || [];
+      const functionCalls = (candidate.content?.parts || []).filter(part => part.functionCall) || [];
       const searchCalls = functionCalls.filter(call => call.functionCall?.name === 'googleSearch').length;
 
       console.log(`[Gemini] Generation completed successfully`);
