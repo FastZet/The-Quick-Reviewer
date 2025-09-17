@@ -12,68 +12,72 @@ function extract8PointSummary(rawReviewText) {
   if (!rawReviewText) return [];
   
   try {
-    // Look for 8-point summary section in the AI response
+    // Look for 8-Point Summary section in the AI response
     const summaryMatch = rawReviewText.match(/8-Point Summary:(.*?)(?:\n\n|\n•|\n[A-Z]|$)/s);
     if (summaryMatch) {
       const summaryText = summaryMatch[1];
       const points = summaryText.split(/\n/).filter(line => line.trim().startsWith('•')).slice(0, 8);
-      return points.map(point => point.replace('•', '').trim().substring(0, 20));
+      return points.map(point => point.replace('•', '').trim().substring(0, 25)); // Updated to 25 chars
     }
     
-    // Fallback: Extract key points from existing sections
+    // Look for direct 8-point bullets after basic info (new format)
+    const directBulletsMatch = rawReviewText.match(/Release Country:.*?\n((?:•[^\n]{1,25}\n?){8})/s);
+    if (directBulletsMatch) {
+      const directBullets = directBulletsMatch[1];
+      const points = directBullets.split(/\n/).filter(line => line.trim().startsWith('•')).slice(0, 8);
+      return points.map(point => point.replace('•', '').trim().substring(0, 25));
+    }
+    
+    // Fallback: Extract evaluative statements from existing sections
     const fallbackPoints = [];
     
-    // Extract from Plot Summary
-    const plotMatch = rawReviewText.match(/Plot Summary:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (plotMatch) {
-      fallbackPoints.push("Plot: " + plotMatch[1].trim().substring(0, 15));
-    }
-    
-    // Extract from Performances
-    const perfMatch = rawReviewText.match(/Performances:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (perfMatch) {
-      fallbackPoints.push("Acting: " + perfMatch[1].trim().substring(0, 13));
-    }
-    
-    // Extract from Cinematography
-    const cinemMatch = rawReviewText.match(/Cinematography:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (cinemMatch) {
-      fallbackPoints.push("Visuals: " + cinemMatch[1].trim().substring(0, 12));
+    // Look for evaluative statements in the review content
+    const verdictMatch = rawReviewText.match(/Verdict in One Line:(.*?)(?:\n|$)/s);
+    if (verdictMatch) {
+      const verdict = verdictMatch[1].trim();
+      // Split verdict into shorter evaluative pieces
+      const words = verdict.split(' ');
+      if (words.length > 5) {
+        fallbackPoints.push(words.slice(0, 4).join(' '));
+        fallbackPoints.push(words.slice(4, 8).join(' '));
+      } else {
+        fallbackPoints.push(verdict.substring(0, 25));
+      }
     }
     
     // Extract from Strengths
     const strengthMatch = rawReviewText.match(/Strengths:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (strengthMatch) {
-      fallbackPoints.push("Pros: " + strengthMatch[1].trim().substring(0, 15));
+    if (strengthMatch && fallbackPoints.length < 6) {
+      const strengths = strengthMatch[1].trim();
+      const strengthParts = strengths.split(/[.,;]/).slice(0, 3);
+      strengthParts.forEach(part => {
+        if (fallbackPoints.length < 6) {
+          fallbackPoints.push(part.trim().substring(0, 25));
+        }
+      });
     }
     
-    // Extract from Weaknesses
+    // Extract from Weaknesses  
     const weakMatch = rawReviewText.match(/Weaknesses:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (weakMatch) {
-      fallbackPoints.push("Cons: " + weakMatch[1].trim().substring(0, 15));
+    if (weakMatch && fallbackPoints.length < 8) {
+      const weaknesses = weakMatch[1].trim();
+      const weakParts = weaknesses.split(/[.,;]/).slice(0, 2);
+      weakParts.forEach(part => {
+        if (fallbackPoints.length < 8) {
+          fallbackPoints.push(part.trim().substring(0, 25));
+        }
+      });
     }
     
-    // Extract rating
-    const ratingMatch = rawReviewText.match(/Rating:\s*(\d+(?:\.\d+)?\/10)/);
-    if (ratingMatch) {
-      fallbackPoints.push("Score: " + ratingMatch[1]);
-    }
-    
-    // Extract verdict
-    const verdictMatch = rawReviewText.match(/Verdict in One Line:(.*?)(?:\n|$)/s);
-    if (verdictMatch) {
-      fallbackPoints.push("Verdict: " + verdictMatch[1].trim().substring(0, 12));
-    }
-    
-    // Fill remaining slots with generic points
+    // Fill remaining slots with generic evaluative points
     const genericPoints = [
-      "Genre mix analysis",
-      "Technical quality", 
-      "Entertainment value"
+      "Mixed execution",
+      "Some highlights", 
+      "Worth considering"
     ];
     
-    for (let i = fallbackPoints.length; i < 8 && i < genericPoints.length; i++) {
-      fallbackPoints.push(genericPoints[i]);
+    for (let i = fallbackPoints.length; i < 8 && i - fallbackPoints.length < genericPoints.length; i++) {
+      fallbackPoints.push(genericPoints[i - fallbackPoints.length]);
     }
     
     return fallbackPoints.slice(0, 8);
@@ -81,13 +85,13 @@ function extract8PointSummary(rawReviewText) {
     console.warn('[Stream] Error extracting 8-point summary:', error.message);
     return [
       "Review available",
-      "Click to read more",
-      "AI-generated content",
-      "Spoiler-free analysis",
-      "Professional critique",
-      "In-depth coverage",
+      "Click for details",
+      "AI analysis ready",
+      "Professional critique", 
+      "Spoiler-free content",
       "Multiple sections",
-      "Full breakdown"
+      "Full breakdown",
+      "Worth reading"
     ];
   }
 }
@@ -97,10 +101,31 @@ function build8PointStreamTitle(points) {
     return "⚡ Quick 8-Point Review\nClick to see detailed analysis";
   }
   
-  const header = "⚡ 8-Point Quick Review";
-  const formattedPoints = points.map(point => `• ${point}`).join('\n');
+  // No header line - just the bullets directly
+  const formattedPoints = points.map(point => `● ${point}`).join('\n');
   
-  return `${header}\n${formattedPoints}`;
+  return formattedPoints;
+}
+
+function buildVerdictText(verdict, isFullReview = false) {
+  if (!verdict) {
+    return isFullReview ? 'Click for comprehensive analysis\nComplete critical breakdown' : 'Click to read plot & verdict';
+  }
+  
+  if (isFullReview) {
+    // For full review: split verdict into 2 lines if long enough, or add descriptive second line
+    if (verdict.length > 40) {
+      const midPoint = verdict.indexOf(' ', verdict.length / 2);
+      if (midPoint > 0) {
+        return verdict.substring(0, midPoint) + '\n' + verdict.substring(midPoint + 1);
+      }
+    }
+    // Add descriptive second line for full reviews
+    return verdict + '\n' + 'Complete critical analysis';
+  }
+  
+  // For quick review: single line verdict only
+  return verdict;
 }
 
 async function buildStreamResponse(req) {
@@ -150,7 +175,7 @@ async function buildStreamResponse(req) {
     }
   }
 
-  // Stream 1: 8-Point Summary Stream
+  // Stream 1: 8-Point Summary Stream (no title line, just bullets)
   const eightPointStream = {
     id: `quick-reviewer-summary-${type}-${id}`,
     title: build8PointStreamTitle(eightPoints),
@@ -158,18 +183,18 @@ async function buildStreamResponse(req) {
     ...baseStreamConfig
   };
 
-  // Stream 2: Quick Review Stream
+  // Stream 2: Quick Review Stream (single-line verdict)
   const quickStream = {
     id: `quick-reviewer-quick-${type}-${id}`,
-    title: `⚡ Quick Review\n${reviewData?.verdict || 'Click to read plot & verdict'}\n📖 Plot Summary + Overall Verdict`,
+    title: `⚡ Quick Review\n${buildVerdictText(reviewData?.verdict, false)}\n📖 Plot Summary + Overall Verdict`,
     externalUrl: quickReviewUrl,
     ...baseStreamConfig
   };
 
-  // Stream 3: Full Review Stream
+  // Stream 3: Full Review Stream (two-line verdict)
   const fullStream = {
     id: `quick-reviewer-full-${type}-${id}`,
-    title: `⚡ Complete Review\n${reviewData?.verdict || 'Click for full analysis'}\n🎬 All Sections + Detailed Analysis`,
+    title: `⚡ Complete Review\n${buildVerdictText(reviewData?.verdict, true)}\n🎬 All Sections + Detailed Analysis`,
     externalUrl: fullReviewUrl,
     ...baseStreamConfig
   };
