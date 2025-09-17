@@ -422,94 +422,251 @@
     padding: 0 2rem;
 }
 
-/* --- Responsive Design --- */
+/* --- MOBILE OPTIMIZATION --- */
+@media (max-width: 768px) {
+    /* Ultra-compact container */
+    .container {
+        padding: 0 0.75rem;
+        max-width: 100%;
+    }
+    
+    /* Drastically reduced hero section */
+    .hero, .hero.compact {
+        padding: 0.75rem 0;
+        background: none; /* Remove background for space */
+    }
+    
+    .hero-content, .hero.compact .hero-content { 
+        grid-template-columns: 70px 1fr;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+    
+    /* Tiny poster */
+    .movie-poster, .movie-poster.compact {
+        width: 70px;
+        height: 105px;
+        font-size: 1.2rem;
+        border-radius: 6px;
+        padding: 0.25rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .poster-icon {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+    
+    .poster-title {
+        font-size: 0.5rem !important;
+        line-height: 1.1 !important;
+    }
+    
+    /* Compact movie info */
+    .movie-info h1, .hero.compact .movie-info h1 {
+        font-size: 1.1rem;
+        margin-bottom: 0.25rem;
+        line-height: 1.2;
+        font-weight: 600;
+    }
+    
+    .episode-info {
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Compact meta items */
+    .movie-meta, .hero.compact .movie-meta {
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .meta-item {
+        font-size: 0.75rem;
+        gap: 0.3rem;
+    }
+    
+    /* Tiny rating badge */
+    .rating-badge, .hero.compact .rating-badge {
+        padding: 0.25rem 0.5rem;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .rating-score, .hero.compact .rating-score {
+        font-size: 1.1rem;
+    }
+    
+    .verdict-text {
+        font-size: 0.8rem;
+        line-height: 1.2;
+        max-width: none;
+    }
+    
+    .rating-label {
+        font-size: 0.7rem;
+    }
+    
+    /* Compact action buttons */
+    .hero-actions {
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        flex-direction: column;
+    }
+    
+    .control-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Ultra-compact review section */
+    .review-section, .hero.compact + .review-section {
+        padding: 1rem 0 0.5rem 0;
+    }
+    
+    .review-grid { 
+        grid-template-columns: 1fr; 
+        gap: 1rem;
+    }
+    
+    .sidebar { 
+        order: -1; /* Move sidebar to top */
+        gap: 1rem;
+    }
+    
+    /* Compact review cards */
+    .review-main-content {
+        gap: 1rem;
+    }
+    
+    .review-card {
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 0;
+    }
+    
+    .review-card h3 {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+        gap: 0.5rem;
+    }
+    
+    .review-card .icon {
+        font-size: 1rem;
+    }
+    
+    .review-text {
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+    
+    /* Compact sidebar */
+    .sidebar-card {
+        padding: 1rem;
+        border-radius: 8px;
+    }
+    
+    .sidebar-card h4 {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .stat-item {
+        padding: 0.5rem 0;
+        font-size: 0.8rem;
+    }
+    
+    .recommendation-tags {
+        gap: 0.3rem;
+    }
+    
+    .recommendation-tag {
+        padding: 0.2rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 12px;
+    }
+    
+    .similar-films-list {
+        font-size: 0.8rem;
+        line-height: 1.6;
+        padding-left: 0.5rem;
+    }
+    
+    /* Mobile translation controls */
+    .translation-controls {
+        position: static;
+        justify-content: flex-start;
+        margin: 0.5rem 0;
+        top: auto;
+        right: auto;
+    }
+    
+    .control-select {
+        font-size: 0.75rem;
+        padding: 0.4rem;
+    }
+    
+    .control-btn.translate {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.6rem;
+    }
+    
+    /* Compact timestamp */
+    .timestamp {
+        font-size: 0.75rem;
+        margin-top: 1rem;
+    }
+}
+
+/* --- EXTRA SMALL MOBILE (< 480px) --- */
+@media (max-width: 480px) {
+    .container {
+        padding: 0 0.5rem;
+    }
+    
+    .hero, .hero.compact {
+        padding: 0.5rem 0;
+    }
+    
+    .hero-content, .hero.compact .hero-content {
+        grid-template-columns: 60px 1fr;
+        gap: 0.5rem;
+    }
+    
+    .movie-poster, .movie-poster.compact {
+        width: 60px;
+        height: 90px;
+        font-size: 1rem;
+    }
+    
+    .movie-info h1, .hero.compact .movie-info h1 {
+        font-size: 1rem;
+    }
+    
+    .meta-item {
+        font-size: 0.7rem;
+    }
+    
+    .rating-score, .hero.compact .rating-score {
+        font-size: 1rem;
+    }
+    
+    .verdict-text {
+        font-size: 0.75rem;
+    }
+}
+
+/* --- RESPONSIVE GRID BREAKPOINTS --- */
 @media (max-width: 992px) {
     .review-grid { 
         grid-template-columns: 1fr; 
     }
     .sidebar { 
-        order: -1; /* Move sidebar to top on mobile */
-    }
-}
-
-@media (max-width: 768px) {
-    .hero-content { 
-        grid-template-columns: 1fr; 
-        text-align: center; 
-    }
-    
-    .hero.compact .hero-content {
-        grid-template-columns: 100px 1fr;
-        gap: 1rem;
-        text-align: left;
-    }
-    
-    .movie-poster { 
-        width: 200px; 
-        height: 300px; 
-        margin: 0 auto 1rem; 
-    }
-    
-    .movie-poster.compact {
-        width: 100px;
-        height: 150px;
-        margin: 0;
-    }
-    
-    .movie-info h1 { 
-        font-size: 2rem; 
-    }
-    
-    .hero.compact .movie-info h1 {
-        font-size: 1.5rem;
-    }
-    
-    .movie-meta { 
-        justify-content: center; 
-    }
-    
-    .hero.compact .movie-meta {
-        justify-content: flex-start;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .translation-controls {
-        position: relative;
-        top: auto;
-        right: auto;
-        margin: 1rem 0;
-        justify-content: center;
-    }
-    
-    .hero-actions {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .hero.compact .hero-actions {
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-    
-    .container {
-        padding: 0 1rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .hero.compact .hero-content {
-        grid-template-columns: 1fr;
-        text-align: center;
-    }
-    
-    .movie-poster.compact {
-        width: 120px;
-        height: 180px;
-        margin: 0 auto 1rem;
-    }
-    
-    .hero-actions {
-        justify-content: center;
+        order: -1; 
     }
 }
