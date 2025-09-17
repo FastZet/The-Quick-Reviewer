@@ -43,19 +43,26 @@ Concise but Insightful – reviews should be clear, easy to follow, and focused 
   • **Plot Summary:** Provide a brief overview of the story...
   • **Storytelling, Writing, and Pacing:** Assess narrative coherence, structure, dialogue, and rhythm...
 
-***IMPORTANT: 8-Point Summary Section***
-Before starting the detailed review, you MUST provide an "8-Point Summary" section with exactly 8 bullet points. Each bullet point must be a maximum of 20 characters (including spaces). This section should appear immediately after the basic information (Name, Cast, Director, etc.) and before the Plot Summary.
+***IMPORTANT: 8-Point Summary Section (CRITICAL)***
+Before starting the detailed review, you MUST provide an "8-Point Summary" section with exactly 8 bullet points. Each bullet point must be a maximum of 25 characters (including spaces) and must be evaluative statements, NOT categories.
 
-Format example:
+CORRECT FORMAT (what we want):
 • **8-Point Summary:**
-• Great acting
-• Stunning visuals  
-• Slow pacing
-• Weak plot twists
-• Strong soundtrack
-• Good cinematography
-• Mixed reception
-• Worth watching
+• Strong lead act
+• Kriti shines
+• Drama & thriller mix
+• Weak pacing
+• Flat side roles
+• Some suspense
+• Uneven execution
+• Average overall
+
+WRONG FORMAT (do NOT do this):
+• Plot: Great storyline
+• Acting: Strong performances
+• Visuals: Stunning cinematography
+
+The 8-point bullets should be direct critical judgments/highlights, not category descriptions. This section should appear immediately after the basic information (Name, Cast, Director, etc.) and before the Plot Summary.
 
 ***Data Grounding and Recency (Crucial):***
 
