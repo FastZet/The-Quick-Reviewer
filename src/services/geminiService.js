@@ -30,46 +30,91 @@ function shouldRetry(err, attempt) {
 
 /**
  * Generate a review with Gemini 2.5 using Google Search grounding.
- * Grounding is enabled via the `googleSearch` tool (no legacy fallbacks).
+ * Grounding is enabled via the `googleSearch` tool.
  */
 async function generateReview(prompt) {
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
   }
 
-  // Recommended grounding path for Gemini 2.x
+  // Enable Google Search grounding tool
   const tools = [{ googleSearch: {} }];
 
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
     try {
       const ai = await getGenAIClient();
-
-      const response = await ai.models.generateContent({
+      const model = ai.getGenerativeModel({ 
         model: GEMINI_MODEL,
-        contents: prompt,
-        config: {
-          tools,
-          temperature: 0.7,
-        },
+        tools: tools, // Enable tools at model level
+        toolConfig: {
+          functionCallingConfig: {
+            mode: "ANY", // Allow function calling
+            allowedFunctionNames: ["googleSearch"]
+          }
+        }
       });
 
-      const text = typeof response?.text === 'string' ? response.text.trim() : '';
-      if (!text) {
+      console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
+      console.log(`[Gemini] Google Search tool enabled: ${JSON.stringify(tools)}`);
+
+      const result = await model.generateContent({
+        contents: [{
+          role: "user",
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+        }
+      });
+
+      const response = await result.response;
+      const text = response.text();
+
+      if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
       }
 
-      // Log whether the response included grounding/citations
-      const candidate = response && response.candidates && response.candidates;
-      const grounded = !!(candidate && candidate.groundingMetadata);
-      console.log(`[Gemini] Generated review. Grounded=${grounded}, Model=${GEMINI_MODEL}`);
+      // Enhanced logging to verify grounding usage
+      const candidate = response.candidates?.[0];
+      const grounded = !!(candidate && (
+        candidate.groundingMetadata || 
+        candidate.citationMetadata ||
+        (candidate.content && candidate.content.parts && 
+         candidate.content.parts.some(part => part.functionCall))
+      ));
 
-      return text;
-    } catch (err) {
-      if (!shouldRetry(err, attempt)) {
-        console.error(`[Gemini] Permanent failure on attempt ${attempt}:`, err?.message || err);
-        throw new Error("Error generating review after all retries.");
+      // Check if function calls were made
+      const functionCalls = candidate?.content?.parts?.filter(part => part.functionCall) || [];
+      const searchCalls = functionCalls.filter(call => call.functionCall?.name === 'googleSearch').length;
+
+      console.log(`[Gemini] Generation completed successfully`);
+      console.log(`[Gemini] - Model: ${GEMINI_MODEL}`);
+      console.log(`[Gemini] - Grounded: ${grounded}`);
+      console.log(`[Gemini] - Google Search calls made: ${searchCalls}`);
+      console.log(`[Gemini] - Response length: ${text.length} characters`);
+
+      if (searchCalls > 0) {
+        console.log(`[Gemini] ✅ Web grounding ACTIVE - Made ${searchCalls} search calls`);
+      } else {
+        console.warn(`[Gemini] ⚠️ Web grounding NOT USED - No search calls detected`);
+        console.warn(`[Gemini] This may indicate the model didn't need external data or there's a configuration issue`);
       }
+
+      return text.trim();
+    } catch (err) {
+      console.error(`[Gemini] Error on attempt ${attempt}:`, {
+        message: err?.message,
+        status: err?.status,
+        code: err?.code
+      });
+
+      if (!shouldRetry(err, attempt)) {
+        console.error(`[Gemini] Permanent failure after ${attempt} attempts`);
+        throw new Error(`Error generating review after all retries: ${err?.message || 'Unknown error'}`);
+      }
+      
       const backoff = 250 * Math.pow(2, attempt - 1);
       console.warn(`[Gemini] Retryable error on attempt ${attempt}; retrying in ${backoff}ms...`);
       await delay(backoff);
