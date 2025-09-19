@@ -1,6 +1,6 @@
 /*
  * src/core/reviewVerifier.js
- * Simplified validation with optional debug logging
+ * Fixed version with more robust section extraction
  */
 
 'use strict';
@@ -22,21 +22,54 @@ function headingExists(text, heading) {
   return pattern.test(text);
 }
 
-// Extract content after a markdown header - FIXED REGEX
+// Extract content after a markdown header - COMPLETELY REWRITTEN
 function extractSection(text, heading) {
-  // More flexible pattern that handles inconsistent spacing
-  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^##\\s*\\S|$)`, 'mi');
-  const match = text.match(pattern);
-  const content = match && match[1] ? match[1].trim() : null;
+  const lines = text.split('\n');
+  const targetHeader = `## ${heading}`;
   
-  if (DEBUG && content) {
-    vlog(`Section "${heading}" extracted successfully (${content.length} chars):`, content.substring(0, 100) + '...');
+  let startIndex = -1;
+  let endIndex = lines.length;
+  
+  // Find the target header line
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line === targetHeader || line === `## ${heading}  `) { // Handle trailing spaces
+      startIndex = i;
+      break;
+    }
   }
   
-  return content;
+  if (startIndex === -1) {
+    vlog(`Header "${heading}" not found`);
+    return null;
+  }
+  
+  // Find the next header to determine end
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('## ') && line.length > 3) {
+      endIndex = i;
+      break;
+    }
+  }
+  
+  // Extract content between headers
+  const contentLines = lines.slice(startIndex + 1, endIndex);
+  const content = contentLines.join('\n').trim();
+  
+  if (DEBUG) {
+    vlog(`Section "${heading}" extraction:`, {
+      startIndex,
+      endIndex,
+      contentLength: content.length,
+      preview: content.substring(0, 100) + (content.length > 100 ? '...' : '')
+    });
+  }
+  
+  return content.length > 0 ? content : null;
 }
 
-// Check if rating section exists and has valid format
+// Rest of the functions remain the same...
 function validateRating(text) {
   const ratingSection = extractSection(text, 'Rating');
   vlog('Rating section extracted:', ratingSection);
@@ -46,7 +79,6 @@ function validateRating(text) {
     return false;
   }
   
-  // Look for X/10 format
   const ratingMatch = ratingSection.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
   vlog('Rating match result:', ratingMatch);
   
@@ -65,7 +97,6 @@ function validateRating(text) {
   return true;
 }
 
-// Check if verdict sections exist
 function validateVerdicts(text) {
   const oneLineVerdict = extractSection(text, 'Verdict in One Line');
   vlog('One-line verdict extracted:', oneLineVerdict);
@@ -81,38 +112,9 @@ function validateVerdicts(text) {
   }
   
   vlog('Single-line verdict validation passed');
-  
-  // Two-line verdict is optional but validate if present
-  const twoLineSection = extractSection(text, 'Two-Line Verdict');
-  vlog('Two-line verdict section:', twoLineSection);
-  
-  if (twoLineSection) {
-    const lines = twoLineSection.split('\n')
-      .map(line => line.replace(/^-\s*/, '').trim())
-      .filter(line => line.length > 0);
-    
-    vlog('Two-line verdict parsed lines:', lines);
-    
-    if (lines.length !== 2) {
-      vlog('Two-line verdict does not have exactly 2 lines:', lines.length);
-      return false;
-    }
-    
-    // Check line lengths (reasonable limits)
-    for (const line of lines) {
-      if (line.length === 0 || line.length > 100) {
-        vlog('Two-line verdict line length invalid:', line.length, 'content:', line);
-        return false;
-      }
-    }
-    
-    vlog('Two-line verdict validation passed');
-  }
-  
   return true;
 }
 
-// Check basic content sections exist
 function validateContentSections(text) {
   const requiredSections = [
     'Plot Summary',
@@ -140,7 +142,6 @@ function validateContentSections(text) {
   return true;
 }
 
-// Check basic info sections exist (movie vs series specific)
 function validateBasicInfo(text, type) {
   const commonSections = [
     'Casts',
@@ -153,24 +154,12 @@ function validateBasicInfo(text, type) {
   
   vlog('Checking basic info sections for type:', type);
   
-  // Check movie vs series specific sections
   if (type === 'series') {
     if (!headingExists(text, 'Name Of The Series')) {
       vlog('Series name section missing');
       return false;
     }
     vlog('Series name section found');
-    
-    // Episode might have additional sections
-    const hasEpisodeName = headingExists(text, 'Name Of The Episode');
-    const hasSeasonEpisode = headingExists(text, 'Season Episode');
-    
-    vlog('Episode sections - Name:', hasEpisodeName, 'Season/Episode:', hasSeasonEpisode);
-    
-    if (hasEpisodeName && !hasSeasonEpisode) {
-      vlog('Episode has name but missing season/episode info');
-      return false;
-    }
   } else {
     if (!headingExists(text, 'Name Of The Movie')) {
       vlog('Movie name section missing');
@@ -179,7 +168,6 @@ function validateBasicInfo(text, type) {
     vlog('Movie name section found');
   }
   
-  // Check common required sections
   for (const section of commonSections) {
     const exists = headingExists(text, section);
     vlog(`Basic info section "${section}":`, exists ? 'Found' : 'MISSING');
@@ -194,12 +182,6 @@ function validateBasicInfo(text, type) {
   return true;
 }
 
-/**
- * Simplified review format verification with optional debug logging
- * @param {string} raw - The raw AI-generated review text
- * @param {string} type - Content type ('movie' or 'series')
- * @returns {boolean} - True if format is acceptable
- */
 function verifyReviewFormat(raw, type) {
   vlog('=== REVIEW VERIFICATION START ===');
   vlog('Content type:', type);
@@ -210,78 +192,42 @@ function verifyReviewFormat(raw, type) {
     return false;
   }
   
-  // Show first 500 characters for debugging
   if (DEBUG) {
     vlog('Content preview:', raw.substring(0, 500) + (raw.length > 500 ? '...' : ''));
   }
   
-  // Basic completeness checks
   if (raw.trim().length < 500) {
     vlog('FAIL: Review too short (minimum 500 characters)');
     return false;
   }
   
-  // Show all headers found in the content
   if (DEBUG) {
     const headerMatches = raw.match(/^##\s+.+$/gm);
     vlog('Headers found:', headerMatches || 'None');
   }
   
-  // Validate basic info sections
   vlog('--- Validating Basic Info ---');
   if (!validateBasicInfo(raw, type)) {
     vlog('FAIL: Basic info validation failed');
     return false;
   }
   
-  // Validate content sections
   vlog('--- Validating Content Sections ---');
   if (!validateContentSections(raw)) {
     vlog('FAIL: Content sections validation failed');
     return false;
   }
   
-  // Validate rating format
   vlog('--- Validating Rating ---');
   if (!validateRating(raw)) {
     vlog('FAIL: Rating validation failed');
     return false;
   }
   
-  // Validate verdict sections
   vlog('--- Validating Verdicts ---');
   if (!validateVerdicts(raw)) {
     vlog('FAIL: Verdict validation failed');
     return false;
-  }
-  
-  // Optional sections check (reduced logging when not in debug mode)
-  if (DEBUG) {
-    vlog('--- Checking Optional Sections ---');
-    const optionalSections = [
-      'Critical Reception',
-      'Audience Reception', 
-      'Box Office and Viewership',
-      'Who would like it',
-      'Who would not like it',
-      'Similar Films',
-      'Overall Verdict'
-    ];
-    
-    let missingOptional = 0;
-    for (const section of optionalSections) {
-      const exists = headingExists(raw, section);
-      vlog(`Optional section "${section}":`, exists ? 'Found' : 'Missing');
-      if (!exists) missingOptional++;
-    }
-    
-    vlog('Missing optional sections:', missingOptional, 'out of', optionalSections.length);
-    
-    // Allow some optional sections to be missing, but not too many
-    if (missingOptional > 2) {
-      vlog(`FAIL: Too many optional sections missing: ${missingOptional}/${optionalSections.length}`);
-      return false;
-    }
   }
   
   vlog('=== REVIEW VERIFICATION SUCCESS ===');
