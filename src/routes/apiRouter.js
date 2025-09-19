@@ -1,97 +1,145 @@
 // src/routes/apiRouter.js — Handles all internal API routes for the frontend.
 
+'use strict';
+
 const express = require('express');
-const { getReview } = require('../api');
-// CHANGED: use unified storage instead of in-memory cache
-const { getAllCachedReviews } = require('../core/storage');
+const path = require('path');
+const fs = require('fs').promises;
+
+const { getAllCachedReviews } = require('../core/storage.js');
+const buildReviewContent = require('../core/formatEnforcer.js'); // renamed from formatEnforcerV2
+const { getReview } = require('../api.js');
+
+const BASE_URL = process.env.BASE_URL || null;
+const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 
 const router = express.Router();
 
-// Rate limiting logic for password validation
-const loginAttempts = new Map();
-const MAX_ATTEMPTS = 5;
-const ATTEMPT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
-const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+// Password validation endpoint
+if (ADDON_PASSWORD) {
+  router.post('/api/validate-password', (req, res) => {
+    const { password } = req.body;
+    if (password === ADDON_PASSWORD) {
+      const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+      const host = req.get('x-forwarded-host') || req.get('host');
+      const base = BASE_URL || `${proto}://${host}`;
+      const manifestStremioUrl = `${base}/${password}/manifest.json`.replace(/^https?:/, 'stremio:');
+      const cacheUrl = `${base}/${password}/cached-reviews`;
 
-// --- Server-side endpoint for password validation ---
-router.post('/validate-password', (req, res) => {
-  const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
-  if (!ADDON_PASSWORD) {
-    return res.status(403).json({ error: 'Password protection is not enabled.' });
-  }
+      res.json({
+        success: true,
+        manifestStremioUrl,
+        cacheUrl,
+      });
+    } else {
+      res.status(401).json({ error: 'Invalid password' });
+    }
+  });
+}
 
-  const ip = req.ip;
-  const { password } = req.body;
-  const now = Date.now();
-  let attempts = loginAttempts.get(ip) || { count: 0, firstAttemptTime: now, lockoutUntil: null };
-
-  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
-    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
-    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
-  }
-
-  if (password === ADDON_PASSWORD) {
-    loginAttempts.delete(ip);
-    const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const base = BASE_URL || (host ? `${proto}://${host}` : '');
-    
-    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${ADDON_PASSWORD}/manifest.json`;
-    const cacheUrl = `/${ADDON_PASSWORD}/cached-reviews`;
-    
-    return res.json({ manifestStremioUrl, cacheUrl });
-  }
-
-  // Incorrect password logic
-  if (now - attempts.firstAttemptTime > ATTEMPT_WINDOW_MS) {
-    attempts = { count: 1, firstAttemptTime: now, lockoutUntil: null };
-  } else {
-    attempts.count++;
-  }
-
-  if (attempts.count >= MAX_ATTEMPTS) {
-    attempts.lockoutUntil = now + LOCKOUT_MS;
-    loginAttempts.set(ip, attempts);
-    return res.status(429).json({ error: 'Too many failed attempts. You are locked out for 10 minutes.' });
-  } else {
-    loginAttempts.set(ip, attempts);
-    const remaining = MAX_ATTEMPTS - attempts.count;
-    return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
-  }
-});
-
-// --- API for frontend to get cached reviews ---
-// CHANGED: make async and await storage
-router.get('/cached-reviews', async (req, res) => {
+// Cached reviews API endpoint
+router.get('/api/cached-reviews', async (req, res) => {
   try {
-    const cachedItems = await getAllCachedReviews();
-    res.json(cachedItems);
-  } catch (err) {
-    console.error('Error in /api/cached-reviews route:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    const reviews = await getAllCachedReviews();
+    res.json(reviews);
+  } catch (error) {
+    console.error('Error fetching cached reviews:', error);
+    res.status(500).json({ error: 'Failed to fetch cached reviews' });
   }
 });
 
-// --- API for frontend to fetch a review ---
+// Review page endpoint
 router.get('/review', async (req, res) => {
+  const { type, id, force } = req.query;
+  if (!type || !id) {
+    return res.status(400).send('Missing required parameters: type and id');
+  }
+
+  const forceRefresh = String(force || '').toLowerCase() === 'true';
+  console.log('Review page request:', { type, id, forceRefresh });
+
   try {
-    const { type, id } = req.query;
-    const forceRefresh = req.query.force === 'true';
-
-    if (!type || !id) {
-      return res.status(400).json({ error: 'Missing type or id parameter.' });
-    }
-    const isValidType = type === 'movie' || type === 'series';
-    if (!isValidType) {
-      return res.status(400).json({ error: 'Invalid type. Use "movie" or "series".' });
+    const result = await getReview(id, type, forceRefresh);
+    if (!result || !result.raw) {
+      return res.status(404).send('Review not found or generation failed');
     }
 
-    const review = await getReview(String(id).trim(), type, forceRefresh);
-    res.json({ review });
-  } catch (err) {
-    console.error('Error in /api/review route:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    const reviewMeta = {
+      title: result.title || 'Unknown',
+      year: result.year || null,
+      posterUrl: result.posterUrl || null,
+      stillUrl: result.stillUrl || null,
+      backdropUrl: result.backdropUrl || null,
+    };
+
+    const content = buildReviewContent(result.raw, reviewMeta);
+    const templatePath = path.join(__dirname, '../..', 'public', 'review-quick.html');
+    let template = await fs.readFile(templatePath, 'utf8');
+
+    // Replace placeholders
+    template = template
+      .replace(/POSTER_CONTENT/g, content.posterContent)
+      .replace(/HERO_CONTENT/g, content.heroContent)
+      .replace(/SIDEBAR_CONTENT/g, content.sidebarContent)
+      .replace(/MAIN_REVIEW_CARDS/g, content.mainReviewCards)
+      .replace(/PLOT_SUMMARY/g, content.plotSummary)
+      .replace(/OVERALL_VERDICT/g, content.overallVerdict)
+      .replace(/REVIEW_TIMESTAMP/g, new Date(result.ts).toUTCString())
+      .replace(/FORCEREFRESHURL/g, `?type=${type}&id=${encodeURIComponent(id)}&force=true`)
+      .replace(/TOGGLEURL/g, `/review-full?type=${type}&id=${encodeURIComponent(id)}`)
+      .replace(/TOGGLETEXT/g, 'Full View');
+
+    res.send(template);
+  } catch (error) {
+    console.error('Error generating review page:', error);
+    res.status(500).send('Internal server error');
+  }
+});
+
+// Full review page endpoint  
+router.get('/review-full', async (req, res) => {
+  const { type, id, force } = req.query;
+  if (!type || !id) {
+    return res.status(400).send('Missing required parameters: type and id');
+  }
+
+  const forceRefresh = String(force || '').toLowerCase() === 'true';
+
+  try {
+    const result = await getReview(id, type, forceRefresh);
+    if (!result || !result.raw) {
+      return res.status(404).send('Review not found or generation failed');
+    }
+
+    const reviewMeta = {
+      title: result.title || 'Unknown',
+      year: result.year || null,
+      posterUrl: result.posterUrl || null,
+      stillUrl: result.stillUrl || null,
+      backdropUrl: result.backdropUrl || null,
+    };
+
+    const content = buildReviewContent(result.raw, reviewMeta);
+    const templatePath = path.join(__dirname, '../..', 'public', 'review-full.html');
+    let template = await fs.readFile(templatePath, 'utf8');
+
+    // Replace placeholders
+    template = template
+      .replace(/POSTER_CONTENT/g, content.posterContent)
+      .replace(/HERO_CONTENT/g, content.heroContent)
+      .replace(/SIDEBAR_CONTENT/g, content.sidebarContent)
+      .replace(/MAIN_REVIEW_CARDS/g, content.mainReviewCards)
+      .replace(/PLOT_SUMMARY/g, content.plotSummary)
+      .replace(/OVERALL_VERDICT/g, content.overallVerdict)
+      .replace(/REVIEW_TIMESTAMP/g, new Date(result.ts).toUTCString())
+      .replace(/FORCEREFRESHURL/g, `?type=${type}&id=${encodeURIComponent(id)}&force=true`)
+      .replace(/TOGGLEURL/g, `/review?type=${type}&id=${encodeURIComponent(id)}`)
+      .replace(/TOGGLETEXT/g, 'Quick View');
+
+    res.send(template);
+  } catch (error) {
+    console.error('Error generating full review page:', error);
+    res.status(500).send('Internal server error');
   }
 });
 
