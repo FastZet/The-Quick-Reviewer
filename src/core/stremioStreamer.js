@@ -1,131 +1,154 @@
 // src/core/stremioStreamer.js — Contains the core logic for building the Stremio stream object.
 
+'use strict';
+
 const manifest = require('../../manifest.json');
 const { getReview } = require('../api.js');
+// buildStreamTitle is kept for compatibility if used elsewhere
 const { buildStreamTitle } = require('./streamTitleBuilder.js');
 
 const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
 const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 const ADDON_TIMEOUT_MS = parseInt(process.env.ADDON_TIMEOUT_MS, 10) || 13000;
 
+/**
+ * Extract exactly 8 evaluative bullets (<= 25 chars each) from the AI text.
+ * Returns a best-effort fallback if strict extraction fails.
+ */
 function extract8PointSummary(rawReviewText) {
   if (!rawReviewText) return [];
-  
+
   try {
-    // Look for 8-Point Summary section in the AI response
-    const summaryMatch = rawReviewText.match(/8-Point Summary:(.*?)(?:\n\n|\n•|\n[A-Z]|$)/s);
-    if (summaryMatch) {
-      const summaryText = summaryMatch[1];
-      const points = summaryText.split(/\n/).filter(line => line.trim().startsWith('•')).slice(0, 8);
-      return points.map(point => point.replace('•', '').trim().substring(0, 25)); // Updated to 25 chars
+    // Prefer an explicit 8-Point block if present
+    const block = rawReviewText.match(/8-Point Summary:(.*?)(?:\n\n|\n•|\n[A-Z]|$)/s);
+    if (block) {
+      const points = block[1]
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('•'))
+        .map(l => l.replace(/^•\s*/, '').trim().slice(0, 25))
+        .slice(0, 8);
+
+      if (points.length === 8) return points;
     }
-    
-    // Look for direct 8-point bullets after basic info (new format)
-    const directBulletsMatch = rawReviewText.match(/Release Country:.*?\n((?:•[^\n]{1,25}\n?){8})/s);
-    if (directBulletsMatch) {
-      const directBullets = directBulletsMatch[1];
-      const points = directBullets.split(/\n/).filter(line => line.trim().startsWith('•')).slice(0, 8);
-      return points.map(point => point.replace('•', '').trim().substring(0, 25));
+
+    // Newer layout: eight bullets immediately after Release Country
+    const afterIntro = rawReviewText.match(/Release Country:.*?\n((?:•[^\n]{1,25}\n?){8})/s);
+    if (afterIntro) {
+      const points = afterIntro[1]
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('•'))
+        .map(l => l.replace(/^•\s*/, '').trim().slice(0, 25))
+        .slice(0, 8);
+
+      if (points.length === 8) return points;
     }
-    
-    // Fallback: Extract evaluative statements from existing sections
-    const fallbackPoints = [];
-    
-    // Look for evaluative statements in the review content
-    const verdictMatch = rawReviewText.match(/Verdict in One Line:(.*?)(?:\n|$)/s);
-    if (verdictMatch) {
-      const verdict = verdictMatch[1].trim();
-      // Split verdict into shorter evaluative pieces
-      const words = verdict.split(' ');
-      if (words.length > 5) {
-        fallbackPoints.push(words.slice(0, 4).join(' '));
-        fallbackPoints.push(words.slice(4, 8).join(' '));
+
+    // Fallback: derive short judgements from strengths/weaknesses/verdict
+    const out = [];
+
+    const oneLineVerdict = (rawReviewText.match(/Verdict in One Line[:\s]*([^\n]+)/i) || [])[1];
+    if (oneLineVerdict) {
+      const words = oneLineVerdict.trim().split(/\s+/);
+      if (words.length > 6) {
+        out.push(words.slice(0, 4).join(' '));
+        out.push(words.slice(4, 8).join(' '));
       } else {
-        fallbackPoints.push(verdict.substring(0, 25));
+        out.push(oneLineVerdict.trim().slice(0, 25));
       }
     }
-    
-    // Extract from Strengths
-    const strengthMatch = rawReviewText.match(/Strengths:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (strengthMatch && fallbackPoints.length < 6) {
-      const strengths = strengthMatch[1].trim();
-      const strengthParts = strengths.split(/[.,;]/).slice(0, 3);
-      strengthParts.forEach(part => {
-        if (fallbackPoints.length < 6) {
-          fallbackPoints.push(part.trim().substring(0, 25));
-        }
-      });
+
+    const strengths = (rawReviewText.match(/Strengths[:\s]*([\s\S]*?)(?:\n•\s*\*\*|\n[A-Z]|\n$)/i) || [])[1];
+    if (strengths) {
+      strengths
+        .split(/[.;]/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .forEach(s => { if (out.length < 6) out.push(s.slice(0, 25)); });
     }
-    
-    // Extract from Weaknesses  
-    const weakMatch = rawReviewText.match(/Weaknesses:(.*?)(?:\n•|\n[A-Z]|$)/s);
-    if (weakMatch && fallbackPoints.length < 8) {
-      const weaknesses = weakMatch[1].trim();
-      const weakParts = weaknesses.split(/[.,;]/).slice(0, 2);
-      weakParts.forEach(part => {
-        if (fallbackPoints.length < 8) {
-          fallbackPoints.push(part.trim().substring(0, 25));
-        }
-      });
+
+    const weaknesses = (rawReviewText.match(/Weaknesses[:\s]*([\s\S]*?)(?:\n•\s*\*\*|\n[A-Z]|\n$)/i) || [])[1];
+    if (weaknesses) {
+      weaknesses
+        .split(/[.;]/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .forEach(s => { if (out.length < 8) out.push(s.slice(0, 25)); });
     }
-    
-    // Fill remaining slots with generic evaluative points
-    const genericPoints = [
-      "Mixed execution",
-      "Some highlights", 
-      "Worth considering"
-    ];
-    
-    for (let i = fallbackPoints.length; i < 8 && i - fallbackPoints.length < genericPoints.length; i++) {
-      fallbackPoints.push(genericPoints[i - fallbackPoints.length]);
-    }
-    
-    return fallbackPoints.slice(0, 8);
-  } catch (error) {
-    console.warn('[Stream] Error extracting 8-point summary:', error.message);
+
+    const pad = ['Mixed execution', 'Some highlights', 'Worth considering'];
+    for (let i = 0; i < pad.length && out.length < 8; i++) out.push(pad[i]);
+
+    return out.slice(0, 8);
+  } catch (err) {
+    console.warn('[Stream] 8-point extraction error:', err?.message || err);
     return [
-      "Review available",
-      "Click for details",
-      "AI analysis ready",
-      "Professional critique", 
-      "Spoiler-free content",
-      "Multiple sections",
-      "Full breakdown",
-      "Worth reading"
+      'Review available',
+      'Click for details',
+      'AI analysis ready',
+      'Critical snapshot',
+      'Spoiler-free',
+      'Pros & cons',
+      'Quick insights',
+      'Open to read'
     ];
   }
 }
 
+/**
+ * First stream: render ONLY the eight bullets, no header line.
+ */
 function build8PointStreamTitle(points) {
   if (!points || points.length === 0) {
-    return "⚡ Quick 8-Point Review\nClick to see detailed analysis";
+    // Minimal fallback still without any header
+    return ['● Review ready', '● Open to read', '● AI summary', '● No spoilers', '● Highlights', '● Drawbacks', '● Verdict soon', '● Tap to view'].join('\n');
   }
-  
-  // No header line - just the bullets directly
-  const formattedPoints = points.map(point => `● ${point}`).join('\n');
-  
-  return formattedPoints;
+  return points.map(p => `● ${p}`).join('\n');
 }
 
-function buildVerdictText(verdict, isFullReview = false) {
-  if (!verdict) {
-    return isFullReview ? 'Click for comprehensive analysis\nComplete critical breakdown' : 'Click to read plot & verdict';
+/**
+ * Build a single-line verdict for stream #2.
+ */
+function buildSingleLineVerdict(verdict) {
+  if (!verdict || !verdict.trim()) return 'Quick verdict ready';
+  // Squeeze to one line, strip newlines
+  return verdict.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Build a two-line verdict for stream #3.
+ * - Prefer splitting across sentences/punctuation.
+ * - Else split near the middle on a space.
+ */
+function buildTwoLineVerdict(verdict) {
+  if (!verdict || !verdict.trim()) return 'Complete verdict\nOpen for details';
+
+  const text = verdict.replace(/\s+/g, ' ').trim();
+
+  // Try sentence split
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (sentences.length >= 2) {
+    return `${sentences[0]}\n${sentences[1]}`;
   }
-  
-  if (isFullReview) {
-    // For full review: split verdict into 2 lines if long enough, or add descriptive second line
-    if (verdict.length > 40) {
-      const midPoint = verdict.indexOf(' ', verdict.length / 2);
-      if (midPoint > 0) {
-        return verdict.substring(0, midPoint) + '\n' + verdict.substring(midPoint + 1);
-      }
-    }
-    // Add descriptive second line for full reviews
-    return verdict + '\n' + 'Complete critical analysis';
+
+  // Try punctuation-based chunking
+  const parts = text.split(/[,;–—-]\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]}\n${parts.slice(1).join(', ')}`;
   }
-  
-  // For quick review: single line verdict only
-  return verdict;
+
+  // Split near the middle on whitespace
+  const mid = Math.floor(text.length / 2);
+  const splitAt = text.indexOf(' ', mid);
+  if (splitAt > 0 && splitAt < text.length - 1) {
+    return `${text.slice(0, splitAt)}\n${text.slice(splitAt + 1)}`;
+  }
+
+  // Fallback: duplicate with a nuance marker
+  return `${text}\n(extended view)`;
 }
 
 async function buildStreamResponse(req) {
@@ -135,74 +158,53 @@ async function buildStreamResponse(req) {
   const base = BASE_URL || (host ? `${proto}://${host}` : '');
   const secretPath = ADDON_PASSWORD ? `/${ADDON_PASSWORD}` : '';
 
-  // Build URLs for different review types
-  const quickReviewUrl = `${base}${secretPath}/review-quick?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
-  const fullReviewUrl = `${base}${secretPath}/review-full?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  const quickUrl = `${base}${secretPath}/review-quick?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+  const fullUrl = `${base}${secretPath}/review-full?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
 
-  // Base stream configuration
   const baseStreamConfig = {
     name: 'The Quick Reviewer',
     poster: manifest.icon || undefined,
     behaviorHints: { notWebReady: true }
   };
 
-  let streams = [];
   let reviewData = null;
-  let eightPoints = [];
+  let eight = [];
 
   try {
-    console.log(`[Stream] Received request for ${id}. Starting review generation/retrieval...`);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), ADDON_TIMEOUT_MS)
-    );
-
-    reviewData = await Promise.race([
-      getReview(String(id).trim(), type, false),
-      timeoutPromise
-    ]);
-
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), ADDON_TIMEOUT_MS));
+    reviewData = await Promise.race([getReview(String(id).trim(), type, false), timeout]);
     if (reviewData && reviewData.raw) {
-      eightPoints = extract8PointSummary(reviewData.raw);
-      console.log(`[Stream] Generation for ${id} SUCCEEDED. Extracted ${eightPoints.length} points.`);
-    } else {
-      console.log(`[Stream] Generation for ${id} completed but no raw review data available.`);
+      eight = extract8PointSummary(reviewData.raw);
     }
-  } catch (error) {
-    if (error.message === 'Timeout') {
-      console.warn(`[Stream] Generation for ${id} TIMED OUT. Using fallback content.`);
-    } else {
-      console.error(`[Stream] Generation for ${id} FAILED with error:`, error.message);
-    }
+  } catch (err) {
+    console.warn('[Stream] Generation failed or timed out:', err?.message || err);
   }
 
-  // Stream 1: 8-Point Summary Stream (no title line, just bullets)
-  const eightPointStream = {
-    id: `quick-reviewer-summary-${type}-${id}`,
-    title: build8PointStreamTitle(eightPoints),
-    externalUrl: quickReviewUrl,
+  // Stream 1: Only the 8 points (no header line)
+  const s1 = {
+    id: `tqr-8pt-${type}-${id}`,
+    title: build8PointStreamTitle(eight),
+    externalUrl: quickUrl,
     ...baseStreamConfig
   };
 
-  // Stream 2: Quick Review Stream (single-line verdict)
-  const quickStream = {
-    id: `quick-reviewer-quick-${type}-${id}`,
-    title: `⚡ Quick Review\n${buildVerdictText(reviewData?.verdict, false)}\n📖 Plot Summary + Overall Verdict`,
-    externalUrl: quickReviewUrl,
+  // Stream 2: One-line verdict, then explicit CTA line
+  const s2 = {
+    id: `tqr-quick-${type}-${id}`,
+    title: `${buildSingleLineVerdict(reviewData?.verdict)}\nClick here for the quick ai review`,
+    externalUrl: quickUrl,
     ...baseStreamConfig
   };
 
-  // Stream 3: Full Review Stream (two-line verdict)
-  const fullStream = {
-    id: `quick-reviewer-full-${type}-${id}`,
-    title: `⚡ Complete Review\n${buildVerdictText(reviewData?.verdict, true)}\n🎬 All Sections + Detailed Analysis`,
-    externalUrl: fullReviewUrl,
+  // Stream 3: Two-line verdict (both lines are verdict content)
+  const s3 = {
+    id: `tqr-full-${type}-${id}`,
+    title: buildTwoLineVerdict(reviewData?.verdict),
+    externalUrl: fullUrl,
     ...baseStreamConfig
   };
 
-  streams = [eightPointStream, quickStream, fullStream];
-
-  console.log(`[Stream] Returning ${streams.length} streams for ${id}`);
-  return { streams };
+  return { streams: [s1, s2, s3] };
 }
 
 module.exports = { buildStreamResponse };
