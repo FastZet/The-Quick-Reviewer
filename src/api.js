@@ -1,6 +1,6 @@
 /*
  * src/api.js
- * The main orchestrator for review generation with self-correction
+ * The main orchestrator for review generation with enhanced format enforcement
  */
 
 const { readReview, saveReview } = require('./core/storage');
@@ -9,7 +9,8 @@ const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/m
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/aiService');
 const { parseVerdictFromReview } = require('./core/reviewParser');
-const verifyReviewFormat = require('./core/reviewVerifier');  // FIXED: Direct import instead of destructuring
+const verifyReviewFormat = require('./core/reviewVerifier');
+const { buildReviewContent } = require('./core/formatEnforcer');
 
 const pendingReviews = new Map();
 const MAX_GENERATION_ATTEMPTS = 2;
@@ -99,7 +100,7 @@ async function getReview(id, type, forceRefresh = false) {
           // Generate the review
           rawReview = await generateReview(prompt);
           
-          // Verify the format
+          // Verify the format (simplified validation)
           isValid = verifyReviewFormat(rawReview, type);
           
           if (isValid) {
@@ -121,30 +122,32 @@ async function getReview(id, type, forceRefresh = false) {
         throw new Error('AI failed to generate a review with the correct format.');
       }
 
-      // Extract verdict for quick access
-      const verdict = parseVerdictFromReview(rawReview);
-
-      // Extract year helper
-      function extractYear(metadata) {
-        if (!metadata || !metadata.data) return null;
-        
-        const releaseDate = metadata.data.release_date || metadata.data.first_air_date || metadata.data.Released;
-        if (releaseDate) {
-          const yearMatch = releaseDate.match(/\d{4}/);
-          return yearMatch ? yearMatch[0] : null;
-        }
-        return null;
-      }
-
-      // Enhanced result object with image metadata
-      const result = {
-        raw: rawReview,
-        verdict: verdict,
+      // Process the raw review through formatEnforcer
+      const reviewMeta = {
         posterUrl: posterUrl,
         stillUrl: stillUrl,
         backdropUrl: backdropUrl,
         title: metadata?.data?.title || metadata?.data?.name || metadata?.data?.Title || 'Unknown',
         year: extractYear(metadata),
+        ts: Date.now()
+      };
+
+      // Use formatEnforcer to build structured content from plain markdown
+      const formattedContent = buildReviewContent(rawReview, reviewMeta);
+      
+      // Extract verdict using the enhanced parser (fallback to formatEnforcer extraction)
+      const verdict = parseVerdictFromReview(rawReview) || extractVerdictFromFormatted(formattedContent);
+
+      // Enhanced result object with formatted content
+      const result = {
+        raw: rawReview,
+        formatted: formattedContent, // NEW: structured HTML content
+        verdict: verdict,
+        posterUrl: posterUrl,
+        stillUrl: stillUrl,
+        backdropUrl: backdropUrl,
+        title: reviewMeta.title,
+        year: reviewMeta.year,
         imdbId: id.split(':')[0] // Extract base IMDb ID
       };
 
@@ -156,6 +159,7 @@ async function getReview(id, type, forceRefresh = false) {
       console.error(`[API] An error occurred during review generation for ${id}:`, error);
       return {
         raw: `Error: Review generation failed. ${error.message}`,
+        formatted: null,
         verdict: null,
         posterUrl: null,
         stillUrl: null,
@@ -172,6 +176,27 @@ async function getReview(id, type, forceRefresh = false) {
 
   pendingReviews.set(id, generationPromise);
   return await generationPromise;
+}
+
+// Helper function to extract year from metadata
+function extractYear(metadata) {
+  if (!metadata || !metadata.data) return null;
+  
+  const releaseDate = metadata.data.release_date || metadata.data.first_air_date || metadata.data.Released;
+  if (releaseDate) {
+    const yearMatch = releaseDate.match(/\d{4}/);
+    return yearMatch ? yearMatch[0] : null;
+  }
+  return null;
+}
+
+// Helper function to extract verdict from formatted content (fallback)
+function extractVerdictFromFormatted(formattedContent) {
+  if (!formattedContent) return null;
+  
+  // Try to extract from hero content which contains verdict
+  const heroMatch = formattedContent.heroContent?.match(/class="verdict-text">([^<]+)<\/div>/);
+  return heroMatch ? heroMatch[1] : null;
 }
 
 module.exports = { getReview };
