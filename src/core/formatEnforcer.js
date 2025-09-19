@@ -1,18 +1,16 @@
-// src/core/formatEnforcerV2.js — Builds structured HTML for the v2 review pages (hero-only view per spec).
+// src/core/formatEnforcer.js
+// Builds structured HTML for the review pages (hero-only view per spec).
 
 'use strict';
 
 function clean(text) {
-  return text ? text.trim().replace(/^[*_]+|[*_]+$/g, '').trim() : '';
+  return text ? text.trim().replace(/\n/g, ' ').trim() : '';
 }
 
-// Build a robust section extractor that supports our bullet+bold style:
-// • **Section Name:** content (until next bold-bullet heading or EOF)
+// Build a robust section extractor that supports our bullet+bold style
+// "• Section Name -" content until next bold-bullet heading or EOF
 function extractSection(raw, heading) {
-  const pattern = new RegExp(
-    String.raw`^\s*•\s*\*\*\s*${escapeRegExp(heading)}\s*\*\*\s*:\s*([\s\S]*?)(?=^\s*•\s*\*\*|\s*$)`,
-    'gmi'
-  );
+  const pattern = new RegExp(String.raw`${escapeRegExp(heading)}\s*\-\s*(.*?)(?=\n\s*•\s*[A-Z]|\n\s*$|$)`, 'gmi');
   const m = pattern.exec(raw);
   return m && m[1] ? clean(m[1]) : '';
 }
@@ -21,25 +19,25 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Grab rating as "N/10"
+// Grab rating as N/10
 function extractRating(raw) {
-  const m = raw.match(/^\s*Rating:\s*(\d+(?:\.\d+)?)\s*\/\s*10\b/mi);
+  const m = raw.match(/Rating\s*\-\s*([\d.]+)\/10/mi);
   return m ? m[1] : null;
 }
 
 // Grab single-line verdict
 function extractOneLineVerdict(raw) {
-  const m = raw.match(/^\s*•\s*\*\*\s*Verdict in One Line\s*\*\*\s*:\s*([^\n]+)/mi);
+  const m = raw.match(/Verdict in One Line\s*\-\s*(.*?)(?=\n|$)/mi);
   return m ? clean(m[1]) : '';
 }
 
-// Optional block: Two-Line Verdict (two bullets after the header line)
+// Optional block: "Two-Line Verdict" (two bullets after the header line)
 function extractTwoLineVerdict(raw) {
-  const header = raw.match(/^\s*•\s*\*\*\s*Two-Line Verdict\s*\*\*\s*:\s*$/mi);
+  const header = raw.match(/Two-Line Verdict/mi);
   if (!header) return null;
   const start = header.index + header[0].length;
   const tail = raw.slice(start);
-  const bulletRe = /^\s*•\s*(.+?)\s*$/gim;
+  const bulletRe = /^\s*[-•]\s*(.*)$/gim;
   const out = [];
   let m;
   while ((m = bulletRe.exec(tail)) && out.length < 2) {
@@ -52,49 +50,36 @@ function extractTwoLineVerdict(raw) {
 function buildPosterContent(posterUrl, stillUrl, title) {
   const imageUrl = stillUrl || posterUrl;
   if (imageUrl) {
-    return `<img src="${imageUrl}" alt="${title || 'Poster'}" class="poster-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-            <div class="poster-fallback" style="display:none;">
-                <span class="poster-icon">🎬</span>
-                <div class="poster-title">${title || 'Review'}</div>
-            </div>`;
+    return `<img src="${imageUrl}" alt="${title} Poster" class="poster-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div class="poster-fallback" style="display:none;">
+        <span class="poster-icon">🎬</span>
+        <div class="poster-title">${title} Review</div>
+      </div>`;
   }
   return `<div class="poster-fallback">
-            <span class="poster-icon">🎬</span>
-            <div class="poster-title">${title || 'Review'}</div>
-          </div>`;
+    <span class="poster-icon">🎬</span>
+    <div class="poster-title">${title} Review</div>
+  </div>`;
 }
 
 // Build minimal hero with only Rating + single-line Verdict
 function buildHeroContent(data, title, year) {
-  const name =
-    data.get('Name Of The Movie') ||
-    data.get('Name Of The Series') ||
-    title ||
-    'Untitled';
-  const seasonEp = data.get('Season & Episode');
+  const name = data.get('Name Of The Movie') || data.get('Name Of The Series') || title || 'Untitled';
+  const seasonEp = data.get('Season Episode');
   const epName = data.get('Name Of The Episode');
 
-  const heading = seasonEp
-    ? `${name}${year ? ` (${year})` : ''}`
-    : `${name}${year ? ` (${year})` : ''}`;
-
-  const episodeLine = seasonEp
-    ? `<div class="episode-info">${epName ? `${epName} • ` : ''}${seasonEp}</div>`
-    : ``;
+  const heading = seasonEp ? `${name}${year ? ` (${year})` : ''}` : `${name}${year ? ` (${year})` : ''}`;
+  const episodeLine = seasonEp ? `<div class="episode-info">${epName ? `${epName} • ` : ''}${seasonEp}</div>` : '';
 
   const ratingText = data.get('Rating');
   const score = extractRatingScore(ratingText);
   const label = getRatingLabel(score);
-
   const verdict = data.get('Verdict in One Line') || 'Verdict not available';
 
   // Only rating + one-line verdict in hero per requirement
-  return `
-    <h1>${escapeHtml(heading)}</h1>
+  return `<h1>${escapeHtml(heading)}</h1>
     ${episodeLine}
-    <div class="movie-meta">
-      ${formatMetaItems(data)}
-    </div>
+    <div class="movie-meta">${formatMetaItems(data)}</div>
     <div class="rating-badge">
       <div class="rating-score">${escapeHtml(score)}</div>
       <div class="rating-details">
@@ -103,15 +88,14 @@ function buildHeroContent(data, title, year) {
       </div>
     </div>
     <div class="hero-actions">
-      <a id="force-refresh" class="control-btn" href="{{FORCE_REFRESH_URL}}">↻ Regenerate</a>
-      <a class="control-btn secondary" href="{{TOGGLE_URL}}">{{TOGGLE_TEXT}}</a>
-    </div>
-  `;
+      <a id="force-refresh" class="control-btn" href="FORCEREFRESHURL">🔄 Regenerate</a>
+      <a class="control-btn secondary" href="TOGGLEURL">TOGGLETEXT</a>
+    </div>`;
 }
 
 function extractRatingScore(ratingText) {
   if (!ratingText) return 'N/A';
-  const m = ratingText.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
+  const m = ratingText.match(/([\d.]+)\/10/);
   return m ? m[1] : 'N/A';
 }
 
@@ -126,30 +110,32 @@ function getRatingLabel(score) {
 }
 
 function escapeHtml(s) {
-  return String(s || '')
+  return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
 
-// Build compact “meta chips” for hero area
+// Build compact meta chips for hero area
 function formatMetaItems(data) {
   const items = [];
 
-  if (data.has('Directed By')) {
-    items.push(metaItem('🎬', data.get('Directed By')));
-  }
+  if (data.has('Directed By')) items.push(metaItem('🎬', data.get('Directed By')));
+
   const releasedOn = data.get('Released On');
   if (releasedOn) {
     const year = releasedOn.split(',').pop().trim() || releasedOn.split(' ').pop();
     items.push(metaItem('📅', year));
   }
+
   if (data.has('Genre')) items.push(metaItem('🎭', data.get('Genre')));
+
   if (data.has('Casts')) {
     const cast = data.get('Casts').split(',').slice(0, 3).map(s => s.trim()).join(', ');
     items.push(metaItem('👥', cast));
   }
-  if (data.has('Language')) items.push(metaItem('🗣️', data.get('Language')));
+
+  if (data.has('Language')) items.push(metaItem('🌐', data.get('Language')));
   if (data.has('Release Country')) items.push(metaItem('🌍', data.get('Release Country')));
   if (data.has('Release Medium')) items.push(metaItem('📺', data.get('Release Medium')));
 
@@ -163,45 +149,24 @@ function metaItem(icon, text) {
 // Parse raw → Map of merged headings and basics
 function parseRawReview(raw) {
   const headings = [
-    'Name Of The Movie',
-    'Name Of The Series',
-    'Name Of The Episode',
-    'Season & Episode',
-    'Casts',
-    'Directed By',
-    'Language',
-    'Genre',
-    'Released On',
-    'Release Medium',
-    'Release Country',
+    'Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season Episode',
+    'Casts', 'Directed By', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country',
     'Plot Summary',
     // merged blocks
-    'Story & Writing',
-    'Performances & Characters',
-    'Direction & Pacing',
-    'Visuals & Sound',
+    'Story Writing', 'Performances Characters', 'Direction Pacing', 'Visuals Sound',
     // reception and misc
-    'Strengths',
-    'Weaknesses',
-    'Critical Reception',
-    'Audience Reception & Reaction',
-    'Audience Reception',
-    'Box Office and Viewership',
-    'Who would like it',
-    'Who would not like it',
-    'Similar Films',
-    'Overall Verdict',
-    'Rating',
-    'Verdict in One Line',
-    'Two-Line Verdict'
+    'Strengths', 'Weaknesses', 'Critical Reception',
+    'Audience Reception (Reaction)', 'Audience Reception', 'Box Office and Viewership',
+    'Who would like it', 'Who would not like it', 'Similar Films', 'Overall Verdict', 'Rating',
+    'Verdict in One Line', 'Two-Line Verdict'
   ];
 
   const map = new Map();
 
   for (const h of headings) {
     if (h === 'Audience Reception') {
-      // Only set if the extended "& Reaction" was not found
-      if (!map.has('Audience Reception & Reaction')) {
+      // Only set if the extended "(Reaction)" was not found
+      if (!map.has('Audience Reception (Reaction)')) {
         const v = extractSection(raw, h);
         if (v) map.set(h, v);
       }
@@ -212,14 +177,14 @@ function parseRawReview(raw) {
   }
 
   // Rating: ensure canonical field holds "X/10"
-  const ratingMatch = raw.match(/^\s*Rating:\s*(\d+(?:\.\d+)?)\s*\/\s*10\b/mi);
-  if (ratingMatch) map.set('Rating', `${ratingMatch[1]}/10`);
+  const ratingMatch = raw.match(/Rating\s*\-\s*([\d.]+\/10)/mi);
+  if (ratingMatch) map.set('Rating', ratingMatch[1]);
 
   // Single-line verdict
   const v1 = extractOneLineVerdict(raw);
   if (v1) map.set('Verdict in One Line', v1);
 
-  // Two-line verdict optional
+  // Two-line verdict (optional)
   const v2 = extractTwoLineVerdict(raw);
   if (v2) map.set('Two-Line Verdict', v2.join('\n'));
 
@@ -227,20 +192,10 @@ function parseRawReview(raw) {
 }
 
 // Public API: build all SSR pieces the router expects
-function buildReviewContent(rawReviewText, reviewMeta = {}) {
+function buildReviewContent(rawReviewText, reviewMeta) {
   const data = parseRawReview(rawReviewText);
-
-  const posterContent = buildPosterContent(
-    reviewMeta.posterUrl,
-    reviewMeta.stillUrl,
-    reviewMeta.title
-  );
-
-  const heroContent = buildHeroContent(
-    data,
-    reviewMeta.title,
-    reviewMeta.year
-  );
+  const posterContent = buildPosterContent(reviewMeta.posterUrl, reviewMeta.stillUrl, reviewMeta.title);
+  const heroContent = buildHeroContent(data, reviewMeta.title, reviewMeta.year);
 
   // Per requirement, pages should only show rating + single-line verdict in hero
   const mainReviewCards = ''; // no cards
@@ -256,8 +211,8 @@ function buildReviewContent(rawReviewText, reviewMeta = {}) {
     sidebarContent,
     mainReviewCards,
     plotSummary,
-    overallVerdict
+    overallVerdict,
   };
 }
 
-module.exports = { buildReviewContent };
+module.exports = buildReviewContent;
