@@ -1,22 +1,24 @@
 // src/core/storage.js — Unified storage layer (SQLite, PostgreSQL, or in-memory fallback)
 
+'use strict';
+
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 
 const DATABASE_URI = process.env.DATABASE_URI || null;
-const CACHE_EXPIRY_MS = 30 * 86400000; // 30 days
+const CACHE_EXPIRY_MS = Number(process.env.CACHE_EXPIRY_MS || (30 * 86400000)); // 30 days
 
-let mode = 'memory';            // 'memory' | 'sqlite' | 'postgres'
-let mem = new Map();            // id -> { review: { raw, verdict }, ts, type }
-let sqlite = null;              // better-sqlite3 db handle
-let pgClient = null;            // pg Client
+let mode = 'memory'; // 'memory' | 'sqlite' | 'postgres'
+let mem = new Map(); // id -> { review, ts, type }
+let sqlite = null;   // better-sqlite3 handle
+let pgClient = null; // pg client
 
 function detectMode() {
   if (!DATABASE_URI) return 'memory';
   const uri = DATABASE_URI.toLowerCase();
-  if (uri.startsWith('sqlite://')) return 'sqlite';
-  if (uri.startsWith('postgres://') || uri.startsWith('postgresql://')) return 'postgres';
+  if (uri.startsWith('sqlite')) return 'sqlite';
+  if (uri.startsWith('postgres') || uri.startsWith('postgresql')) return 'postgres';
   return 'memory';
 }
 
@@ -26,9 +28,9 @@ async function ensureDirForSqliteFile(filePath) {
 }
 
 function sqliteFilePathFromUri(uri) {
-  // Strip leading "sqlite://"
-  let p = uri.replace(/^sqlite:\/\//i, '');
-  // Resolve relative to process.cwd() (/app inside container)
+  // Strip leading sqlite:
+  let p = uri.replace(/^sqlite:/i, '');
+  // Resolve relative to process.cwd (inside container)
   if (!path.isAbsolute(p)) p = path.resolve(process.cwd(), p);
   return p;
 }
@@ -36,12 +38,14 @@ function sqliteFilePathFromUri(uri) {
 async function initStorage() {
   mode = detectMode();
 
-  if (DATABASE_URI) {
-    console.log(`[storage] DATABASE_URI detected: ${DATABASE_URI}`);
-    console.log(`[storage] Selected backend: ${mode}`);
-  } else {
-    console.log('[storage] No DATABASE_URI set; defaulting to in-memory storage');
+  if (!DATABASE_URI) {
+    console.log('[storage] No DATABASE_URI set; defaulting to in-memory storage.');
+    mode = 'memory';
+    return;
   }
+
+  console.log('[storage] DATABASE_URI detected:', DATABASE_URI);
+  console.log('[storage] Selected backend:', mode);
 
   if (mode === 'sqlite') {
     try {
@@ -50,19 +54,19 @@ async function initStorage() {
       await ensureDirForSqliteFile(filePath);
       sqlite = new BetterSqlite3(filePath);
       sqlite.pragma('journal_mode = WAL');
-      sqlite.prepare(`
-        CREATE TABLE IF NOT EXISTS reviews (
+      sqlite.prepare(
+        `CREATE TABLE IF NOT EXISTS reviews (
           id TEXT PRIMARY KEY,
           type TEXT NOT NULL,
           ts INTEGER NOT NULL,
-          review_json TEXT NOT NULL
-        )
-      `).run();
-      sqlite.prepare(`CREATE INDEX IF NOT EXISTS idx_reviews_ts ON reviews (ts)`).run();
-      console.log(`[storage] SQLite initialized at ${filePath}`);
+          reviewjson TEXT NOT NULL
+        )`
+      ).run();
+      sqlite.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_ts ON reviews(ts)').run();
+      console.log('[storage] SQLite initialized at', filePath);
       return;
     } catch (err) {
-      console.warn(`[storage] SQLite init failed (${err?.message}). Falling back to memory.`);
+      console.warn('[storage] SQLite init failed:', err?.message, '. Falling back to memory.');
       mode = 'memory';
       sqlite = null;
     }
@@ -73,27 +77,27 @@ async function initStorage() {
       const { Client } = require('pg');
       pgClient = new Client({ connectionString: DATABASE_URI });
       await pgClient.connect();
-      await pgClient.query(`
-        CREATE TABLE IF NOT EXISTS reviews (
+      await pgClient.query(
+        `CREATE TABLE IF NOT EXISTS reviews(
           id TEXT PRIMARY KEY,
           type TEXT NOT NULL,
           ts BIGINT NOT NULL,
-          review_json TEXT NOT NULL
-        )
-      `);
-      await pgClient.query(`CREATE INDEX IF NOT EXISTS idx_reviews_ts ON reviews (ts)`);
-      console.log(`[storage] PostgreSQL initialized`);
+          reviewjson TEXT NOT NULL
+        )`
+      );
+      await pgClient.query('CREATE INDEX IF NOT EXISTS idx_reviews_ts ON reviews(ts)');
+      console.log('[storage] PostgreSQL initialized');
       return;
     } catch (err) {
-      console.warn(`[storage] Postgres init failed (${err?.message}). Falling back to memory.`);
+      console.warn('[storage] Postgres init failed:', err?.message, '. Falling back to memory.');
       mode = 'memory';
       pgClient = null;
     }
   }
 
-  // memory
+  // In-memory
   mem = new Map();
-  console.log(`[storage] Using in-memory storage`);
+  console.log('[storage] Using in-memory storage');
 }
 
 function isExpired(ts) {
@@ -102,17 +106,13 @@ function isExpired(ts) {
 
 async function readReview(id) {
   let row;
+
   if (mode === 'sqlite') {
-    row = sqlite.prepare(
-      'SELECT review_json, ts FROM reviews WHERE id = ?'
-    ).get(id);
+    row = sqlite.prepare('SELECT reviewjson, ts FROM reviews WHERE id = ?').get(id);
   } else if (mode === 'postgres') {
-    const { rows } = await pgClient.query(
-      'SELECT review_json, ts FROM reviews WHERE id = $1',
-      [id]
-    );
-    if (rows && rows.length > 0) row = rows[0];
-  } else { // memory
+    const rows = await pgClient.query('SELECT reviewjson, ts FROM reviews WHERE id = $1', [id]);
+    if (rows && rows.rows.length > 0) row = rows.rows[0];
+  } else {
     const entry = mem.get(id);
     if (!entry) return null;
     if (isExpired(entry.ts)) {
@@ -124,12 +124,12 @@ async function readReview(id) {
 
   if (!row) return null;
   if (isExpired(row.ts)) {
-    // Eager prune for DBs; the background job will handle most cases
-    try { await deleteReview(id); } catch (_) {}
+    try { await deleteReview(id); } catch {}
     return null;
   }
+
   try {
-    return { review: JSON.parse(row.review_json), ts: Number(row.ts) };
+    return { review: JSON.parse(row.reviewjson), ts: Number(row.ts) };
   } catch {
     return null;
   }
@@ -137,52 +137,47 @@ async function readReview(id) {
 
 async function saveReview(id, result, type) {
   const ts = Date.now();
-  const reviewJson = JSON.stringify(result); // result is now { raw, verdict }
+  const reviewJson = JSON.stringify(result);
 
   if (mode === 'sqlite') {
-    sqlite.prepare(`
-      INSERT INTO reviews (id, type, ts, review_json)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        type=excluded.type,
-        ts=excluded.ts,
-        review_json=excluded.review_json
-    `).run(id, type, ts, reviewJson);
+    sqlite.prepare(
+      `INSERT INTO reviews (id, type, ts, reviewjson)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         type=excluded.type, ts=excluded.ts, reviewjson=excluded.reviewjson`
+    ).run(id, type, ts, reviewJson);
     return;
   }
 
   if (mode === 'postgres') {
-    await pgClient.query(`
-      INSERT INTO reviews (id, type, ts, review_json)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (id) DO UPDATE SET
-        type = EXCLUDED.type,
-        ts = EXCLUDED.ts,
-        review_json = EXCLUDED.review_json
-    `, [id, type, ts, reviewJson]);
+    await pgClient.query(
+      `INSERT INTO reviews (id, type, ts, reviewjson)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET
+         type = EXCLUDED.type,
+         ts = EXCLUDED.ts,
+         reviewjson = EXCLUDED.reviewjson`,
+      [id, type, ts, reviewJson]
+    );
     return;
   }
 
-  // memory
   mem.set(id, { review: result, ts, type });
 }
 
 async function getAllCachedReviews() {
   const cutoff = Date.now() - CACHE_EXPIRY_MS;
+
   if (mode === 'sqlite') {
-    const rows = sqlite.prepare(
-      'SELECT id, type, ts FROM reviews WHERE ts >= ? ORDER BY ts DESC'
-    ).all(cutoff);
-    return rows.map(r => ({ id: r.id, ts: Number(r.ts), type: r.type }));
+    const rows = sqlite.prepare('SELECT id, type, ts FROM reviews WHERE ts > ? ORDER BY ts DESC').all(cutoff);
+    return rows.map((r) => ({ id: r.id, ts: Number(r.ts), type: r.type }));
   }
+
   if (mode === 'postgres') {
-    const { rows } = await pgClient.query(
-      'SELECT id, type, ts FROM reviews WHERE ts >= $1 ORDER BY ts DESC',
-      [cutoff]
-    );
-    return rows.map(r => ({ id: r.id, ts: Number(r.ts), type: r.type }));
+    const rows = await pgClient.query('SELECT id, type, ts FROM reviews WHERE ts > $1 ORDER BY ts DESC', [cutoff]);
+    return rows.rows.map((r) => ({ id: r.id, ts: Number(r.ts), type: r.type }));
   }
-  // memory
+
   const out = [];
   for (const [key, entry] of mem.entries()) {
     if (!isExpired(entry.ts)) out.push({ id: key, ts: entry.ts, type: entry.type });
@@ -193,19 +188,19 @@ async function getAllCachedReviews() {
 
 async function getExpiredReviewIds() {
   const cutoff = Date.now() - CACHE_EXPIRY_MS;
+
   if (mode === 'sqlite') {
-    return sqlite.prepare('SELECT id, type FROM reviews WHERE ts < ?').all(cutoff);
+    return sqlite.prepare('SELECT id, type FROM reviews WHERE ts <= ?').all(cutoff);
   }
+
   if (mode === 'postgres') {
-    const { rows } = await pgClient.query('SELECT id, type FROM reviews WHERE ts < $1', [cutoff]);
-    return rows;
+    const rows = await pgClient.query('SELECT id, type FROM reviews WHERE ts <= $1', [cutoff]);
+    return rows.rows;
   }
-  // memory
+
   const expired = [];
   for (const [key, entry] of mem.entries()) {
-    if (isExpired(entry.ts)) {
-      expired.push({ id: key, type: entry.type });
-    }
+    if (isExpired(entry.ts)) expired.push({ id: key, type: entry.type });
   }
   return expired;
 }
@@ -219,7 +214,6 @@ async function deleteReview(id) {
     await pgClient.query('DELETE FROM reviews WHERE id = $1', [id]);
     return;
   }
-  // memory
   mem.delete(id);
 }
 
@@ -229,15 +223,10 @@ function isDbEnabled() {
 
 async function closeStorage() {
   try {
-    if (mode === 'sqlite' && sqlite) {
-      sqlite.close();
-      sqlite = null;
-    } else if (mode === 'postgres' && pgClient) {
-      await pgClient.end();
-      pgClient = null;
-    }
+    if (mode === 'sqlite' && sqlite) { sqlite.close(); sqlite = null; }
+    else if (mode === 'postgres' && pgClient) { await pgClient.end(); pgClient = null; }
   } catch (err) {
-    console.warn(`[storage] closeStorage warning: ${err?.message}`);
+    console.warn('[storage] closeStorage warning:', err?.message || err);
   }
 }
 
