@@ -1,173 +1,224 @@
-// src/core/reviewVerifier.js — Validates AI output format for The Quick Reviewer.
+/*
+ * src/core/reviewVerifier.js
+ * Simplified validation for plain markdown AI output
+ */
 
 'use strict';
 
-const DEBUG = String(process.env.REVIEW_VERIFY_DEBUG || 'false').toLowerCase() === 'true';
-function vlog(...args) { if (DEBUG) console.log('Verify:', ...args); }
+const DEBUG = String(process.env.REVIEWVERIFY_DEBUG || 'false').toLowerCase() === 'true';
 
-function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function vlog(...args) {
+  if (DEBUG) console.log('[Verify]', ...args);
+}
 
-// Generic matcher for bullet headings like "• Heading -" content
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Generic matcher for markdown headers like ## Heading
 function headingExists(text, heading) {
-  const pattern = new RegExp(String.raw`${escapeRegExp(heading)}\s*\-`, 'mi');
+  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}`, 'mi');
   return pattern.test(text);
 }
 
-// Extracts lines immediately following the "8-Point Summary" header that begin with a bullet.
-// Returns an array of bullet texts (without the bullet symbol).
-function extract8PointBullets(text) {
-  const headerRe = /8-Point Summary/mi;
-  const headerMatch = text.match(headerRe);
-  if (!headerMatch) return [];
-
-  const startIdx = headerMatch.index + headerMatch[0].length;
-  const tail = text.slice(startIdx);
-
-  // Stop when the next section heading ("• Title -") begins or end of string
-  const stopIdx = tail.search(/\n\s*•\s*[A-Z][^\n]*\-\s*|$/m);
-  const body = (stopIdx > 0) ? tail.slice(0, stopIdx) : tail;
-
-  const bullets = [];
-  const lines = body.split('\n');
-  for (const line of lines) {
-    const m = line.match(/^\s*[-•]\s*(.*)$/);
-    if (m) bullets.push(m[1].trim());
-  }
-  return bullets;
+// Extract content after a markdown header
+function extractSection(text, heading) {
+  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^##|$)`, 'mi');
+  const match = text.match(pattern);
+  return match && match[1] ? match[1].trim() : null;
 }
 
-// Optional: validates a dedicated "Two-Line Verdict" block when present.
-function validateTwoLineVerdict(text) {
-  const header = text.match(/Two-Line Verdict/mi);
-  if (!header) return true; // optional
-  const start = header.index + header[0].length;
-  const tail = text.slice(start);
-
-  // Grab the next two bullet lines only
-  const bulletRe = /^\s*[-•]\s*(.*)$/gim;
-  const found = [];
-  let m;
-  while ((m = bulletRe.exec(tail)) && found.length < 2) found.push(m[1].trim());
-
-  if (found.length !== 2) {
-    vlog('Two-Line Verdict present but not exactly two bullets');
+// Check if rating section exists and has valid format
+function validateRating(text) {
+  const ratingSection = extractSection(text, 'Rating');
+  if (!ratingSection) {
+    vlog('Rating section missing');
     return false;
   }
-
-  // Lightweight length constraints (80 chars each), no emojis
-  const bad = found.some((s) => s.length === 0 || s.length > 80 || /[\u{1F300}-\u{1FAFF}]/u.test(s));
-  if (bad) {
-    vlog('Two-Line Verdict bullets violate length/content constraints');
+  
+  // Look for X/10 format
+  const ratingMatch = ratingSection.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
+  if (!ratingMatch) {
+    vlog('Rating not in X/10 format');
     return false;
   }
+  
+  const score = parseFloat(ratingMatch[1]);
+  if (score < 0 || score > 10) {
+    vlog('Rating score out of valid range (0-10)');
+    return false;
+  }
+  
   return true;
 }
 
-function verify8PointSummary(text) {
-  if (!/8-Point Summary/mi.test(text)) {
-    vlog('Missing or malformed 8-Point Summary heading line');
+// Check if verdict sections exist
+function validateVerdicts(text) {
+  const oneLineVerdict = extractSection(text, 'Verdict in One Line');
+  if (!oneLineVerdict) {
+    vlog('Single-line verdict missing');
     return false;
   }
-  const bullets = extract8PointBullets(text);
-  if (bullets.length !== 8) {
-    vlog('8-Point Summary count != 8, got', bullets.length);
+  
+  if (oneLineVerdict.length === 0 || oneLineVerdict.length > 200) {
+    vlog('Single-line verdict length invalid');
     return false;
   }
-  for (const b of bullets) {
-    if (b.length === 0 || b.length > 25) {
-      vlog('8-Point bullet length violation:', b);
+  
+  // Two-line verdict is optional but validate if present
+  const twoLineSection = extractSection(text, 'Two-Line Verdict');
+  if (twoLineSection) {
+    const lines = twoLineSection.split('\n')
+      .map(line => line.replace(/^-\s*/, '').trim())
+      .filter(line => line.length > 0);
+    
+    if (lines.length !== 2) {
+      vlog('Two-line verdict does not have exactly 2 lines');
       return false;
     }
-    // Discourage category labels like "Plot", "Acting", "Visuals"
-    if (/(^plot$|^acting$|visuals|cinematography|writing|direction|pacing)/i.test(b)) {
-      vlog('8-Point bullet looks like a labeled category:', b);
+    
+    // Check line lengths (reasonable limits)
+    for (const line of lines) {
+      if (line.length === 0 || line.length > 100) {
+        vlog('Two-line verdict line length invalid:', line);
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Check basic content sections exist
+function validateContentSections(text) {
+  const requiredSections = [
+    'Plot Summary',
+    'Strengths', 
+    'Weaknesses',
+    'Story Writing',
+    'Performances Characters',
+    'Direction Pacing',
+    'Visuals Sound'
+  ];
+  
+  for (const section of requiredSections) {
+    const content = extractSection(text, section);
+    if (!content || content.trim().length === 0) {
+      vlog(`Required section missing or empty: ${section}`);
       return false;
     }
   }
+  
+  return true;
+}
+
+// Check basic info sections exist (movie vs series specific)
+function validateBasicInfo(text, type) {
+  const commonSections = [
+    'Casts',
+    'Directed By', 
+    'Genre',
+    'Released On',
+    'Release Medium',
+    'Release Country'
+  ];
+  
+  // Check movie vs series specific sections
+  if (type === 'series') {
+    if (!headingExists(text, 'Name Of The Series')) {
+      vlog('Series name section missing');
+      return false;
+    }
+    
+    // Episode might have additional sections
+    const hasEpisodeName = headingExists(text, 'Name Of The Episode');
+    const hasSeasonEpisode = headingExists(text, 'Season Episode');
+    
+    if (hasEpisodeName && !hasSeasonEpisode) {
+      vlog('Episode has name but missing season/episode info');
+      return false;
+    }
+  } else {
+    if (!headingExists(text, 'Name Of The Movie')) {
+      vlog('Movie name section missing');
+      return false;
+    }
+  }
+  
+  // Check common required sections
+  for (const section of commonSections) {
+    if (!headingExists(text, section)) {
+      vlog(`Basic info section missing: ${section}`);
+      return false;
+    }
+  }
+  
   return true;
 }
 
 /**
- * verifyReviewFormat(raw, type) - Validates presence of required sections with merged headings.
- * - Enforces 8-Point Summary constraints.
- * - Accepts "Audience Reception" with or without "(Reaction)".
- * - "Two-Line Verdict" block is optional but validated if present.
+ * Simplified review format verification for plain markdown output
+ * @param {string} raw - The raw AI-generated review text
+ * @param {string} type - Content type ('movie' or 'series')
+ * @returns {boolean} - True if format is acceptable
  */
 function verifyReviewFormat(raw, type) {
-  if (!raw || typeof raw !== 'string') return false;
-
-  // Basic identity blocks: either Movie or Series/Episode
-  const hasMovieName = headingExists(raw, 'Name Of The Movie');
-  const hasSeriesName = headingExists(raw, 'Name Of The Series');
-  const hasEpisodeName = headingExists(raw, 'Name Of The Episode');
-  const hasSeasonEpisode = headingExists(raw, 'Season Episode');
-  const isEpisodeExpected = (type === 'series') && hasSeriesName && hasEpisodeName && hasSeasonEpisode;
-
-  // Basic info (common)
-  const basicsOk =
-    (hasMovieName || hasSeriesName) &&
-    headingExists(raw, 'Casts') &&
-    headingExists(raw, 'Directed By') &&
-    headingExists(raw, 'Genre') &&
-    headingExists(raw, 'Released On') &&
-    headingExists(raw, 'Release Medium') &&
-    headingExists(raw, 'Release Country');
-
-  if (!basicsOk) {
-    vlog('Basic info blocks missing');
+  if (!raw || typeof raw !== 'string') {
+    vlog('Invalid input: not a string');
     return false;
   }
-
-  // Episode specifics (if applicable)
-  if (isEpisodeExpected) {
-    if (!hasSeriesName || !hasEpisodeName || !hasSeasonEpisode) {
-      vlog('Episode identity blocks missing (series/episode/season-episode)');
-      return false;
+  
+  // Basic completeness checks
+  if (raw.trim().length < 500) {
+    vlog('Review too short (minimum 500 characters)');
+    return false;
+  }
+  
+  // Validate basic info sections
+  if (!validateBasicInfo(raw, type)) {
+    return false;
+  }
+  
+  // Validate content sections
+  if (!validateContentSections(raw)) {
+    return false;
+  }
+  
+  // Validate rating format
+  if (!validateRating(raw)) {
+    return false;
+  }
+  
+  // Validate verdict sections
+  if (!validateVerdicts(raw)) {
+    return false;
+  }
+  
+  // Optional sections that should exist but are not critical
+  const optionalSections = [
+    'Critical Reception',
+    'Audience Reception',
+    'Box Office and Viewership',
+    'Who would like it',
+    'Who would not like it',
+    'Similar Films',
+    'Overall Verdict'
+  ];
+  
+  let missingOptional = 0;
+  for (const section of optionalSections) {
+    if (!headingExists(raw, section)) {
+      missingOptional++;
     }
   }
-
-  // Merged analysis sections
-  const mergedOk =
-    headingExists(raw, 'Plot Summary') &&
-    headingExists(raw, 'Story Writing') &&
-    headingExists(raw, 'Performances Characters') &&
-    headingExists(raw, 'Direction Pacing') &&
-    headingExists(raw, 'Visuals Sound');
-
-  if (!mergedOk) {
-    vlog('One or more merged analysis sections missing');
+  
+  // Allow some optional sections to be missing, but not too many
+  if (missingOptional > 2) {
+    vlog(`Too many optional sections missing: ${missingOptional}/${optionalSections.length}`);
     return false;
   }
-
-  // Response and numbers sections
-  const criticsOk = headingExists(raw, 'Critical Reception');
-  const audienceOk = headingExists(raw, 'Audience Reception (Reaction)') || headingExists(raw, 'Audience Reception');
-  const boOk = headingExists(raw, 'Box Office and Viewership');
-  const strengthsOk = headingExists(raw, 'Strengths');
-  const weaknessesOk = headingExists(raw, 'Weaknesses');
-
-  if (!criticsOk || !audienceOk || !boOk || !strengthsOk || !weaknessesOk) {
-    vlog('Reception/box-office/strengths/weaknesses blocks missing');
-    return false;
-  }
-
-  // Closing sections (rating includes placeholder span)
-  const closingOk =
-    headingExists(raw, 'Overall Verdict') &&
-    /Rating\s*\-\s*\d+(\.\d+)?\/10.*?<span id="rating-context-placeholder"><\/span>/mi.test(raw) &&
-    headingExists(raw, 'Verdict in One Line');
-
-  if (!closingOk) {
-    vlog('Closing blocks (Overall/Rating/Verdict in One Line) missing or malformed');
-    return false;
-  }
-
-  // 8-Point Summary rules
-  if (!verify8PointSummary(raw)) return false;
-
-  // Optional Two-Line Verdict block
-  if (!validateTwoLineVerdict(raw)) return false;
-
+  
+  vlog('Review format validation passed');
   return true;
 }
 
