@@ -4,7 +4,7 @@ const { readReview, saveReview } = require('./core/storage');
 const { scrapeImdbForEpisodeTitle } = require('./core/scraper');
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/metadataService');
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
-const { generateReview } = require('./services/geminiService');
+const { generateReview } = require('./services/aiService');
 const { parseVerdictFromReview } = require('./core/reviewParser');
 const { verifyReviewFormat } = require('./core/reviewVerifier');
 
