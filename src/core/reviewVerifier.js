@@ -1,12 +1,12 @@
 /*
  * src/core/reviewVerifier.js
- * DEBUG VERSION - Simplified validation with detailed logging for troubleshooting
+ * Simplified validation with optional debug logging
  */
 
 'use strict';
 
-// Enable debug logging by default for troubleshooting
-const DEBUG = true;
+// Enable debug logging via environment variable
+const DEBUG = String(process.env.REVIEWVERIFIER_DEBUG || 'false').toLowerCase() === 'true';
 
 function vlog(...args) {
   if (DEBUG) console.log('[Verify]', ...args);
@@ -18,15 +18,22 @@ function escapeRegExp(s) {
 
 // Generic matcher for markdown headers like ## Heading
 function headingExists(text, heading) {
-  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}`, 'mi');
+  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}\\s*$`, 'mi');
   return pattern.test(text);
 }
 
-// Extract content after a markdown header
+// Extract content after a markdown header - FIXED REGEX
 function extractSection(text, heading) {
-  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^##|$)`, 'mi');
+  // More flexible pattern that handles inconsistent spacing
+  const pattern = new RegExp(`^##\\s*${escapeRegExp(heading)}\\s*$([\\s\\S]*?)(?=^##\\s*\\S|$)`, 'mi');
   const match = text.match(pattern);
-  return match && match[1] ? match[1].trim() : null;
+  const content = match && match[1] ? match[1].trim() : null;
+  
+  if (DEBUG && content) {
+    vlog(`Section "${heading}" extracted successfully (${content.length} chars):`, content.substring(0, 100) + '...');
+  }
+  
+  return content;
 }
 
 // Check if rating section exists and has valid format
@@ -188,7 +195,7 @@ function validateBasicInfo(text, type) {
 }
 
 /**
- * DEBUG VERSION - Simplified review format verification with extensive logging
+ * Simplified review format verification with optional debug logging
  * @param {string} raw - The raw AI-generated review text
  * @param {string} type - Content type ('movie' or 'series')
  * @returns {boolean} - True if format is acceptable
@@ -204,7 +211,9 @@ function verifyReviewFormat(raw, type) {
   }
   
   // Show first 500 characters for debugging
-  vlog('Content preview:', raw.substring(0, 500) + (raw.length > 500 ? '...' : ''));
+  if (DEBUG) {
+    vlog('Content preview:', raw.substring(0, 500) + (raw.length > 500 ? '...' : ''));
+  }
   
   // Basic completeness checks
   if (raw.trim().length < 500) {
@@ -213,8 +222,10 @@ function verifyReviewFormat(raw, type) {
   }
   
   // Show all headers found in the content
-  const headerMatches = raw.match(/^##\s+.+$/gm);
-  vlog('Headers found:', headerMatches || 'None');
+  if (DEBUG) {
+    const headerMatches = raw.match(/^##\s+.+$/gm);
+    vlog('Headers found:', headerMatches || 'None');
+  }
   
   // Validate basic info sections
   vlog('--- Validating Basic Info ---');
@@ -244,31 +255,33 @@ function verifyReviewFormat(raw, type) {
     return false;
   }
   
-  // Optional sections check
-  vlog('--- Checking Optional Sections ---');
-  const optionalSections = [
-    'Critical Reception',
-    'Audience Reception', 
-    'Box Office and Viewership',
-    'Who would like it',
-    'Who would not like it',
-    'Similar Films',
-    'Overall Verdict'
-  ];
-  
-  let missingOptional = 0;
-  for (const section of optionalSections) {
-    const exists = headingExists(raw, section);
-    vlog(`Optional section "${section}":`, exists ? 'Found' : 'Missing');
-    if (!exists) missingOptional++;
-  }
-  
-  vlog('Missing optional sections:', missingOptional, 'out of', optionalSections.length);
-  
-  // Allow some optional sections to be missing, but not too many
-  if (missingOptional > 2) {
-    vlog(`FAIL: Too many optional sections missing: ${missingOptional}/${optionalSections.length}`);
-    return false;
+  // Optional sections check (reduced logging when not in debug mode)
+  if (DEBUG) {
+    vlog('--- Checking Optional Sections ---');
+    const optionalSections = [
+      'Critical Reception',
+      'Audience Reception', 
+      'Box Office and Viewership',
+      'Who would like it',
+      'Who would not like it',
+      'Similar Films',
+      'Overall Verdict'
+    ];
+    
+    let missingOptional = 0;
+    for (const section of optionalSections) {
+      const exists = headingExists(raw, section);
+      vlog(`Optional section "${section}":`, exists ? 'Found' : 'Missing');
+      if (!exists) missingOptional++;
+    }
+    
+    vlog('Missing optional sections:', missingOptional, 'out of', optionalSections.length);
+    
+    // Allow some optional sections to be missing, but not too many
+    if (missingOptional > 2) {
+      vlog(`FAIL: Too many optional sections missing: ${missingOptional}/${optionalSections.length}`);
+      return false;
+    }
   }
   
   vlog('=== REVIEW VERIFICATION SUCCESS ===');
