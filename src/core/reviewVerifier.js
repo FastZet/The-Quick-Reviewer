@@ -6,7 +6,7 @@
 'use strict';
 
 // Enable debug logging via environment variable
-const DEBUG = String(process.env.REVIEWVERIFIER_DEBUG || 'false').toLowerCase() === 'true';
+const DEBUG = String(process.env.REVIEW_VERIFIER_DEBUG || 'false').toLowerCase() === 'true';
 
 function vlog(...args) {
   if (DEBUG) console.log('[Verify]', ...args);
