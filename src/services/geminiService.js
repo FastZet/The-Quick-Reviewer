@@ -1,4 +1,4 @@
-// src/services/geminiService.js — @google/genai (Gemini 2.5) with full prompt + grounding metadata logging
+// src/services/geminiService.js — @google/genai (Gemini 2.5) with full prompt + raw response + grounding metadata logging
 
 const MAX_RETRIES = 2;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
@@ -7,6 +7,24 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let _aiClient = null;
+
+// Safe stringify helper to handle circular refs, BigInt, and functions
+function safeStringify(obj) {
+  const seen = new WeakSet();
+  return JSON.stringify(
+    obj,
+    (key, value) => {
+      if (typeof value === 'bigint') return value.toString();
+      if (typeof value === 'function') return `[Function ${value.name || 'anonymous'}]`;
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      return value;
+    },
+    2
+  );
+}
 
 /**
  * Lazily import @google/genai in a CommonJS environment and build a client.
@@ -28,7 +46,7 @@ function shouldRetry(err, attempt) {
 
 /**
  * Generate a review with Gemini 2.5.
- * Logs the exact full prompt sent and grounding metadata returned by the model.
+ * Logs the exact full prompt, the raw Gemini response, and grounding metadata.
  */
 async function generateReview(prompt) {
   if (!GEMINI_API_KEY) {
@@ -76,6 +94,16 @@ IMPORTANT:
         systemInstruction:
           "Use web knowledge to keep data current when helpful (box office, critic/audience scores, recency cues). Obey the user's formatting rules strictly."
       });
+
+      // Log the raw SDK response (prefer the .response wrapper if present)
+      const rawToLog = result?.response ?? result;
+      console.log('[Gemini] === BEGIN RAW RESPONSE ===');
+      try {
+        console.log(safeStringify(rawToLog));
+      } catch (e) {
+        console.log(`[Gemini] (Raw response stringify failed: ${e?.message || 'unknown error'})`);
+      }
+      console.log('[Gemini] === END RAW RESPONSE ===');
 
       // Prefer new SDK shape, but fall back to response.* if present
       const text = result?.text || result?.response?.text?.();
