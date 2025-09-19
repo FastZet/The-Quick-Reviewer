@@ -9,7 +9,7 @@ const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require('./services/m
 const { buildPromptFromMetadata } = require('./config/promptBuilder');
 const { generateReview } = require('./services/aiService');
 const { parseVerdictFromReview } = require('./core/reviewParser');
-const { verifyReviewFormat } = require('./core/reviewVerifier');
+const verifyReviewFormat = require('./core/reviewVerifier');  // FIXED: Direct import instead of destructuring
 
 const pendingReviews = new Map();
 const MAX_GENERATION_ATTEMPTS = 2;
