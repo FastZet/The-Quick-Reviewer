@@ -1,14 +1,36 @@
-// src/services/geminiService.js — @google/genai (Gemini 2.5) with full prompt + raw response + grounding metadata logging
+// src/services/geminiService.js — @google/genai (Gemini 2.5)
 
-const MAX_RETRIES = 2;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
+'use strict';
+
+/**
+ * Gemini service (quiet by default).
+ * - Model: GEMINI_MODEL or GEMINIMODEL (default: gemini-2.5-flash-lite)
+ * - API key: GEMINI_API_KEY or GOOGLE_API_KEY
+ * - Debug controls:
+ *   - DEBUG_PROMPT=true    -> log full prompt
+ *   - DEBUG_RESPONSE=true  -> log raw SDK response + grounding metadata
+ *
+ * This module has no top-level logs; it only logs when the above flags are true.
+ */
+
+const MAX_RETRIES = parseInt(process.env.AI_RETRIES || '2', 10);
+const GEMINI_MODEL =
+  process.env.GEMINI_MODEL ||
+  process.env.GEMINIMODEL ||
+  'gemini-2.5-flash-lite';
+
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY ||
+  process.env.GOOGLE_API_KEY ||
+  null;
+
+const DEBUG_PROMPT = String(process.env.DEBUG_PROMPT || 'false').toLowerCase() === 'true';
+const DEBUG_RESPONSE = String(process.env.DEBUG_RESPONSE || 'false').toLowerCase() === 'true';
+
+let aiClient = null;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let _aiClient = null;
-
-// Safe stringify helper to handle circular refs, BigInt, and functions
 function safeStringify(obj) {
   const seen = new WeakSet();
   return JSON.stringify(
@@ -16,7 +38,7 @@ function safeStringify(obj) {
     (key, value) => {
       if (typeof value === 'bigint') return value.toString();
       if (typeof value === 'function') return `[Function ${value.name || 'anonymous'}]`;
-      if (typeof value === 'object' && value !== null) {
+      if (value && typeof value === 'object') {
         if (seen.has(value)) return '[Circular]';
         seen.add(value);
       }
@@ -26,17 +48,14 @@ function safeStringify(obj) {
   );
 }
 
-/**
- * Lazily import @google/genai in a CommonJS environment and build a client.
- */
 async function getGenAIClient() {
-  if (!_aiClient) {
-    const { GoogleGenAI } = await import('@google/genai');
-    _aiClient = new GoogleGenAI({
-      apiKey: GEMINI_API_KEY,
-    });
+  if (aiClient) return aiClient;
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY/GOOGLE_API_KEY is not set.');
   }
-  return _aiClient;
+  const { GoogleGenerativeAI } = await import('@google/genai');
+  aiClient = new GoogleGenerativeAI({ apiKey: GEMINI_API_KEY });
+  return aiClient;
 }
 
 function shouldRetry(err, attempt) {
@@ -45,109 +64,90 @@ function shouldRetry(err, attempt) {
 }
 
 /**
- * Generate a review with Gemini 2.5.
- * Logs the exact full prompt, the raw Gemini response, and grounding metadata.
- */
+  Generate a review with Gemini 2.5.
+  Respects DEBUG_PROMPT/DEBUG_RESPONSE flags for all logging.
+*/
 async function generateReview(prompt) {
   if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
+    throw new Error('GEMINI_API_KEY/GOOGLE_API_KEY is not set.');
   }
 
   let attempt = 0;
-  while (++attempt <= MAX_RETRIES) {
+
+  while (attempt < MAX_RETRIES) {
+    attempt += 1;
     try {
       const ai = await getGenAIClient();
 
-      // Final prompt the model receives: seed prompt + strong instructions for recency/data usage.
-      const enhancedPrompt = `You are a professional film critic with access to current information.
-Use Google Search to gather recent data where relevant (box office, critic scores, audience ratings, social buzz) and keep results up to date.
+      // Pass the prompt through without unconditional pre-/post-logs.
+      const enhancedPrompt =
+        `You are a professional film critic with access to current information when needed.\n` +
+        `Follow the user’s formatting rules exactly and keep results spoiler-free.\n\n` +
+        prompt;
 
-${prompt}
+      if (DEBUG_PROMPT) {
+        console.log('[Gemini] BEGIN FULL PROMPT (model:', GEMINI_MODEL, ')');
+        console.log(enhancedPrompt);
+        console.log('[Gemini] END FULL PROMPT (', enhancedPrompt.length, 'chars )');
+      }
 
-IMPORTANT:
-- If box office/ratings are available, include concrete figures where possible.
-- Prefer recent, accurate information.
-- Keep the structure and formatting exactly as requested in the prompt.
-`;
-
-      // Print the full prompt in logs for external A/B testing (e.g., ChatGPT vs Gemini).
-      console.log(`[Gemini] === BEGIN FULL PROMPT (model: ${GEMINI_MODEL}) ===`);
-      console.log(enhancedPrompt);
-      console.log(`[Gemini] === END FULL PROMPT (${enhancedPrompt.length} chars) ===`);
-
-      console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
-
-      // New SDK API shape
-      const result = await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: enhancedPrompt }]
-          }
-        ],
+      // New SDK shape
+      const model = ai.getGenerativeModel({ model: GEMINI_MODEL });
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: enhancedPrompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 8192
+          maxOutputTokens: 8192,
         },
-        // Guidance for real-time/useful retrieval as system instruction
+        // System instruction to bias toward factual recency and strict formatting
         systemInstruction:
-          "Use web knowledge to keep data current when helpful (box office, critic/audience scores, recency cues). Obey the user's formatting rules strictly."
+          'Use up-to-date knowledge when helpful (box office, critic/audience scores) and obey the exact output format required.',
       });
 
-      // Log the raw SDK response (prefer the .response wrapper if present)
-      const rawToLog = result?.response ?? result;
-      console.log('[Gemini] === BEGIN RAW RESPONSE ===');
-      try {
-        console.log(safeStringify(rawToLog));
-      } catch (e) {
-        console.log(`[Gemini] (Raw response stringify failed: ${e?.message || 'unknown error'})`);
-      }
-      console.log('[Gemini] === END RAW RESPONSE ===');
+      const text =
+        result?.response?.text?.() ??
+        result?.text?.();
 
-      // Prefer new SDK shape, but fall back to response.* if present
-      const text = result?.text || result?.response?.text?.();
-
-      if (!text || text.trim().length === 0) {
+      if (!text || !String(text).trim()) {
         throw new Error('Empty response from Gemini');
       }
 
-      // Grounding metadata logging (authoritative signal of Google Search grounding)
-      // Cover both possible shapes: result.candidates vs result.response.candidates
-      const candidate = result?.candidates?.[0] || result?.response?.candidates?.[0];
-      if (candidate?.groundingMetadata) {
-        console.log('[Gemini] Grounding metadata present');
+      if (DEBUG_RESPONSE) {
+        const raw = result?.response ?? result;
+        console.log('[Gemini] BEGIN RAW RESPONSE');
         try {
-          console.log(JSON.stringify(candidate.groundingMetadata, null, 2));
-        } catch {
-          console.log('[Gemini] (Could not stringify groundingMetadata safely)');
+          console.log(safeStringify(raw));
+        } catch (e) {
+          console.log('[Gemini] Raw response stringify failed:', e?.message || 'unknown error');
         }
-      } else {
-        console.log('[Gemini] No grounding metadata (response not grounded)');
+        console.log('[Gemini] END RAW RESPONSE');
+
+        const candidate = raw?.candidates?.[0];
+        const grounding = candidate?.groundingMetadata;
+        if (grounding) {
+          console.log('[Gemini] Grounding metadata present:');
+          try {
+            console.log(JSON.stringify(grounding, null, 2));
+          } catch (_) {
+            console.log('[Gemini] Could not stringify grounding metadata safely');
+          }
+        }
       }
 
-      console.log(`[Gemini] Generation completed successfully (length: ${text.length} chars)`);
-      return text.trim();
-
+      return String(text).trim();
     } catch (err) {
-      console.error(`[Gemini] Error on attempt ${attempt}:`, {
-        message: err?.message,
-        status: err?.status,
-        code: err?.code
-      });
-
       if (!shouldRetry(err, attempt)) {
-        console.error(`[Gemini] Permanent failure after ${attempt} attempts`);
-        throw new Error(`Error generating review after all retries: ${err?.message || 'Unknown error'}`);
+        throw new Error(`Gemini error: ${err?.message || 'unknown'} (attempt ${attempt})`);
       }
-
       const backoff = 250 * Math.pow(2, attempt - 1);
-      console.warn(`[Gemini] Retryable error on attempt ${attempt}; retrying in ${backoff}ms...`);
+      if (DEBUG_RESPONSE) {
+        console.warn(`[Gemini] Retryable error on attempt ${attempt}, retrying in ${backoff}ms...`);
+      }
       await delay(backoff);
     }
   }
 
-  throw new Error("Failed generating review after maximum retries.");
+  throw new Error('Failed generating review after maximum retries.');
 }
 
-module.exports = { generateReview };
+module.exports = generateReview;
