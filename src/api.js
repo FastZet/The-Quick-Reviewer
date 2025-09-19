@@ -57,8 +57,8 @@ async function getReview(id, type, forceRefresh = false) {
             const season = parseInt(parts[1], 10);
             const episode = parseInt(parts[2], 10);
 
-            // First, get series metadata
-            seriesMetadata = await fetchMovieSeriesMetadata(imdbId, 'series');
+            // First, get series metadata - FIXED: correct parameter order
+            seriesMetadata = await fetchMovieSeriesMetadata('series', imdbId);
             if (!seriesMetadata) {
               throw new Error(`Failed to fetch series metadata for ${imdbId}`);
             }
@@ -79,8 +79,8 @@ async function getReview(id, type, forceRefresh = false) {
             // Build prompt for episode
             prompt = buildPromptFromMetadata(metadata, 'series', seriesMetadata, scrapedTitle);
           } else {
-            // For movies
-            metadata = await fetchMovieSeriesMetadata(id, 'movie');
+            // For movies - FIXED: correct parameter order
+            metadata = await fetchMovieSeriesMetadata('movie', id);
             if (!metadata) {
               throw new Error(`Failed to fetch movie metadata for ${id}`);
             }
