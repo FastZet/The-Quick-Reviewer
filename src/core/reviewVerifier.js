@@ -5,33 +5,28 @@
 const DEBUG = String(process.env.REVIEW_VERIFY_DEBUG || 'false').toLowerCase() === 'true';
 function vlog(...args) { if (DEBUG) console.log('Verify:', ...args); }
 
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
 // Generic matcher for bullet headings like "• Heading -" content
 function headingExists(text, heading) {
   const pattern = new RegExp(String.raw`${escapeRegExp(heading)}\s*\-`, 'mi');
   return pattern.test(text);
 }
 
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 // Extracts lines immediately following the "8-Point Summary" header that begin with a bullet.
 // Returns an array of bullet texts (without the bullet symbol).
 function extract8PointBullets(text) {
-  // Find the header line
   const headerRe = /8-Point Summary/mi;
   const headerMatch = text.match(headerRe);
   if (!headerMatch) return [];
 
-  // Slice from after header match
   const startIdx = headerMatch.index + headerMatch[0].length;
-  // Take the following lines until the next bold heading bullet or end of string
   const tail = text.slice(startIdx);
-  // Stop when we hit another bold heading bullet (e.g., "• Plot Summary -")
-  const stopIdx = tail.search(/\n\s*•\s*[A-Z][^\n]*:?(\n|$)|\n\s*\.\s*\*\*/m);
+
+  // Stop when the next section heading ("• Title -") begins or end of string
+  const stopIdx = tail.search(/\n\s*•\s*[A-Z][^\n]*\-\s*|$/m);
   const body = (stopIdx > 0) ? tail.slice(0, stopIdx) : tail;
 
-  // Collect bullet lines line
   const bullets = [];
   const lines = body.split('\n');
   for (const line of lines) {
@@ -43,8 +38,7 @@ function extract8PointBullets(text) {
 
 // Optional: validates a dedicated "Two-Line Verdict" block when present.
 function validateTwoLineVerdict(text) {
-  const headerRe = /Two-Line Verdict/mi;
-  const header = text.match(headerRe);
+  const header = text.match(/Two-Line Verdict/mi);
   if (!header) return true; // optional
   const start = header.index + header[0].length;
   const tail = text.slice(start);
@@ -53,16 +47,14 @@ function validateTwoLineVerdict(text) {
   const bulletRe = /^\s*[-•]\s*(.*)$/gim;
   const found = [];
   let m;
-  while ((m = bulletRe.exec(tail)) && found.length < 2) {
-    found.push(m[1].trim());
-  }
+  while ((m = bulletRe.exec(tail)) && found.length < 2) found.push(m[1].trim());
 
   if (found.length !== 2) {
     vlog('Two-Line Verdict present but not exactly two bullets');
     return false;
   }
 
-  // Lightweight length constraints (80 chars each), no emojis/hashtags
+  // Lightweight length constraints (80 chars each), no emojis
   const bad = found.some((s) => s.length === 0 || s.length > 80 || /[\u{1F300}-\u{1FAFF}]/u.test(s));
   if (bad) {
     vlog('Two-Line Verdict bullets violate length/content constraints');
@@ -72,20 +64,15 @@ function validateTwoLineVerdict(text) {
 }
 
 function verify8PointSummary(text) {
-  // Header line must exist alone (no content after colon on same line)
-  const headerAlone = /8-Point Summary/mi.test(text);
-  if (!headerAlone) {
+  if (!/8-Point Summary/mi.test(text)) {
     vlog('Missing or malformed 8-Point Summary heading line');
     return false;
   }
-
   const bullets = extract8PointBullets(text);
   if (bullets.length !== 8) {
     vlog('8-Point Summary count != 8, got', bullets.length);
     return false;
   }
-
-  // Each bullet must be evaluative and short (≤25 chars)
   for (const b of bullets) {
     if (b.length === 0 || b.length > 25) {
       vlog('8-Point bullet length violation:', b);
@@ -131,7 +118,7 @@ function verifyReviewFormat(raw, type) {
     return false;
   }
 
-  // Episode specifics (if looks like episode)
+  // Episode specifics (if applicable)
   if (isEpisodeExpected) {
     if (!hasSeriesName || !hasEpisodeName || !hasSeasonEpisode) {
       vlog('Episode identity blocks missing (series/episode/season-episode)');
@@ -164,7 +151,7 @@ function verifyReviewFormat(raw, type) {
     return false;
   }
 
-  // Closing sections
+  // Closing sections (rating includes placeholder span)
   const closingOk =
     headingExists(raw, 'Overall Verdict') &&
     /Rating\s*\-\s*\d+(\.\d+)?\/10.*?<span id="rating-context-placeholder"><\/span>/mi.test(raw) &&
@@ -175,15 +162,11 @@ function verifyReviewFormat(raw, type) {
     return false;
   }
 
-  // 8-Point Summary (hard rules)
-  if (!verify8PointSummary(raw)) {
-    return false;
-  }
+  // 8-Point Summary rules
+  if (!verify8PointSummary(raw)) return false;
 
-  // Optional Two-Line Verdict block (if present)
-  if (!validateTwoLineVerdict(raw)) {
-    return false;
-  }
+  // Optional Two-Line Verdict block
+  if (!validateTwoLineVerdict(raw)) return false;
 
   return true;
 }
