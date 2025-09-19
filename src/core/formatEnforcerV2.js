@@ -1,355 +1,263 @@
-// src/core/formatEnforcerV2.js — Builds structured HTML for the v2 review pages.
+// src/core/formatEnforcerV2.js — Builds structured HTML for the v2 review pages (hero-only view per spec).
+
+'use strict';
 
 function clean(text) {
-    return text ? text.trim().replace(/^[*_]+|[*_]+$/g, '').trim() : '';
+  return text ? text.trim().replace(/^[*_]+|[*_]+$/g, '').trim() : '';
 }
 
-function parseRawReview(rawReviewText) {
-    const sections = [ 
-        'Name Of The Movie', 'Name Of The Series', 'Name Of The Episode', 'Season & Episode', 
-        'Casts', 'Directed By', 'Language', 'Genre', 'Released On', 'Release Medium', 'Release Country', 
-        'Plot Summary', 'Storytelling', 'Writing', 'Pacing', 'Performances', 'Character Development', 
-        'Cinematography', 'Sound Design', 'Music & Score', 'Editing', 'Direction and Vision', 
-        'Originality and Creativity', 'Strengths', 'Weaknesses', 'Critical Reception', 
-        'Audience Reception & Reaction', 'Box Office and Viewership', 'Who would like it', 
-        'Who would not like it', 'Similar Films', 'Overall Verdict', 'Rating', 'Verdict in One Line' 
-    ];
-    const contentMap = new Map();
-
-    for (const header of sections) {
-        // Enhanced regex pattern to better capture content after bullet points and headers
-        const regex = new RegExp(`[•*\\s]*\\*\\*${header}[*\\s]*:[*\\s]*([\\s\\S]*?)(?=\\s*•\\s*\\*\\*|\\n\\s*Rating:|\\n\\s*Verdict in One Line:|$)`, 'i');
-        const match = rawReviewText.match(regex);
-        if (match && match[1]) {
-            contentMap.set(header.replace('Directed by', 'Directed By'), clean(match[1]));
-        }
-    }
-
-    // Special handling for Rating extraction with improved pattern
-    const ratingMatch = rawReviewText.match(/Rating:\s*(\d+(?:\.\d+)?\/10)/i);
-    if (ratingMatch) {
-        contentMap.set('Rating', ratingMatch[1]);
-    }
-
-    // Special handling for Verdict in One Line
-    const verdictMatch = rawReviewText.match(/Verdict in One Line[:\s]*([^\n]+)/i);
-    if (verdictMatch) {
-        contentMap.set('Verdict in One Line', clean(verdictMatch[1]));
-    }
-
-    return contentMap;
+// Build a robust section extractor that supports our bullet+bold style:
+// • **Section Name:** content (until next bold-bullet heading or EOF)
+function extractSection(raw, heading) {
+  const pattern = new RegExp(
+    String.raw`^\s*•\s*\*\*\s*${escapeRegExp(heading)}\s*\*\*\s*:\s*([\s\S]*?)(?=^\s*•\s*\*\*|\s*$)`,
+    'gmi'
+  );
+  const m = pattern.exec(raw);
+  return m && m[1] ? clean(m[1]) : '';
 }
 
-function extractRatingScore(ratingText) {
-    if (!ratingText) return 'N/A';
-    const match = ratingText.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
-    return match ? match[1] : 'N/A';
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function getRatingLabel(score) {
-    const numScore = parseFloat(score);
-    if (isNaN(numScore)) return 'Not Rated';
-    if (numScore >= 9) return 'Exceptional';
-    if (numScore >= 7) return 'Excellent';
-    if (numScore >= 5) return 'Good';
-    if (numScore >= 3) return 'Fair';
-    return 'Poor';
+// Grab rating as "N/10"
+function extractRating(raw) {
+  const m = raw.match(/^\s*Rating:\s*(\d+(?:\.\d+)?)\s*\/\s*10\b/mi);
+  return m ? m[1] : null;
+}
+
+// Grab single-line verdict
+function extractOneLineVerdict(raw) {
+  const m = raw.match(/^\s*•\s*\*\*\s*Verdict in One Line\s*\*\*\s*:\s*([^\n]+)/mi);
+  return m ? clean(m[1]) : '';
+}
+
+// Optional block: Two-Line Verdict (two bullets after the header line)
+function extractTwoLineVerdict(raw) {
+  const header = raw.match(/^\s*•\s*\*\*\s*Two-Line Verdict\s*\*\*\s*:\s*$/mi);
+  if (!header) return null;
+  const start = header.index + header[0].length;
+  const tail = raw.slice(start);
+  const bulletRe = /^\s*•\s*(.+?)\s*$/gim;
+  const out = [];
+  let m;
+  while ((m = bulletRe.exec(tail)) && out.length < 2) {
+    out.push(clean(m[1]));
+  }
+  if (out.length === 2) return out;
+  return null;
 }
 
 function buildPosterContent(posterUrl, stillUrl, title) {
-    // Prioritize episode still for TV episodes, then series poster, then fallback
-    const imageUrl = stillUrl || posterUrl;
-    
-    if (imageUrl) {
-        return `<img src="${imageUrl}" alt="${title || 'Movie Poster'}" class="poster-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="poster-fallback" style="display:none;">
-                    <span class="poster-icon">🎬</span>
-                    <div class="poster-title">${title || 'Review'}</div>
-                </div>`;
-    } else {
-        // Fallback when no poster is available
-        return `<div class="poster-fallback">
-                    <span class="poster-icon">🎬</span>
-                    <div class="poster-title">${title || 'Review'}</div>
-                </div>`;
-    }
+  const imageUrl = stillUrl || posterUrl;
+  if (imageUrl) {
+    return `<img src="${imageUrl}" alt="${title || 'Poster'}" class="poster-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="poster-fallback" style="display:none;">
+                <span class="poster-icon">🎬</span>
+                <div class="poster-title">${title || 'Review'}</div>
+            </div>`;
+  }
+  return `<div class="poster-fallback">
+            <span class="poster-icon">🎬</span>
+            <div class="poster-title">${title || 'Review'}</div>
+          </div>`;
 }
 
+// Build minimal hero with only Rating + single-line Verdict
+function buildHeroContent(data, title, year) {
+  const name =
+    data.get('Name Of The Movie') ||
+    data.get('Name Of The Series') ||
+    title ||
+    'Untitled';
+  const seasonEp = data.get('Season & Episode');
+  const epName = data.get('Name Of The Episode');
+
+  const heading = seasonEp
+    ? `${name}${year ? ` (${year})` : ''}`
+    : `${name}${year ? ` (${year})` : ''}`;
+
+  const episodeLine = seasonEp
+    ? `<div class="episode-info">${epName ? `${epName} • ` : ''}${seasonEp}</div>`
+    : ``;
+
+  const ratingText = data.get('Rating');
+  const score = extractRatingScore(ratingText);
+  const label = getRatingLabel(score);
+
+  const verdict = data.get('Verdict in One Line') || 'Verdict not available';
+
+  // Only rating + one-line verdict in hero per requirement
+  return `
+    <h1>${escapeHtml(heading)}</h1>
+    ${episodeLine}
+    <div class="movie-meta">
+      ${formatMetaItems(data)}
+    </div>
+    <div class="rating-badge">
+      <div class="rating-score">${escapeHtml(score)}</div>
+      <div class="rating-details">
+        <div class="rating-label">${escapeHtml(label)}</div>
+        <div class="verdict-text">${escapeHtml(verdict)}</div>
+      </div>
+    </div>
+    <div class="hero-actions">
+      <a id="force-refresh" class="control-btn" href="{{FORCE_REFRESH_URL}}">↻ Regenerate</a>
+      <a class="control-btn secondary" href="{{TOGGLE_URL}}">{{TOGGLE_TEXT}}</a>
+    </div>
+  `;
+}
+
+function extractRatingScore(ratingText) {
+  if (!ratingText) return 'N/A';
+  const m = ratingText.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
+  return m ? m[1] : 'N/A';
+}
+
+function getRatingLabel(score) {
+  const n = parseFloat(score);
+  if (isNaN(n)) return 'Not Rated';
+  if (n >= 9) return 'Exceptional';
+  if (n >= 7) return 'Strong';
+  if (n >= 5) return 'Average';
+  if (n >= 3) return 'Weak';
+  return 'Poor';
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Build compact “meta chips” for hero area
 function formatMetaItems(data) {
-    const items = [];
-    
-    // Director
-    if (data.has('Directed By')) {
-        items.push(`<div class="meta-item"><span>🎬</span><span>${data.get('Directed By')}</span></div>`);
-    }
-    
-    // Year from Released On
-    const releasedOn = data.get('Released On');
-    if (releasedOn) {
-        const year = releasedOn.split(',').pop().trim() || releasedOn.split(' ').pop();
-        items.push(`<div class="meta-item"><span>📅</span><span>${year}</span></div>`);
-    }
-    
-    // Genre
-    if (data.has('Genre')) {
-        items.push(`<div class="meta-item"><span>🎭</span><span>${data.get('Genre')}</span></div>`);
-    }
-    
-    // Cast (first 3 names only for meta)
-    if (data.has('Casts')) {
-        const cast = data.get('Casts').split(',').slice(0, 3).map(name => name.trim()).join(', ');
-        items.push(`<div class="meta-item"><span>👥</span><span>${cast}</span></div>`);
-    }
-    
-    // Language
-    if (data.has('Language')) {
-        items.push(`<div class="meta-item"><span>🗣️</span><span>${data.get('Language')}</span></div>`);
-    }
-    
-    // Release Country
-    if (data.has('Release Country')) {
-        items.push(`<div class="meta-item"><span>🌍</span><span>${data.get('Release Country')}</span></div>`);
-    }
-    
-    // Release Medium
-    if (data.has('Release Medium')) {
-        items.push(`<div class="meta-item"><span>📺</span><span>${data.get('Release Medium')}</span></div>`);
-    }
-    
-    return items.join('');
+  const items = [];
+
+  if (data.has('Directed By')) {
+    items.push(metaItem('🎬', data.get('Directed By')));
+  }
+  const releasedOn = data.get('Released On');
+  if (releasedOn) {
+    const year = releasedOn.split(',').pop().trim() || releasedOn.split(' ').pop();
+    items.push(metaItem('📅', year));
+  }
+  if (data.has('Genre')) items.push(metaItem('🎭', data.get('Genre')));
+  if (data.has('Casts')) {
+    const cast = data.get('Casts').split(',').slice(0, 3).map(s => s.trim()).join(', ');
+    items.push(metaItem('👥', cast));
+  }
+  if (data.has('Language')) items.push(metaItem('🗣️', data.get('Language')));
+  if (data.has('Release Country')) items.push(metaItem('🌍', data.get('Release Country')));
+  if (data.has('Release Medium')) items.push(metaItem('📺', data.get('Release Medium')));
+
+  return items.join('');
 }
 
-function buildSidebarStats(data) {
-    const stats = [];
-    
-    // Enhanced Box Office parsing
-    const boxOffice = data.get('Box Office and Viewership');
-    if (boxOffice) {
-        // Look for Budget information
-        const budgetMatch = boxOffice.match(/Budget:\s*\$?([\d.,]+)\s*(?:million|M|billion|B)?/i);
-        if (budgetMatch) {
-            let budgetValue = budgetMatch[1];
-            if (boxOffice.toLowerCase().includes('million') || boxOffice.toLowerCase().includes('m')) {
-                budgetValue += 'M';
-            } else if (boxOffice.toLowerCase().includes('billion') || boxOffice.toLowerCase().includes('b')) {
-                budgetValue += 'B';
-            }
-            stats.push(`<div class="stat-item"><span class="stat-label">Budget</span><span class="stat-value">$${budgetValue}</span></div>`);
-        }
-        
-        // Look for Domestic Box Office
-        const domesticMatch = boxOffice.match(/Domestic[:\s]*\$?([\d.,]+)\s*(?:million|M|billion|B)?/i);
-        if (domesticMatch) {
-            let domesticValue = domesticMatch[1];
-            if (boxOffice.toLowerCase().includes('million') || boxOffice.toLowerCase().includes('m')) {
-                domesticValue += 'M';
-            } else if (boxOffice.toLowerCase().includes('billion') || boxOffice.toLowerCase().includes('b')) {
-                domesticValue += 'B';
-            }
-            stats.push(`<div class="stat-item"><span class="stat-label">Domestic</span><span class="stat-value">$${domesticValue}</span></div>`);
-        }
-        
-        // Look for Worldwide Box Office
-        const worldwideMatch = boxOffice.match(/Worldwide[:\s]*\$?([\d.,]+)\s*(?:million|M|billion|B)?/i);
-        if (worldwideMatch) {
-            let worldwideValue = worldwideMatch[1];
-            if (boxOffice.toLowerCase().includes('million') || boxOffice.toLowerCase().includes('m')) {
-                worldwideValue += 'M';
-            } else if (boxOffice.toLowerCase().includes('billion') || boxOffice.toLowerCase().includes('b')) {
-                worldwideValue += 'B';
-            }
-            stats.push(`<div class="stat-item"><span class="stat-label">Worldwide</span><span class="stat-value">$${worldwideValue}</span></div>`);
-        }
-        
-        // Fallback: Look for any dollar amount if specific categories not found
-        if (!budgetMatch && !domesticMatch && !worldwideMatch) {
-            const generalBoxOfficeMatch = boxOffice.match(/\$?([\d.,]+)\s*(?:million|M|billion|B)/i);
-            if (generalBoxOfficeMatch) {
-                let value = generalBoxOfficeMatch[0];
-                if (!value.startsWith('$')) value = '$' + value;
-                stats.push(`<div class="stat-item"><span class="stat-label">Box Office</span><span class="stat-value">${value}</span></div>`);
-            }
-        }
-    }
-    
-    // Enhanced Critical Reception parsing
-    const criticalReception = data.get('Critical Reception');
-    if (criticalReception) {
-        // Look for Rotten Tomatoes score
-        const rtMatch = criticalReception.match(/(?:Rotten Tomatoes?|RT)[:\s]*(\d+)%/i);
-        if (rtMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">Critics (RT)</span><span class="stat-value">${rtMatch[1]}%</span></div>`);
-        }
-        
-        // Look for Metacritic score
-        const metacriticMatch = criticalReception.match(/(?:Metacritic|MC)[:\s]*(\d+)/i);
-        if (metacriticMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">Metacritic</span><span class="stat-value">${metacriticMatch[1]}/100</span></div>`);
-        }
-        
-        // Fallback: Look for any percentage if specific sources not found
-        if (!rtMatch && !metacriticMatch) {
-            const generalCriticsMatch = criticalReception.match(/(\d+)%/);
-            if (generalCriticsMatch) {
-                stats.push(`<div class="stat-item"><span class="stat-label">Critics Score</span><span class="stat-value">${generalCriticsMatch[1]}%</span></div>`);
-            }
-        }
-    }
-    
-    // Enhanced Audience Reception parsing
-    const audienceReception = data.get('Audience Reception & Reaction');
-    if (audienceReception) {
-        // Look for IMDb rating
-        const imdbMatch = audienceReception.match(/(?:IMDb|IMDB)[:\s]*(\d+(?:\.\d+)?)/i);
-        if (imdbMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">IMDb</span><span class="stat-value">${imdbMatch[1]}/10</span></div>`);
-        }
-        
-        // Look for Rotten Tomatoes audience score
-        const rtAudienceMatch = audienceReception.match(/(?:Audience|RT Audience)[:\s]*(\d+)%/i);
-        if (rtAudienceMatch) {
-            stats.push(`<div class="stat-item"><span class="stat-label">Audience (RT)</span><span class="stat-value">${rtAudienceMatch[1]}%</span></div>`);
-        }
-        
-        // Fallback: Look for any percentage or rating
-        if (!imdbMatch && !rtAudienceMatch) {
-            const generalAudienceMatch = audienceReception.match(/(\d+)%|(\d+(?:\.\d+)?)\s*\/\s*10/);
-            if (generalAudienceMatch) {
-                const score = generalAudienceMatch[1] ? `${generalAudienceMatch[1]}%` : `${generalAudienceMatch[2]}/10`;
-                stats.push(`<div class="stat-item"><span class="stat-label">Audience Score</span><span class="stat-value">${score}</span></div>`);
-            }
-        }
-    }
-    
-    return stats.join('');
+function metaItem(icon, text) {
+  return `<div class="meta-item"><span>${icon}</span><span>${escapeHtml(text)}</span></div>`;
 }
 
-function buildRecommendationTags(text, isPositive = true) {
-    if (!text) return '';
-    
-    // Split by common separators and filter out empty items
-    const tags = text.split(/[,.]/).filter(tag => tag.trim().length > 0);
-    const className = isPositive ? 'positive' : 'negative';
-    
-    return tags.map(tag => 
-        `<span class="recommendation-tag ${className}">${tag.trim()}</span>`
-    ).join('');
+// Parse raw → Map of merged headings and basics
+function parseRawReview(raw) {
+  const headings = [
+    'Name Of The Movie',
+    'Name Of The Series',
+    'Name Of The Episode',
+    'Season & Episode',
+    'Casts',
+    'Directed By',
+    'Language',
+    'Genre',
+    'Released On',
+    'Release Medium',
+    'Release Country',
+    'Plot Summary',
+    // merged blocks
+    'Story & Writing',
+    'Performances & Characters',
+    'Direction & Pacing',
+    'Visuals & Sound',
+    // reception and misc
+    'Strengths',
+    'Weaknesses',
+    'Critical Reception',
+    'Audience Reception & Reaction',
+    'Audience Reception',
+    'Box Office and Viewership',
+    'Who would like it',
+    'Who would not like it',
+    'Similar Films',
+    'Overall Verdict',
+    'Rating',
+    'Verdict in One Line',
+    'Two-Line Verdict'
+  ];
+
+  const map = new Map();
+
+  for (const h of headings) {
+    if (h === 'Audience Reception') {
+      // Only set if the extended "& Reaction" was not found
+      if (!map.has('Audience Reception & Reaction')) {
+        const v = extractSection(raw, h);
+        if (v) map.set(h, v);
+      }
+      continue;
+    }
+    const v = extractSection(raw, h);
+    if (v) map.set(h, v);
+  }
+
+  // Rating: ensure canonical field holds "X/10"
+  const ratingMatch = raw.match(/^\s*Rating:\s*(\d+(?:\.\d+)?)\s*\/\s*10\b/mi);
+  if (ratingMatch) map.set('Rating', `${ratingMatch[1]}/10`);
+
+  // Single-line verdict
+  const v1 = extractOneLineVerdict(raw);
+  if (v1) map.set('Verdict in One Line', v1);
+
+  // Two-line verdict optional
+  const v2 = extractTwoLineVerdict(raw);
+  if (v2) map.set('Two-Line Verdict', v2.join('\n'));
+
+  return map;
 }
 
-function buildReviewContent(rawReviewText, reviewMetadata = {}) {
-    const data = parseRawReview(rawReviewText);
-    const title = reviewMetadata.title || data.get('Name Of The Movie') || data.get('Name Of The Series') || 'Review';
-    const episodeName = data.get('Name Of The Episode');
-    const seasonEpisode = data.get('Season & Episode');
-    
-    // Build full title for series episodes
-    let fullTitle = title;
-    if (episodeName && seasonEpisode) {
-        fullTitle = `${title}: ${episodeName}`;
-    }
-    
-    const ratingText = data.get('Rating') || '';
-    const ratingScore = extractRatingScore(ratingText);
-    const ratingLabel = getRatingLabel(ratingScore);
-    
-    // HERO CONTENT with enhanced metadata
-    const heroHtml = `
-        <h1>${fullTitle}</h1>
-        ${seasonEpisode ? `<div class="episode-info">${seasonEpisode}</div>` : ''}
-        <div class="movie-meta">
-            ${formatMetaItems(data)}
-        </div>
-        <div class="rating-badge">
-            <div class="rating-score">${ratingScore}</div>
-            <div class="rating-details">
-                <div class="verdict-text">${data.get('Verdict in One Line') || 'See full review below'}</div>
-                <div class="rating-label">${ratingLabel}</div>
-            </div>
-        </div>
-        <div class="hero-actions">
-            <a href="{{TOGGLE_URL}}" class="control-btn">{{TOGGLE_TEXT}}</a>
-            <button id="force-refresh" class="control-btn secondary">🔄 Force New Review</button>
-        </div>
-    `;
+// Public API: build all SSR pieces the router expects
+function buildReviewContent(rawReviewText, reviewMeta = {}) {
+  const data = parseRawReview(rawReviewText);
 
-    // SIDEBAR CONTENT with enhanced stats
-    const statsHtml = buildSidebarStats(data);
-    const positiveTagsHtml = buildRecommendationTags(data.get('Who would like it'), true);
-    const negativeTagsHtml = buildRecommendationTags(data.get('Who would not like it'), false);
-    const similarFilms = data.get('Similar Films');
-    
-    const sidebarHtml = `
-        ${statsHtml ? `
-        <div class="sidebar-card">
-            <h4>🎯 Quick Stats</h4>
-            ${statsHtml}
-        </div>` : ''}
-        
-        ${positiveTagsHtml ? `
-        <div class="sidebar-card">
-            <h4>👍 Who Will Love It</h4>
-            <div class="recommendation-tags">
-                ${positiveTagsHtml}
-            </div>
-        </div>` : ''}
-        
-        ${negativeTagsHtml ? `
-        <div class="sidebar-card">
-            <h4>👎 Who Might Not</h4>
-            <div class="recommendation-tags">
-                ${negativeTagsHtml}
-            </div>
-        </div>` : ''}
-        
-        ${similarFilms ? `
-        <div class="sidebar-card">
-            <h4>🎬 Similar Films</h4>
-            <div class="similar-films-list">${similarFilms.replace(/•/g, '•<br>')}</div>
-        </div>` : ''}
-    `;
+  const posterContent = buildPosterContent(
+    reviewMeta.posterUrl,
+    reviewMeta.stillUrl,
+    reviewMeta.title
+  );
 
-    // MAIN REVIEW CARDS (for full review page) with icons
-    const mainContentSections = [
-        { key: 'Plot Summary', icon: '📖' },
-        { key: 'Storytelling', icon: '✍️' },
-        { key: 'Writing', icon: '📝' },
-        { key: 'Pacing', icon: '⚡' },
-        { key: 'Performances', icon: '🎭' },
-        { key: 'Character Development', icon: '📈' },
-        { key: 'Cinematography', icon: '📸' },
-        { key: 'Sound Design', icon: '🔊' },
-        { key: 'Music & Score', icon: '🎵' },
-        { key: 'Editing', icon: '✂️' },
-        { key: 'Direction and Vision', icon: '🎬' },
-        { key: 'Originality and Creativity', icon: '💫' },
-        { key: 'Strengths', icon: '💪' },
-        { key: 'Weaknesses', icon: '⚠️' },
-        { key: 'Critical Reception', icon: '📰' },
-        { key: 'Audience Reception & Reaction', icon: '👥' },
-        { key: 'Box Office and Viewership', icon: '💰' },
-        { key: 'Overall Verdict', icon: '🏆' }
-    ];
+  const heroContent = buildHeroContent(
+    data,
+    reviewMeta.title,
+    reviewMeta.year
+  );
 
-    const mainCardsHtml = mainContentSections
-        .filter(section => data.has(section.key))
-        .map(section => `
-            <div class="review-card">
-                <h3>
-                    <span class="icon">${section.icon}</span>
-                    ${section.key}
-                </h3>
-                <p class="review-text">${data.get(section.key)}</p>
-            </div>
-        `).join('');
+  // Per requirement, pages should only show rating + single-line verdict in hero
+  const mainReviewCards = ''; // no cards
+  const sidebarContent = ''; // no sidebar cards
 
-    return {
-        posterContent: buildPosterContent(reviewMetadata.posterUrl, reviewMetadata.stillUrl, title),
-        heroContent: heroHtml,
-        sidebarContent: sidebarHtml,
-        plotSummary: data.get('Plot Summary') || 'Plot summary not available.',
-        overallVerdict: data.get('Overall Verdict') || 'Overall verdict not available.',
-        mainReviewCards: mainCardsHtml
-    };
+  // Kept for backward replacement in quick template, but intentionally empty
+  const plotSummary = '';
+  const overallVerdict = '';
+
+  return {
+    posterContent,
+    heroContent,
+    sidebarContent,
+    mainReviewCards,
+    plotSummary,
+    overallVerdict
+  };
 }
 
 module.exports = { buildReviewContent };
