@@ -36,7 +36,20 @@ if (!generateReview) {
   throw new Error("geminiService.js does not export a callable generateReview");
 }
 
-const verifyReviewFormat = require("./core/reviewVerifier");
+// Robustly resolve verifyReviewFormat from any export shape  
+const verifierMod = require("./core/reviewVerifier");
+const verifyReviewFormat =
+  typeof verifierMod === "function"
+    ? verifierMod
+    : (verifierMod && typeof verifierMod.verifyReviewFormat === "function"
+        ? verifierMod.verifyReviewFormat
+        : (verifierMod && typeof verifierMod.default === "function"
+            ? verifierMod.default
+            : null));
+
+if (!verifyReviewFormat) {
+  throw new Error("reviewVerifier.js does not export a callable verifyReviewFormat");
+}
 
 const { buildSummaryPromptFromMetadata } = require("./config/summaryPromptBuilder");
 const { parseVerdictFromReview } = require("./core/reviewParser");
