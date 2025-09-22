@@ -49,16 +49,12 @@ async function generateReview(prompt) {
       console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
       console.log(`[Gemini] Using @google/genai SDK`);
 
-      // CORRECT usage: get model, then call model.generateContent(...)
-      const model = client.getGenerativeModel({ model: GEMINI_MODEL });
-
-      const response = await model.generateContent({
-        contents: [{
-          role: 'user',
-          parts: [{ text: prompt }]
-        }],
-        tools: [{ googleSearch: {} }],
-        generationConfig: {
+      // CORRECT usage: client.models.generateContent(...)
+      const response = await client.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
           temperature: 0.7,
           maxOutputTokens: 8192,
         }
@@ -66,9 +62,7 @@ async function generateReview(prompt) {
 
       // Extract text from response
       let text;
-      if (response?.response?.text) {
-        text = typeof response.response.text === 'function' ? response.response.text() : response.response.text;
-      } else if (response?.text) {
+      if (response?.text) {
         text = typeof response.text === 'function' ? response.text() : response.text;
       } else {
         throw new Error('No text content in response');
