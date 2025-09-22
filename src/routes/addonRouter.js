@@ -1,119 +1,141 @@
-// src/routes/addonRouter.js — Handles ALL Stremio and internal API routes.
+// src/routes/addonRouter.js
+// Handles ALL Stremio and internal API routes with robust import of the stream builder.
 
-const express = require('express');
-const path = require('path');
-const fs = require('fs').promises;
-const manifest = require('../../manifest.json');
-const { buildStreamResponse } = require('../core/stremioStreamer.js');
-const { getReview } = require('../api');
-// CHANGED: use unified storage instead of in-memory cache
-const { getAllCachedReviews } = require('../core/storage');
+const express = require("express");
+const path = require("path");
+const fs = require("fs").promises;
+
+const manifest = require("../../manifest.json");
+
+// Robustly resolve buildStreamResponse regardless of export shape (CJS default, named, or ESM default)
+let buildStreamResponse;
+(() => {
+  const mod = require("../core/stremioStreamer.js");
+  if (typeof mod === "function") {
+    buildStreamResponse = mod;
+  } else if (mod && typeof mod.buildStreamResponse === "function") {
+    buildStreamResponse = mod.buildStreamResponse;
+  } else if (mod && typeof mod.default === "function") {
+    buildStreamResponse = mod.default;
+  } else {
+    throw new Error("stremioStreamer.js does not export a callable buildStreamResponse");
+  }
+})();
+
+const getReview = require("../api"); // returns { review, verdict, summary8 }
+const { getAllCachedReviews } = require("../core/storage");
 
 const router = express.Router();
-const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
 
-const handleReviewApiRequest = async (req, res) => {
+const ADDON_PASSWORD = process.env.ADDON_PASSWORD || process.env.ADDONPASSWORD || null;
+const BASE_URL = process.env.BASE_URL || process.env.BASEURL || process.env.HF_SPACE_URL || process.env.HFSPACE_URL || null;
+
+// Helpers
+function resolveBaseUrl(req) {
+  if (BASE_URL) return BASE_URL.replace(/\/+$/, "");
+  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+  const host = req.get("x-forwarded-host") || req.get("host");
+  return `${proto}://${host}`;
+}
+
+async function handleReviewApiRequest(req, res) {
   try {
     const { type, id } = req.query;
-    const forceRefresh = req.query.force === 'true';
-    if (!type || !id) return res.status(400).json({ error: 'Missing type or id parameter.' });
-    if (type !== 'movie' && type !== 'series') return res.status(400).json({ error: 'Invalid type.' });
-    const review = await getReview(String(id).trim(), type, forceRefresh);
-    res.json(review);
+    const forceRefresh = String(req.query.force || "false").toLowerCase() === "true";
+    if (!type || !id) return res.status(400).json({ error: "Missing type or id parameter." });
+    if (type !== "movie" && type !== "series") {
+      return res.status(400).json({ error: "Invalid type. Use movie or series." });
+    }
+    const data = await getReview(String(id).trim(), String(type).trim(), forceRefresh);
+    return res.json(data);
   } catch (err) {
-    console.error('Error in /api/review route:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error in /api/review:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
-};
+}
 
-// CHANGED: make async and await storage
-const handleCachedReviewsApiRequest = async (req, res) => {
+async function handleCachedReviewsApiRequest(_req, res) {
   try {
-    const cachedItems = await getAllCachedReviews();
-    res.json(cachedItems);
+    const items = await getAllCachedReviews();
+    return res.json(items);
   } catch (err) {
-    console.error('Error in /api/cached-reviews route:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Error in /api/cached-reviews:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
-};
+}
 
-const handleReviewPageRequest = async (req, res) => {
+async function handleReviewPageRequest(req, res) {
   try {
     const { type, id } = req.query;
-    const forceRefresh = req.query.force === 'true';
-    if (!type || !id) return res.status(400).send('Missing "type" or "id" in URL query.');
-    const reviewData = await getReview(String(id).trim(), type, forceRefresh);
+    const forceRefresh = String(req.query.force || "false").toLowerCase() === "true";
+    if (!type || !id) return res.status(400).send("Missing type or id in URL query.");
+
+    const reviewData = await getReview(String(id).trim(), String(type).trim(), forceRefresh);
     const reviewHtml = reviewData ? reviewData.review : null;
-    const templatePath = path.join(__dirname, '..', '..', 'public', 'review.html');
-    let htmlTemplate = await fs.readFile(templatePath, 'utf-8');
-    htmlTemplate = htmlTemplate
-      .replace('{{LOADING_STATE}}', 'style="display: none;"')
-      .replace('{{REVIEW_CONTENT}}', reviewHtml || '<p>Review could not be loaded.</p>');
-    res.send(htmlTemplate);
-  } catch (error) {
-    console.error('SSR Error for review page:', error);
-    res.status(500).send('Error generating review page.');
-  }
-};
 
-const handleCachedReviewsPageRequest = (req, res) => {
-  res.sendFile(path.join(__dirname, '..', '..', 'public', 'cached-reviews.html'));
-};
-
-const loginAttempts = new Map();
-router.post('/api/validate-password', (req, res) => {
-  const ADDON_PASSWORD = process.env.ADDON_PASSWORD || null;
-  if (!ADDON_PASSWORD) return res.status(403).json({ error: 'Password protection is not enabled.' });
-  const ip = req.ip;
-  const { password } = req.body;
-  const now = Date.now();
-  const MAX_ATTEMPTS = 5;
-  const LOCKOUT_MS = 10 * 60 * 1000;
-  let attempts = loginAttempts.get(ip) || { count: 0, lockoutUntil: null };
-  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
-    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
-    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
+    const templatePath = path.join(__dirname, "../../public/review.html");
+    let html = await fs.readFile(templatePath, "utf-8");
+    html = html
+      .replace("LOADINGSTATE", "style=\"display: none;\"")
+      .replace("REVIEWCONTENT", reviewHtml || "<p>Review could not be loaded.</p>");
+    return res.send(html);
+  } catch (err) {
+    console.error("SSR Error for /review:", err);
+    return res.status(500).send("Error generating review page.");
   }
-  if (password === ADDON_PASSWORD) {
-    loginAttempts.delete(ip);
-    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const base = process.env.BASE_URL || (host ? `${proto}://${host}` : '');
-    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${ADDON_PASSWORD}/manifest.json`;
-    const cacheUrl = `/${ADDON_PASSWORD}/cached-reviews`;
-    return res.json({ manifestStremioUrl, cacheUrl });
-  }
-  attempts.count++;
-  if (attempts.count >= MAX_ATTEMPTS) attempts.lockoutUntil = now + LOCKOUT_MS;
-  loginAttempts.set(ip, attempts);
-  const remaining = MAX_ATTEMPTS - attempts.count;
-  return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
-});
+}
 
+function handleCachedReviewsPageRequest(_req, res) {
+  return res.sendFile(path.join(__dirname, "../../public/cached-reviews.html"));
+}
+
+// Route registration
 if (ADDON_PASSWORD) {
+  console.log("Addon is SECURED. All functional routes are password-protected.");
   const secretPath = `/${ADDON_PASSWORD}`;
-  console.log('Addon is SECURED. All functional routes are password-protected.');
-  router.get(`${secretPath}/manifest.json`, (req, res) => res.json(manifest));
-  router.get(`${secretPath}/stream/:type/:id.json`, (req, res) => buildStreamResponse(req).then(data => res.json(data)));
+
+  // Functional routes under secret path
+  router.get(`${secretPath}/manifest.json`, (_req, res) => res.json(manifest));
+  router.get(`${secretPath}/stream/:type/:id.json`, async (req, res) => {
+    try {
+      const data = await buildStreamResponse(req);
+      res.json(data);
+    } catch (err) {
+      console.error("Error in /stream:", err);
+      res.json({ streams: [] });
+    }
+  });
   router.get(`${secretPath}/review`, handleReviewPageRequest);
   router.get(`${secretPath}/cached-reviews`, handleCachedReviewsPageRequest);
   router.get(`${secretPath}/api/review`, handleReviewApiRequest);
   router.get(`${secretPath}/api/cached-reviews`, handleCachedReviewsApiRequest);
-  const forbiddenHandler = (req, res) => res.status(403).send('You are not authorized. Contact the administrator.');
-  router.get('/manifest.json', forbiddenHandler);
-  router.get('/stream/:type/:id.json', forbiddenHandler);
-  router.get('/review', forbiddenHandler);
-  router.get('/cached-reviews', forbiddenHandler);
-  router.get('/api/review', forbiddenHandler);
-  router.get('/api/cached-reviews', forbiddenHandler);
+
+  // Public routes blocked
+  const forbidden = (_req, res) => res.status(403).send("You are not authorized. Contact the administrator.");
+  router.get("/manifest.json", forbidden);
+  router.get("/stream/:type/:id.json", forbidden);
+  router.get("/review", forbidden);
+  router.get("/cached-reviews", forbidden);
+  router.get("/api/review", forbidden);
+  router.get("/api/cached-reviews", forbidden);
 } else {
-  console.log('Addon is UNSECURED.');
-  router.get('/manifest.json', (req, res) => res.json(manifest));
-  router.get('/stream/:type/:id.json', (req, res) => buildStreamResponse(req).then(data => res.json(data)));
-  router.get('/review', handleReviewPageRequest);
-  router.get('/cached-reviews', handleCachedReviewsPageRequest);
-  router.get('/api/review', handleReviewApiRequest);
-  router.get('/api/cached-reviews', handleCachedReviewsApiRequest);
+  console.log("Addon is UNSECURED. Public routes are enabled.");
+
+  // Public functional routes
+  router.get("/manifest.json", (_req, res) => res.json(manifest));
+  router.get("/stream/:type/:id.json", async (req, res) => {
+    try {
+      const data = await buildStreamResponse(req);
+      res.json(data);
+    } catch (err) {
+      console.error("Error in /stream:", err);
+      res.json({ streams: [] });
+    }
+  });
+  router.get("/review", handleReviewPageRequest);
+  router.get("/cached-reviews", handleCachedReviewsPageRequest);
+  router.get("/api/review", handleReviewApiRequest);
+  router.get("/api/cached-reviews", handleCachedReviewsApiRequest);
 }
 
 module.exports = router;
