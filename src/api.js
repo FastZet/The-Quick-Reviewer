@@ -36,9 +36,10 @@ if (!generateReview) {
   throw new Error("geminiService.js does not export a callable generateReview");
 }
 
+const verifyReviewFormat = require("./core/reviewVerifier");
+
 const { buildSummaryPromptFromMetadata } = require("./config/summaryPromptBuilder");
 const { parseVerdictFromReview } = require("./core/reviewParser");
-const verifyReviewFormat = require("./core/reviewVerifier");
 
 const pendingReviews = new Map();
 const MAX_GENERATION_ATTEMPTS = 2;
