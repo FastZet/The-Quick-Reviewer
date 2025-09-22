@@ -3,7 +3,7 @@
 
 const { readReview, saveReview } = require("./core/storage");
 const scrapeImdbForEpisodeTitle = require("./core/scraper");
-const enforceReviewStructure = require("./core/formatEnforcer");
+const { enforceReviewStructure } = require("./core/formatEnforcer");
 const { fetchMovieSeriesMetadata, fetchEpisodeMetadata } = require("./services/metadataService");
 
 // Robustly resolve buildPromptFromMetadata from any export shape
