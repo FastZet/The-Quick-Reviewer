@@ -21,8 +21,22 @@ if (!buildPromptFromMetadata) {
   throw new Error("promptBuilder.js does not export a callable buildPromptFromMetadata");
 }
 
+// Robustly resolve generateReview from any export shape
+const genMod = require("./services/geminiService");
+const generateReview =
+  typeof genMod === "function"
+    ? genMod
+    : (genMod && typeof genMod.generateReview === "function"
+        ? genMod.generateReview
+        : (genMod && typeof genMod.default === "function"
+            ? genMod.default
+            : null));
+
+if (!generateReview) {
+  throw new Error("geminiService.js does not export a callable generateReview");
+}
+
 const { buildSummaryPromptFromMetadata } = require("./config/summaryPromptBuilder");
-const generateReview = require("./services/geminiService");
 const { parseVerdictFromReview } = require("./core/reviewParser");
 const verifyReviewFormat = require("./core/reviewVerifier");
 
@@ -54,6 +68,7 @@ async function getReview(id, type, forceRefresh = false) {
   console.log("API New Request Start");
   console.log("API Received request for type:", type, "id:", id, "forceRefresh:", forceRefresh);
 
+  // Serve cached if available and not forced
   if (!forceRefresh) {
     const cached = await readReview(id).catch(() => null);
     if (cached) {
@@ -65,6 +80,7 @@ async function getReview(id, type, forceRefresh = false) {
     }
   }
 
+  // Deduplicate concurrent generation
   if (pendingReviews.has(id)) {
     console.log("API Generation for", id, "is already in progress. Awaiting result...");
     return await pendingReviews.get(id);
@@ -83,6 +99,7 @@ async function getReview(id, type, forceRefresh = false) {
       for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt++) {
         console.log(`API Generation attempt ${attempt}/${MAX_GENERATION_ATTEMPTS} for ${id}...`);
 
+        // Episode handling
         const idParts = String(id).split(":");
         const isEpisode = type === "series" && idParts.length === 3;
         const isSeries = type === "series" && !isEpisode;
@@ -93,6 +110,7 @@ async function getReview(id, type, forceRefresh = false) {
           const episode = episodeRaw?.replace(/^E/i, "");
           console.log("API Handling episode", seriesImdbId, `S${season}E${episode}`);
 
+          // In parallel: IMDb scrape for episode title + episode metadata + parent series metadata
           const [scrapedEpisodeTitle, episodeMetadata, seriesMetadata] = await Promise.all([
             scrapeImdbForEpisodeTitle(seriesImdbId, season, episode).catch(() => null),
             fetchEpisodeMetadata(seriesImdbId, season, episode).catch(() => null),
@@ -118,6 +136,7 @@ async function getReview(id, type, forceRefresh = false) {
               scrapedEpisodeTitle
             );
           } else if (metadata) {
+            // Fallback if parent series metadata failed
             prompt = buildPromptFromMetadata(metadata, type, null, scrapedEpisodeTitle);
             summaryPrompt = buildSummaryPromptFromMetadata(
               metadata,
@@ -127,6 +146,7 @@ async function getReview(id, type, forceRefresh = false) {
             );
           }
         } else {
+          // Movie or whole-series flow
           metadata = await fetchMovieSeriesMetadata(type, id).catch(() => null);
           if (metadata) {
             prompt = buildPromptFromMetadata(metadata, type);
@@ -139,6 +159,7 @@ async function getReview(id, type, forceRefresh = false) {
           continue;
         }
 
+        // Run both generations in parallel
         const [reviewOut, summaryOut] = await Promise.all([
           generateReview(prompt).catch(err => {
             console.warn("API review generation failed on attempt", attempt, err?.message);
@@ -153,6 +174,7 @@ async function getReview(id, type, forceRefresh = false) {
         rawReview = reviewOut;
         rawSummary = summaryOut;
 
+        // Validate review format (summary is format-free with its own enforcement)
         isValid = !!rawReview && verifyReviewFormat(rawReview, type);
         if (isValid) {
           console.log("API Review for", id, "passed verification on attempt", attempt, ".");
@@ -179,8 +201,11 @@ async function getReview(id, type, forceRefresh = false) {
         throw new Error("AI failed to generate a review with the correct format.");
       }
 
+      // Build HTML, parse verdict
       const finalReviewHtml = enforceReviewStructure(rawReview);
       const verdict = parseVerdictFromReview(rawReview);
+
+      // Enforce exactly 8 lines for summary; if it fails, keep null so the caller may skip the stream
       const summary8 = normalizeEightBullets(rawSummary);
 
       const result = {
@@ -189,6 +214,7 @@ async function getReview(id, type, forceRefresh = false) {
         summary8: summary8 || null,
       };
 
+      // Persist
       await saveReview(id, result, type).catch(() => null);
       console.log("API Request End Success");
       return result;
