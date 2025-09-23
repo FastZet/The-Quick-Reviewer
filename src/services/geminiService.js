@@ -1,4 +1,4 @@
-// src/services/geminiService.js — Manages a pool of @google/genai clients from a single, comma-separated ENV var.
+// src/services/geminiService.js — Manages a pool of @google/genai clients with the correct, modern API syntax.
 
 const { GoogleGenAI } = require('@google/genai');
 
@@ -17,9 +17,9 @@ const allKeys = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '')
 if (allKeys.length > 0) {
   allKeys.forEach((key, index) => {
     try {
-      // Corrected: The constructor takes the key directly as a string.
-      const client = new GoogleGenAI(key);
-      clients.push(client);
+      // Correct constructor for @google/genai
+      const genAI = new GoogleGenAI(key);
+      clients.push(genAI);
       console.log(`[Gemini] Client #${index + 1} initialized successfully.`);
     } catch (error) {
       console.error(`[Gemini] Failed to initialize client #${index + 1}:`, error);
@@ -30,6 +30,7 @@ if (allKeys.length > 0) {
 }
 
 let clientIndex = 0;
+// Round-robin function to get the next available client
 function getClient() {
   if (clients.length === 0) return null;
   const client = clients[clientIndex];
@@ -41,19 +42,21 @@ function getClient() {
 
 function shouldRetry(err, attempt) {
   const status = err?.status ?? 0;
+  // Do not retry on 4xx errors (like quota exhausted), only on server-side 5xx errors.
   return (status >= 500 && status < 600) && attempt < MAX_RETRIES;
 }
 
 /**
- * generateReview now uses the correct API call syntax.
+ * generateReview now uses the correct API call syntax for @google/genai.
  * @param {string} prompt The prompt to send to the AI.
  * @returns {Promise<string|null>} The generated text or null on failure.
  */
 async function generateReview(prompt) {
-  const client = getClient();
-  const clientNum = clients.indexOf(client) + 1;
+  // Each call gets the next client from the pool.
+  const genAI = getClient();
+  const clientNum = clients.indexOf(genAI) + 1;
 
-  if (!client) {
+  if (!genAI) {
     console.error('[Gemini] Generation failed: No valid AI clients are available.');
     return null;
   }
@@ -63,15 +66,15 @@ async function generateReview(prompt) {
     try {
       console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt} using client #${clientNum}`);
       
-      // --- START: CORRECTED API CALL ---
-      // This is the correct method based on the user's original working code and latest SDK practices.
-      const model = client.getGenerativeModel({ 
+      // --- START: DEFINITIVE CORRECT API CALL for @google/genai ---
+      const model = genAI.getGenerativeModel({ 
         model: GEMINI_MODEL,
-        tools: [{ googleSearch: {} }], // Re-enable Google Search grounding
+        tools: [{ googleSearch: {} }],
       });
       const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      // --- END: CORRECTED API CALL ---
+      const response = result.response;
+      const text = response.text();
+      // --- END: DEFINITIVE CORRECT API CALL ---
       
       if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
@@ -81,10 +84,8 @@ async function generateReview(prompt) {
       return text.trim();
 
     } catch (err) {
-      console.error(`[Gemini] Error on attempt ${attempt} (using client #${clientNum}):`, {
-        message: err?.message,
-        status: err?.status,
-      });
+      // Log the actual error object for better debugging.
+      console.error(`[Gemini] Error on attempt ${attempt} (using client #${clientNum}):`, err);
 
       if (!shouldRetry(err, attempt)) {
         console.error(`[Gemini] Permanent failure after ${attempt} attempts.`);
