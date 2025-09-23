@@ -1,100 +1,94 @@
-// src/services/geminiService.js — @google/genai with CORRECT current API
+// src/services/geminiService.js — Manages a pool of @google/genai clients from a single, comma-separated ENV var.
 
 const { GoogleGenAI } = require('@google/genai');
 
 const MAX_RETRIES = 2;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let _aiClient = null;
+// --- CLIENT INITIALIZATION FROM A SINGLE, COMMA-SEPARATED ENV VAR ---
+const clients = [];
+const allKeys = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '')
+  .split(',')
+  .map(key => key.trim())
+  .filter(Boolean); // Removes any empty strings from trailing commas, etc.
 
-/**
- * Initialize GoogleGenAI client with proper error handling
- */
-function getGenAIClient() {
-  if (!_aiClient) {
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
-    }
+if (allKeys.length > 0) {
+  allKeys.forEach((key, index) => {
     try {
-      _aiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-      console.log('[Gemini] Client initialized successfully');
+      const client = new GoogleGenAI(key);
+      clients.push(client);
+      console.log(`[Gemini] Client #${index + 1} initialized successfully.`);
     } catch (error) {
-      console.error('[Gemini] Failed to initialize client:', error);
-      throw new Error(`Failed to initialize GoogleGenAI client: ${error.message}`);
+      console.error(`[Gemini] Failed to initialize client #${index + 1}:`, error);
     }
-  }
-  return _aiClient;
+  });
+} else {
+  console.warn('[Gemini] Warning: GEMINI_API_KEY is not set. The addon will not function.');
 }
+
+let clientIndex = 0;
+// --- Round-robin function to get the next available client ---
+function getClient() {
+  if (clients.length === 0) return null;
+  const client = clients[clientIndex];
+  // Increment index for the next call, wrapping around if needed
+  clientIndex = (clientIndex + 1) % clients.length;
+  return client;
+}
+// --- END CLIENT INITIALIZATION ---
+
 
 function shouldRetry(err, attempt) {
   const status = err?.status ?? 0;
-  return (status === 429 || (status >= 500 && status < 600)) && attempt < MAX_RETRIES;
+  // Gemini free tier 429 errors are not retryable in the short term, so we don't retry on those.
+  return (status >= 500 && status < 600) && attempt < MAX_RETRIES;
 }
 
 /**
- * Generate a review with Gemini using the CURRENT @google/genai API
+ * CHANGED: generateReview no longer needs a client passed to it.
+ * It automatically gets the next available client from the internal pool.
+ * @param {string} prompt The prompt to send to the AI.
+ * @returns {Promise<string|null>} The generated text or null on failure.
  */
 async function generateReview(prompt) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
+  const client = getClient();
+  const clientNum = clients.indexOf(client) + 1;
+
+  if (!client) {
+    console.error('[Gemini] Generation failed: No valid AI clients are available.');
+    return null;
   }
 
   let attempt = 0;
   while (++attempt <= MAX_RETRIES) {
     try {
-      const client = getGenAIClient();
-      console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
-      console.log(`[Gemini] Using @google/genai SDK`);
-
-      // CORRECT usage: client.models.generateContent(...)
-      const response = await client.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-          temperature: 0.7,
-          maxOutputTokens: 8192,
-        }
-      });
-
-      // Extract text from response
-      let text;
-      if (response?.text) {
-        text = typeof response.text === 'function' ? response.text() : response.text;
-      } else {
-        throw new Error('No text content in response');
-      }
-
+      console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt} using client #${clientNum}`);
+      const model = client.getGenerativeModel({ model: GEMINI_MODEL });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      
       if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
       }
 
-      console.log(`[Gemini] Generation completed successfully`);
-      console.log(`[Gemini] - Model: ${GEMINI_MODEL}`);
-      console.log(`[Gemini] - Response length: ${text.length} characters`);
-      console.log(`[Gemini] ✅ Generation successful`);
-
+      console.log(`[Gemini] ✅ Generation successful using client #${clientNum}.`);
       return text.trim();
 
     } catch (err) {
-      console.error(`[Gemini] Error on attempt ${attempt}:`, {
+      console.error(`[Gemini] Error on attempt ${attempt} (using client #${clientNum}):`, {
         message: err?.message,
         status: err?.status,
-        code: err?.code,
-        name: err?.name,
-        stack: err?.stack ? err.stack.split('\n').slice(0, 3).join('\n') : 'No stack trace'
       });
 
       if (!shouldRetry(err, attempt)) {
-        console.error(`[Gemini] Permanent failure after ${attempt} attempts`);
-        throw new Error(`Error generating review after all retries: ${err?.message || 'Unknown error'}`);
+        console.error(`[Gemini] Permanent failure after ${attempt} attempts.`);
+        break; 
       }
 
       const backoff = 250 * Math.pow(2, attempt - 1);
-      console.warn(`[Gemini] Retryable error on attempt ${attempt}; retrying in ${backoff}ms...`);
+      console.warn(`[Gemini] Retryable error; retrying in ${backoff}ms...`);
       await delay(backoff);
     }
   }
@@ -102,4 +96,5 @@ async function generateReview(prompt) {
   throw new Error("Failed generating review after maximum retries.");
 }
 
+// Export only the unified generation function
 module.exports = { generateReview };
