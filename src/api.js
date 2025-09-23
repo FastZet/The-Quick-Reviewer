@@ -244,4 +244,4 @@ async function getReview(id, type, forceRefresh = false) {
   return await generationPromise;
 }
 
-module.exports = getReview;
+module.exports = { getReview };
