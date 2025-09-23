@@ -5,7 +5,6 @@ const path = require('path');
 const fs = require('fs').promises;
 const { version } = require('./package.json');
 const addonRouter = require('./src/routes/addonRouter.js');
-const apiRouter = require('./src/routes/apiRouter.js');
 
 // Unified storage (DB or in-memory fallback)
 const {
@@ -66,7 +65,7 @@ app.get('/', async (req, res) => {
             statusEl.textContent = 'Verifying...';
             statusEl.className = '';
             try {
-              const response = await fetch('/${ADDON_PASSWORD}/api/validate-password', {
+              const response = await fetch('/api/validate-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
@@ -112,8 +111,62 @@ app.get('/', async (req, res) => {
 // Serve static public files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Mounting API and Addon Routers
-app.use('/api', apiRouter);
+// --- Password Validation Endpoint ---
+// This logic is placed here to ensure the /api/validate-password route is always available
+// for the landing page, avoiding conflicts with the addonRouter.
+const loginAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const ATTEMPT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+app.post('/api/validate-password', (req, res) => {
+  if (!ADDON_PASSWORD) {
+    return res.status(403).json({ error: 'Password protection is not enabled.' });
+  }
+
+  const ip = req.ip;
+  const { password } = req.body;
+  const now = Date.now();
+  let attempts = loginAttempts.get(ip) || { count: 0, firstAttemptTime: now, lockoutUntil: null };
+
+  if (attempts.lockoutUntil && now < attempts.lockoutUntil) {
+    const remainingLockout = Math.ceil((attempts.lockoutUntil - now) / 60000);
+    return res.status(429).json({ error: `Too many failed attempts. Please try again in ${remainingLockout} minutes.` });
+  }
+
+  if (password === ADDON_PASSWORD) {
+    loginAttempts.delete(ip);
+    const BASE_URL = process.env.BASE_URL || process.env.HF_SPACE_URL || null;
+    const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const base = BASE_URL || (host ? `${proto}://${host}` : '');
+
+    const manifestStremioUrl = `stremio://${base.replace(/^https?:\/\//, '')}/${ADDON_PASSWORD}/manifest.json`;
+    const cacheUrl = `/${ADDON_PASSWORD}/cached-reviews`;
+
+    return res.json({ manifestStremioUrl, cacheUrl });
+  }
+
+  // Incorrect password logic
+  if (now - attempts.firstAttemptTime > ATTEMPT_WINDOW_MS) {
+    attempts = { count: 1, firstAttemptTime: now, lockoutUntil: null };
+  } else {
+    attempts.count++;
+  }
+
+  if (attempts.count >= MAX_ATTEMPTS) {
+    attempts.lockoutUntil = now + LOCKOUT_MS;
+    loginAttempts.set(ip, attempts);
+    return res.status(429).json({ error: 'Too many failed attempts. You are locked out for 10 minutes.' });
+  } else {
+    loginAttempts.set(ip, attempts);
+    const remaining = MAX_ATTEMPTS - attempts.count;
+    return res.status(401).json({ error: `Incorrect password. You have ${remaining} ${remaining === 1 ? 'attempt' : 'attempts'} remaining.` });
+  }
+});
+
+
+// Mounting Main Router
 app.use('/', addonRouter);
 
 // --- Health Check ---
