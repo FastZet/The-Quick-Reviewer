@@ -3,81 +3,73 @@
 
 const { GoogleGenAI } = require('@google/genai');
 
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim();
-const MAX_RETRIES = 2;
+const MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim();
+const MAX_ATTEMPTS = 2;
+const INITIAL_BACKOFF_MS = 250;
 
-// Parse keys: support comma- or space-separated lists in GEMINI_API_KEY (preferred) or GOOGLE_API_KEY (fallback)
-function parseKeys() {
-  const primary = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim();
-  const fallback = !primary && process.env.GOOGLE_API_KEY && process.env.GOOGLE_API_KEY.trim();
-  const raw = primary || fallback || '';
-  const parts = raw.split(/[\s,]+/).map(s => s.trim()).filter(Boolean);
-  return parts;
+// Require exactly two distinct keys; no fallbacks or combined strings
+const KEY_ALPHA = (process.env.GEMINI_API_KEY_ALPHA || '').trim();
+const KEY_BETA  = (process.env.GEMINI_API_KEY_BETA  || '').trim();
+
+if (!KEY_ALPHA || !KEY_BETA) {
+  // Defer throwing until first call so the server can still boot and serve static/health
+  console.warn('[Gemini] Missing GEMINI_API_KEY_ALPHA and/or GEMINI_API_KEY_BETA. Generation will fail until both are set.');
 }
 
-const KEYS = parseKeys();
-if (!KEYS.length) {
-  // Defer throwing until first call so the app can start and expose health/static routes
-  console.warn('[Gemini] No API key found in GEMINI_API_KEY/GOOGLE_API_KEY (Google AI Studio key required).');
-}
-
-// Jittered backoff
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// Client pool (one per key)
-const clients = [];
-for (let i = 0; i < KEYS.length; i++) {
+// Build a fixed client pool in the provided order (Alpha, then Beta)
+const CLIENTS = [];
+if (KEY_ALPHA) {
   try {
-    clients[i] = new GoogleGenAI({ apiKey: KEYS[i] });
-    console.log(`[Gemini] Client #${i + 1} initialized successfully.`);
+    CLIENTS.push(new GoogleGenAI({ apiKey: KEY_ALPHA }));
+    console.log('[Gemini] Client #1 initialized successfully.');
   } catch (e) {
-    console.error(`[Gemini] Failed to init client #${i + 1}: ${e?.message || e}`);
+    console.error('[Gemini] Failed to init Client #1 (ALPHA):', e?.message || e);
+  }
+}
+if (KEY_BETA) {
+  try {
+    CLIENTS.push(new GoogleGenAI({ apiKey: KEY_BETA }));
+    console.log('[Gemini] Client #2 initialized successfully.');
+  } catch (e) {
+    console.error('[Gemini] Failed to init Client #2 (BETA):', e?.message || e);
   }
 }
 
-// Round-robin index
+// Global round-robin pointer so concurrent calls (review + summary) split across keys
 let rr = 0;
-function pickClientIndex() {
-  if (!clients.length) throw new Error('Gemini API key missing. Set GEMINI_API_KEY or GOOGLE_API_KEY.');
-  const idx = rr % clients.length;
+function nextIndex() {
+  const idx = rr % CLIENTS.length;
   rr = (rr + 1) % Number.MAX_SAFE_INTEGER;
   return idx;
 }
 
-function shouldRetry(err, attempt) {
-  // Retry only on 429 or 5xx
-  const code = Number(err?.status || err?.error?.code || 0);
-  return (code === 429 || (code >= 500 && code < 600)) && attempt < MAX_RETRIES;
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function isKeyInvalid(err) {
+function isRetryable(err) {
   const code = Number(err?.status || err?.error?.code || 0);
-  const msg = (err?.error?.message || err?.message || '').toLowerCase();
-  const reason =
-    Array.isArray(err?.error?.details)
-      ? (err.error.details.find(d => d?.reason)?.reason || '').toLowerCase()
-      : '';
-  return code === 400 && (msg.includes('api key not valid') || reason.includes('api_key_invalid'));
+  return code === 429 || (code >= 500 && code < 600);
 }
 
 function coerceText(res) {
   if (!res) return null;
   try {
+    // SDK exposes a .text accessor; support both property and callable styles
     return typeof res.text === 'function' ? res.text() : res.text || null;
   } catch {
     return null;
   }
 }
 
-async function generateOnce(prompt, model, clientIndex, attempt) {
-  const ai = clients[clientIndex];
-  if (!ai) throw new Error('Gemini client not initialized');
+async function callWithClient(prompt, clientIndex, attempt) {
+  const client = CLIENTS[clientIndex];
+  if (!client) throw new Error('Gemini clients are not initialized.');
 
-  console.log(`[Gemini] Starting generation with model: ${model}, attempt: ${attempt} using client #${clientIndex + 1}`);
+  console.log(`[Gemini] Starting generation with model: ${MODEL}, attempt: ${attempt} using client #${clientIndex + 1}`);
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
+  // Use the current Google GenAI API: models.generateContent with string input
+  const response = await client.models.generateContent({
+    model: MODEL,
+    input: prompt,
     config: {
       temperature: 0.7,
       maxOutputTokens: 8192,
@@ -91,57 +83,46 @@ async function generateOnce(prompt, model, clientIndex, attempt) {
   return String(text).trim();
 }
 
-/**
- * Public API: generate raw text for a review/summary.
- * - Rotates across all configured keys for each attempt.
- * - Skips keys that return API_KEY_INVALID for the duration of the process.
- */
 async function generateReview(prompt) {
-  if (!clients.length) {
-    throw new Error('Gemini API key missing. Set GEMINI_API_KEY or GOOGLE_API_KEY (Google AI Studio key).');
+  if (CLIENTS.length !== 2) {
+    throw new Error('Both GEMINI_API_KEY_ALPHA and GEMINI_API_KEY_BETA must be set to use generation.');
   }
 
-  const model = GEMINI_MODEL;
   let lastErr = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // For each attempt, prefer a different starting key via round-robin
+    const first = nextIndex();
+    const second = (first + 1) % CLIENTS.length;
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    // Try up to N clients this attempt
-    const tried = new Set();
-    for (let tries = 0; tries < clients.length; tries++) {
-      const idx = pickClientIndex();
-      if (tried.has(idx)) continue;
-      tried.add(idx);
+    // Try first chosen key
+    try {
+      const out = await callWithClient(prompt, first, attempt);
+      console.log('[Gemini] Generation completed successfully.');
+      return out;
+    } catch (err1) {
+      console.error(`[Gemini] Error on attempt ${attempt} (using client #${first + 1}):`, typeof err1 === 'string' ? err1 : JSON.stringify(err1, null, 2));
+      console.error('[Gemini] Permanent failure after 1 attempts.');
+      lastErr = err1;
 
-      try {
-        const out = await generateOnce(prompt, model, idx, attempt);
-        console.log('[Gemini] Generation completed successfully.');
-        return out;
-      } catch (err) {
-        // If this key is invalid, remove it from rotation
-        if (isKeyInvalid(err)) {
-          console.error(`[Gemini] Key for client #${idx + 1} is invalid; removing from pool.`);
-          clients.splice(idx, 1);
-          // Adjust round-robin pointer after removal
-          rr = rr % Math.max(clients.length, 1);
-          if (!clients.length) {
-            throw new Error('All provided Gemini API keys are invalid.');
-          }
-        } else {
-          console.error(
-            `[Gemini] Error on attempt ${attempt} (using client #${idx + 1}):`,
-            typeof err === 'string' ? err : JSON.stringify(err, null, 2)
-          );
+      // If retryable, immediately try the other key in the same attempt
+      if (isRetryable(err1)) {
+        try {
+          const out = await callWithClient(prompt, second, attempt);
+          console.log('[Gemini] Generation completed successfully (fallback key).');
+          return out;
+        } catch (err2) {
+          console.error(`[Gemini] Error on attempt ${attempt} (using client #${second + 1}):`, typeof err2 === 'string' ? err2 : JSON.stringify(err2, null, 2));
           console.error('[Gemini] Permanent failure after 1 attempts.');
-          lastErr = err;
+          lastErr = err2;
         }
       }
     }
 
-    if (shouldRetry(lastErr, attempt)) {
-      const backoff = 250 * Math.pow(2, attempt - 1);
+    // Backoff between attempts if we will retry
+    if (attempt < MAX_ATTEMPTS && isRetryable(lastErr)) {
+      const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
       console.warn(`[Gemini] Retryable error on attempt ${attempt}; retrying in ${backoff}ms...`);
-      await delay(backoff);
-      continue;
+      await sleep(backoff);
     } else {
       break;
     }
