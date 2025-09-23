@@ -12,11 +12,12 @@ const clients = [];
 const allKeys = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '')
   .split(',')
   .map(key => key.trim())
-  .filter(Boolean); // Removes any empty strings from trailing commas, etc.
+  .filter(Boolean);
 
 if (allKeys.length > 0) {
   allKeys.forEach((key, index) => {
     try {
+      // Corrected: The constructor takes the key directly as a string.
       const client = new GoogleGenAI(key);
       clients.push(client);
       console.log(`[Gemini] Client #${index + 1} initialized successfully.`);
@@ -29,11 +30,9 @@ if (allKeys.length > 0) {
 }
 
 let clientIndex = 0;
-// --- Round-robin function to get the next available client ---
 function getClient() {
   if (clients.length === 0) return null;
   const client = clients[clientIndex];
-  // Increment index for the next call, wrapping around if needed
   clientIndex = (clientIndex + 1) % clients.length;
   return client;
 }
@@ -42,13 +41,11 @@ function getClient() {
 
 function shouldRetry(err, attempt) {
   const status = err?.status ?? 0;
-  // Gemini free tier 429 errors are not retryable in the short term, so we don't retry on those.
   return (status >= 500 && status < 600) && attempt < MAX_RETRIES;
 }
 
 /**
- * CHANGED: generateReview no longer needs a client passed to it.
- * It automatically gets the next available client from the internal pool.
+ * generateReview now uses the correct API call syntax.
  * @param {string} prompt The prompt to send to the AI.
  * @returns {Promise<string|null>} The generated text or null on failure.
  */
@@ -65,9 +62,16 @@ async function generateReview(prompt) {
   while (++attempt <= MAX_RETRIES) {
     try {
       console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt} using client #${clientNum}`);
-      const model = client.getGenerativeModel({ model: GEMINI_MODEL });
+      
+      // --- START: CORRECTED API CALL ---
+      // This is the correct method based on the user's original working code and latest SDK practices.
+      const model = client.getGenerativeModel({ 
+        model: GEMINI_MODEL,
+        tools: [{ googleSearch: {} }], // Re-enable Google Search grounding
+      });
       const result = await model.generateContent(prompt);
       const text = result.response.text();
+      // --- END: CORRECTED API CALL ---
       
       if (!text || text.trim().length === 0) {
         throw new Error('Empty response from Gemini');
@@ -96,5 +100,4 @@ async function generateReview(prompt) {
   throw new Error("Failed generating review after maximum retries.");
 }
 
-// Export only the unified generation function
 module.exports = { generateReview };
