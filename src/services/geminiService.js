@@ -1,122 +1,134 @@
-// src/services/geminiService.js — @google/genai with CORRECT current API
+// src/services/geminiService.js
+'use strict';
 
 const { GoogleGenAI } = require('@google/genai');
 
-const MAX_RETRIES = 2;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
+const MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim();
+const MAX_ATTEMPTS = 2;
+const INITIAL_BACKOFF_MS = 250;
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Require exactly two distinct keys; no fallbacks or combined strings
+const KEY_ALPHA = (process.env.GEMINI_API_KEY_ALPHA || '').trim();
+const KEY_BETA  = (process.env.GEMINI_API_KEY_BETA  || '').trim();
 
-let _aiClient = null;
+if (!KEY_ALPHA || !KEY_BETA) {
+  // Defer throwing until first call so the server can still boot and serve static/health
+  console.warn('[Gemini] Missing GEMINI_API_KEY_ALPHA and/or GEMINI_API_KEY_BETA. Generation will fail until both are set.');
+}
 
-/**
- * Initialize GoogleGenAI client with proper error handling
- */
-function getGenAIClient() {
-  if (!_aiClient) {
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
-    }
-    
-    try {
-      // Current @google/genai initialization pattern
-      _aiClient = new GoogleGenAI({
-        apiKey: GEMINI_API_KEY,
-      });
-      console.log('[Gemini] Client initialized successfully');
-    } catch (error) {
-      console.error('[Gemini] Failed to initialize client:', error);
-      throw new Error(`Failed to initialize GoogleGenAI client: ${error.message}`);
-    }
+// Build a fixed client pool in the provided order (Alpha, then Beta)
+const CLIENTS = [];
+if (KEY_ALPHA) {
+  try {
+    CLIENTS.push(new GoogleGenAI({ apiKey: KEY_ALPHA }));
+    console.log('[Gemini] Client #1 initialized successfully.');
+  } catch (e) {
+    console.error('[Gemini] Failed to init Client #1 (ALPHA):', e?.message || e);
   }
-  return _aiClient;
+}
+if (KEY_BETA) {
+  try {
+    CLIENTS.push(new GoogleGenAI({ apiKey: KEY_BETA }));
+    console.log('[Gemini] Client #2 initialized successfully.');
+  } catch (e) {
+    console.error('[Gemini] Failed to init Client #2 (BETA):', e?.message || e);
+  }
 }
 
-function shouldRetry(err, attempt) {
-  const status = err?.status ?? 0;
-  return (status === 429 || (status >= 500 && status < 600)) && attempt < MAX_RETRIES;
+// Global round-robin pointer so concurrent calls (review + summary) split across keys
+let rr = 0;
+function nextIndex() {
+  const idx = rr % CLIENTS.length;
+  rr = (rr + 1) % Number.MAX_SAFE_INTEGER;
+  return idx;
 }
 
-/**
- * Generate a review with Gemini using the CURRENT @google/genai API
- */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function isRetryable(err) {
+  const code = Number(err?.status || err?.error?.code || 0);
+  return code === 429 || (code >= 500 && code < 600);
+}
+
+function coerceText(res) {
+  if (!res) return null;
+  try {
+    // SDK exposes a .text accessor; support both property and callable styles
+    return typeof res.text === 'function' ? res.text() : res.text || null;
+  } catch {
+    return null;
+  }
+}
+
+async function callWithClient(prompt, clientIndex, attempt) {
+  const client = CLIENTS[clientIndex];
+  if (!client) throw new Error('Gemini clients are not initialized.');
+
+  console.log(`[Gemini] Starting generation with model: ${MODEL}, attempt: ${attempt} using client #${clientIndex + 1}`);
+
+  // Use the current Google GenAI API: models.generateContent with string input
+  const response = await client.models.generateContent({
+    model: MODEL,
+    input: prompt,
+    config: {
+      temperature: 0.7,
+      maxOutputTokens: 8192,
+    },
+  });
+
+  const text = await coerceText(response);
+  if (!text || !String(text).trim()) {
+    throw new Error('Empty response from Gemini');
+  }
+  return String(text).trim();
+}
+
 async function generateReview(prompt) {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY/GOOGLE_API_KEY is not set.");
+  if (CLIENTS.length !== 2) {
+    throw new Error('Both GEMINI_API_KEY_ALPHA and GEMINI_API_KEY_BETA must be set to use generation.');
   }
 
-  let attempt = 0;
-  while (++attempt <= MAX_RETRIES) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // For each attempt, prefer a different starting key via round-robin
+    const first = nextIndex();
+    const second = (first + 1) % CLIENTS.length;
+
+    // Try first chosen key
     try {
-      const genai = getGenAIClient();
+      const out = await callWithClient(prompt, first, attempt);
+      console.log('[Gemini] Generation completed successfully.');
+      return out;
+    } catch (err1) {
+      console.error(`[Gemini] Error on attempt ${attempt} (using client #${first + 1}):`, typeof err1 === 'string' ? err1 : JSON.stringify(err1, null, 2));
+      console.error('[Gemini] Permanent failure after 1 attempts.');
+      lastErr = err1;
 
-      console.log(`[Gemini] Starting generation with model: ${GEMINI_MODEL}, attempt: ${attempt}`);
-      console.log(`[Gemini] Using @google/genai SDK`);
-
-      // CORRECT @google/genai current API pattern
-      const response = await genai.generateContent({
-        model: GEMINI_MODEL,
-        contents: [{
-          role: 'user',
-          parts: [{ text: prompt }]
-        }],
-        tools: [{ googleSearch: {} }], // Enable Google Search grounding
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8192,
+      // If retryable, immediately try the other key in the same attempt
+      if (isRetryable(err1)) {
+        try {
+          const out = await callWithClient(prompt, second, attempt);
+          console.log('[Gemini] Generation completed successfully (fallback key).');
+          return out;
+        } catch (err2) {
+          console.error(`[Gemini] Error on attempt ${attempt} (using client #${second + 1}):`, typeof err2 === 'string' ? err2 : JSON.stringify(err2, null, 2));
+          console.error('[Gemini] Permanent failure after 1 attempts.');
+          lastErr = err2;
         }
-      });
-
-      // Extract text from response
-      let text;
-      if (response.response && response.response.text) {
-        text = typeof response.response.text === 'function' ? response.response.text() : response.response.text;
-      } else if (response.text) {
-        text = typeof response.text === 'function' ? response.text() : response.text;
-      } else {
-        throw new Error('No text content in response');
       }
+    }
 
-      if (!text || text.trim().length === 0) {
-        throw new Error('Empty response from Gemini');
-      }
-
-      // Enhanced logging
-      console.log(`[Gemini] Generation completed successfully`);
-      console.log(`[Gemini] - Model: ${GEMINI_MODEL}`);
-      console.log(`[Gemini] - Response length: ${text.length} characters`);
-      console.log(`[Gemini] ✅ Generation successful`);
-
-      return text.trim();
-      
-    } catch (err) {
-      console.error(`[Gemini] Error on attempt ${attempt}:`, {
-        message: err?.message,
-        status: err?.status,
-        code: err?.code,
-        name: err?.name,
-        stack: err?.stack ? err.stack.split('\n').slice(0, 3).join('\n') : 'No stack trace'
-      });
-
-      // Log the specific error details for debugging
-      if (err?.message?.includes('getGenerativeModel')) {
-        console.error('[Gemini] ❌ API method error - using wrong SDK method');
-        console.error('[Gemini] Available methods on client:', Object.getOwnPropertyNames(genai || {}));
-      }
-
-      if (!shouldRetry(err, attempt)) {
-        console.error(`[Gemini] Permanent failure after ${attempt} attempts`);
-        throw new Error(`Error generating review after all retries: ${err?.message || 'Unknown error'}`);
-      }
-      
-      const backoff = 250 * Math.pow(2, attempt - 1);
+    // Backoff between attempts if we will retry
+    if (attempt < MAX_ATTEMPTS && isRetryable(lastErr)) {
+      const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
       console.warn(`[Gemini] Retryable error on attempt ${attempt}; retrying in ${backoff}ms...`);
-      await delay(backoff);
+      await sleep(backoff);
+    } else {
+      break;
     }
   }
 
-  throw new Error("Failed generating review after maximum retries.");
+  throw new Error('Failed generating review after maximum retries.');
 }
 
 module.exports = { generateReview };
